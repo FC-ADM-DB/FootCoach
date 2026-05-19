@@ -753,11 +753,11 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     </div>
   </div>
 
-  <!-- MODAL : Nouveau joueur -->
+  <!-- MODAL : Nouveau / Modifier joueur -->
   <div class="modal-overlay" id="modal-player">
     <div class="modal">
       <div class="modal-handle"></div>
-      <div class="modal-title">Nouveau joueur</div>
+      <div class="modal-title" id="modal-player-title">Nouveau joueur</div>
       <div class="field-row">
         <div class="field-group">
           <label class="field-label">Prénom</label>
@@ -769,16 +769,19 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
         </div>
       </div>
       <div class="field-group">
-        <label class="field-label">Date de naissance</label>
+        <label class="field-label">Date de naissance <span style="color:var(--text3);font-weight:400">(optionnel)</span></label>
         <input class="field-input" id="player-dob" type="date">
       </div>
       <div class="field-group">
-        <label class="field-label">Poste habituel</label>
+        <label class="field-label">Poste habituel <span style="color:var(--text3);font-weight:400">(optionnel)</span></label>
         <div class="postes-map" id="postes-map-modal"></div>
+        <div style="margin-top:8px">
+          <button class="btn-secondary" onclick="clearPoste()" style="font-size:12px;padding:6px 12px">Aucun poste défini</button>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" onclick="closeModal('modal-player')">Annuler</button>
-        <button class="btn-primary" onclick="savePlayer()">Ajouter</button>
+        <button class="btn-primary" id="btn-save-player" onclick="savePlayer()">Ajouter</button>
       </div>
     </div>
   </div>
@@ -808,6 +811,7 @@ let players = [];
 let matchDayMode = false;
 let selectedColor = '#00d68f';
 let selectedPoste = null;
+let editingPlayerId = null;
 
 // Postes par format
 const POSTES = {
@@ -1060,6 +1064,7 @@ function renderPlayers() {
         <div class="player-poste">${p.numero_poste ? posteLabel(p.numero_poste) : 'Poste non défini'}</div>
       </div>
       ${p.numero_poste ? `<div class="player-num">${p.numero_poste}</div>` : ''}
+      <div class="btn-icon" onclick="editPlayer('${p.id}', event)" style="margin-right:4px">✎</div>
       <div class="btn-icon" onclick="deletePlayer('${p.id}', event)">✕</div>
     </div>`;
   }).join('');
@@ -1067,12 +1072,35 @@ function renderPlayers() {
 
 function openPlayerModal() {
   if (!currentTeam) return showToast('Sélectionne une équipe d\'abord', 'error');
+  editingPlayerId = null;
+  document.getElementById('modal-player-title').textContent = 'Nouveau joueur';
+  document.getElementById('btn-save-player').textContent = 'Ajouter';
   document.getElementById('player-prenom').value = '';
   document.getElementById('player-nom').value = '';
   document.getElementById('player-dob').value = '';
   selectedPoste = null;
   renderPostesMap();
   openModal('modal-player');
+}
+
+function editPlayer(id, e) {
+  e.stopPropagation();
+  const p = players.find(pl => pl.id === id);
+  if (!p) return;
+  editingPlayerId = id;
+  document.getElementById('modal-player-title').textContent = 'Modifier le joueur';
+  document.getElementById('btn-save-player').textContent = 'Enregistrer';
+  document.getElementById('player-prenom').value = p.prenom;
+  document.getElementById('player-nom').value = p.nom;
+  document.getElementById('player-dob').value = p.date_naissance || '';
+  selectedPoste = p.numero_poste || null;
+  renderPostesMap();
+  openModal('modal-player');
+}
+
+function clearPoste() {
+  selectedPoste = null;
+  renderPostesMap();
 }
 
 function renderPostesMap() {
@@ -1095,15 +1123,27 @@ async function savePlayer() {
   const nom = document.getElementById('player-nom').value.trim();
   const dob = document.getElementById('player-dob').value;
   if (!prenom || !nom) return showToast('Prénom et nom obligatoires', 'error');
-  const { error } = await sb.from('players').insert({
-    team_id: currentTeam.id,
-    prenom, nom,
-    numero_poste: selectedPoste,
-    date_naissance: dob || null
-  });
-  if (error) return showToast('Erreur lors de l\'ajout', 'error');
-  closeModal('modal-player');
-  showToast(`${prenom} ajouté !`, 'success');
+
+  if (editingPlayerId) {
+    const { error } = await sb.from('players').update({
+      prenom, nom,
+      numero_poste: selectedPoste || null,
+      date_naissance: dob || null
+    }).eq('id', editingPlayerId);
+    if (error) return showToast('Erreur lors de la modification', 'error');
+    closeModal('modal-player');
+    showToast(`${prenom} modifié !`, 'success');
+  } else {
+    const { error } = await sb.from('players').insert({
+      team_id: currentTeam.id,
+      prenom, nom,
+      numero_poste: selectedPoste || null,
+      date_naissance: dob || null
+    });
+    if (error) return showToast('Erreur lors de l\'ajout', 'error');
+    closeModal('modal-player');
+    showToast(`${prenom} ajouté !`, 'success');
+  }
   await loadPlayers();
 }
 
