@@ -662,23 +662,23 @@ async function saveScoreEdit(){
 function renderTimeline(){
   const present=players.filter(p=>MP[p.id]);
   const hS=HALF_MIN[CT?.format||'8v8']*60;
-  const W=Math.min(310,window.innerWidth-28);
-  const lW=56,rowH=26,padT=20,padB=14;
+  const W=Math.min(380,window.innerWidth-32);
+  const lW=54,rowH=24,padT=18,padB=18;
   const tW=W-lW;const svgH=padT+present.length*rowH+padB+10;
   const col=CT?.couleur||'#00d68f';const tc='#8ba4c8';const hX=lW+tW/2;
   const xOf=(s,h)=>lW+(h===2?tW/2:0)+Math.min(s,hS)/hS*(tW/2);
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${svgH}" width="100%">`;
-  svg+=`<text x="${lW+tW/4}" y="13" text-anchor="middle" font-size="10" fill="${tc}" font-family="DM Sans,sans-serif">1ère MT</text>`;
-  svg+=`<text x="${lW+3*tW/4}" y="13" text-anchor="middle" font-size="10" fill="${tc}" font-family="DM Sans,sans-serif">2ème MT</text>`;
-  svg+=`<line x1="${hX}" y1="16" x2="${hX}" y2="${svgH-padB}" stroke="rgba(255,255,255,0.08)" stroke-width="1.5" stroke-dasharray="4,3"/>`;
-  [15,30].forEach(m=>[1,2].forEach(h=>{const x=xOf(m*60,h);svg+=`<line x1="${x}" y1="15" x2="${x}" y2="${svgH-padB}" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>`;svg+=`<text x="${x}" y="${svgH-1}" text-anchor="middle" font-size="9" fill="${tc}">${m}'</text>`;}));
+  svg+=`<text x="${lW+tW/4}" y="14" text-anchor="middle" font-size="9" fill="${tc}" font-family="DM Sans,sans-serif">1ère MT</text>`;
+  svg+=`<text x="${lW+3*tW/4}" y="14" text-anchor="middle" font-size="9" fill="${tc}" font-family="DM Sans,sans-serif">2ème MT</text>`;
+  svg+=`<line x1="${hX}" y1="17" x2="${hX}" y2="${svgH-padB}" stroke="rgba(255,255,255,0.08)" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  [15,30].forEach(m=>[1,2].forEach(h=>{const x=xOf(m*60,h);svg+=`<line x1="${x}" y1="16" x2="${x}" y2="${svgH-padB}" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>`;svg+=`<text x="${x}" y="${svgH-2}" text-anchor="middle" font-size="8" fill="${tc}">${m}'</text>`;}));
   present.forEach((p,i)=>{
     const y=padT+i*rowH;const cy=y+rowH/2;const mp=MP[p.id];
-    svg+=`<text x="${lW-3}" y="${cy+4}" text-anchor="end" font-size="11" fill="${tc}" font-family="DM Sans,sans-serif">${p.prenom.slice(0,6)}</text>`;
-    svg+=`<rect x="${lW}" y="${y+3}" width="${tW}" height="${rowH-6}" rx="3" fill="rgba(255,255,255,0.02)"/>`;
-    (mp.segments||[]).forEach(seg=>{const x1=xOf(seg.from,seg.half),x2=xOf(seg.to,seg.half);svg+=`<rect x="${x1}" y="${y+4}" width="${Math.max(x2-x1,2)}" height="${rowH-8}" rx="3" fill="${col}" opacity="0.85"/>`;});
-    if(mp.enteredAt!==null&&mp.onField){const x1=xOf(mp.enteredAt,halfN),x2=xOf(chronoS,halfN);svg+=`<rect x="${x1}" y="${y+4}" width="${Math.max(x2-x1,2)}" height="${rowH-8}" rx="3" fill="${col}" opacity="0.4"/>`;}
-    svg+=`<text x="${W-2}" y="${cy+4}" text-anchor="end" font-size="9" fill="${tc}" font-family="DM Mono,monospace">${fmt(liveSecs(p.id))}</text>`;
+    svg+=`<text x="${lW-4}" y="${cy+4}" text-anchor="end" font-size="10" fill="${tc}" font-family="DM Sans,sans-serif">${p.prenom.slice(0,6)}</text>`;
+    svg+=`<rect x="${lW}" y="${y+4}" width="${tW}" height="${rowH-8}" rx="3" fill="rgba(255,255,255,0.02)"/>`;
+    (mp.segments||[]).forEach(seg=>{const x1=xOf(seg.from,seg.half),x2=xOf(seg.to,seg.half);svg+=`<rect x="${x1}" y="${y+5}" width="${Math.max(x2-x1,2)}" height="${rowH-10}" rx="3" fill="${col}" opacity="0.85"/>`;});
+    if(mp.enteredAt!==null&&mp.onField){const x1=xOf(mp.enteredAt,halfN),x2=xOf(chronoS,halfN);svg+=`<rect x="${x1}" y="${y+5}" width="${Math.max(x2-x1,2)}" height="${rowH-10}" rx="3" fill="${col}" opacity="0.4"/>`;}
+    svg+=`<text x="${W-2}" y="${cy+4}" text-anchor="end" font-size="8" fill="${tc}" font-family="DM Mono,monospace">${fmt(liveSecs(p.id))}</text>`;
   });
   svg+=`</svg>`;
   document.getElementById('tl-chart').innerHTML=svg;
