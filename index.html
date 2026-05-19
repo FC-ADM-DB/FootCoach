@@ -1061,7 +1061,10 @@ function renderPlayers() {
       <div class="player-initials" style="background:${color}22;color:${color}">${initials.toUpperCase()}</div>
       <div style="flex:1">
         <div class="player-name">${p.prenom} ${p.nom}</div>
-        <div class="player-poste">${p.numero_poste ? posteLabel(p.numero_poste) : 'Poste non défini'}</div>
+        <div class="player-poste">
+          ${p.numero_poste ? posteLabel(p.numero_poste) : 'Poste non défini'}
+          ${p.date_naissance ? ' · ' + new Date(p.date_naissance).toLocaleDateString('fr-BE', {day:'2-digit',month:'2-digit',year:'numeric'}) : ''}
+        </div>
       </div>
       ${p.numero_poste ? `<div class="player-num">${p.numero_poste}</div>` : ''}
       <div class="btn-icon" onclick="editPlayer('${p.id}', event)" style="margin-right:4px">✎</div>
