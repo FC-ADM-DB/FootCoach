@@ -55,6 +55,7 @@
       <span style="color:var(--text3);font-size:11px;flex-shrink:0">▾</span>
     </div>
     <button class="mode-btn" id="admin-btn" onclick="goAdmin()" style="display:none">Admin</button>
+    <button class="mode-btn" id="kiosk-btn" onclick="toggleKiosk()">📺 Kiosk</button>
     <button class="mode-btn" id="mode-btn" onclick="toggleMode()">⚽ Match</button>
     <button class="mode-btn" id="logout-btn" onclick="signOut()">Log off</button>
   </div>
@@ -113,6 +114,7 @@
           <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="det-title">Match</div>
           <div style="font-size:11px;color:var(--text2)" id="det-sub"></div>
         </div>
+        <button id="match-delete-btn" onclick="deleteMatch(CM.id)" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:6px 10px;font-family:var(--font);font-size:12px;cursor:pointer">🗑 Supprimer</button>
         <span class="pill" id="det-status"></span>
       </div>
       <div style="padding:9px 13px 0;flex-shrink:0">
@@ -149,20 +151,12 @@
             <div class="score-row">
               <div class="score-side">
                 <div class="score-lbl" id="sc-nous-lbl">Nous</div>
-                <div style="display:flex;align-items:center;gap:7px">
-                  <button class="sbtn m" onclick="chgScore('nous',-1)">−</button>
-                  <div class="score-val" id="sc-nous">0</div>
-                  <button class="sbtn p" onclick="chgScore('nous',1)">+</button>
-                </div>
+                <div class="score-val" id="sc-nous">0</div>
               </div>
               <div class="score-sep">–</div>
               <div class="score-side">
                 <div class="score-lbl" id="sc-eux-lbl">Adv</div>
-                <div style="display:flex;align-items:center;gap:7px">
-                  <button class="sbtn m" onclick="chgScore('eux',-1)">−</button>
-                  <div class="score-val" id="sc-eux">0</div>
-                  <button class="sbtn p" onclick="chgScore('eux',1)">+</button>
-                </div>
+                <div class="score-val" id="sc-eux">0</div>
               </div>
             </div>
           </div>
@@ -255,6 +249,26 @@
     <button class="ni" onclick="goPage('admin')" id="nav-admin"><span class="ni-icon">🛠</span><span>Admin</span></button>
     <button class="ni" onclick="goPage('stats')" id="nav-stats"><span class="ni-icon">📊</span><span>Stats</span></button>
   </nav>
+
+  <!-- KIOSK MODE -->
+  <div class="kiosk-screen" id="kiosk-screen" style="display:none">
+    <div class="kiosk-panel">
+      <div class="kiosk-top">
+        <div>
+          <div class="kiosk-title" id="kiosk-title"></div>
+          <div class="kiosk-sub" id="kiosk-sub"></div>
+        </div>
+        <button class="kiosk-close" onclick="toggleKiosk()">✕</button>
+      </div>
+      <div class="kiosk-score">
+        <div class="kiosk-team"><span id="kiosk-our-name"></span><span id="kiosk-score-nous">0</span></div>
+        <div class="kiosk-vs">–</div>
+        <div class="kiosk-team"><span id="kiosk-score-eux">0</span><span id="kiosk-adversaire"></span></div>
+      </div>
+      <div class="kiosk-meta" id="kiosk-meta"></div>
+      <div class="kiosk-goals" id="kiosk-goals"></div>
+    </div>
+  </div>
 
   <!-- TEAM SWITCHER -->
   <div class="tsw" id="tsw" onclick="closeTsw(event)">

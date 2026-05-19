@@ -4,7 +4,7 @@ const sb=supabase.createClient(SB_URL,SB_KEY);
 
 // STATE
 let U=null,UP=null,teams=[],CT=null,players=[];
-let matches=[],CM=null,mdMode=false;
+let matches=[],CM=null,mdMode=false,kioskMode=false;
 let selColor_='#00d68f',selPoste=null,editPid=null;
 let convs={},MP={},subLog=[],goals=[];
 let chronoOn=false,chronoS=0,halfN=1,chronoIv=null;
@@ -221,6 +221,7 @@ function renderMatchesList(){
     return `<div class="mc" onclick="openMatchDetail('${m.id}')">
       <div class="mc-top"><span class="mc-vs">vs ${m.adversaire}</span><span class="mc-sc ${cls}">${sc}</span></div>
       <div class="mc-meta"><span>${d} · ${h}</span><span>${m.lieu==='domicile'?'🏠':'✈️'}</span><span class="pill ${spCls}" style="font-size:10px;padding:2px 7px">${spTxt}</span></div>
+      ${isAdmin?`<button class="bsec" onclick="deleteMatch('${m.id}', event)" style="margin-top:10px;font-size:12px">Supprimer</button>`:''}
     </div>`;
   }).join('');
 }
@@ -282,6 +283,7 @@ async function openMatchDetail(id){
   document.getElementById('sc-eux').textContent=sEux;
   document.getElementById('sc-eux-lbl').textContent=CM.adversaire.slice(0,12);
   document.getElementById('sc-nous-lbl').textContent=CT.nom.slice(0,10);
+  document.getElementById('match-delete-btn').style.display=isAdmin?'inline-flex':'none';
   await loadConvs();
   if(CM.statut==='termine')switchTab('res');
   else switchTab('conv');
@@ -296,12 +298,53 @@ function closeMatchDetail(){
   if(chronoOn)toggleChrono();
   CM=null;chronoS=0;halfN=1;sNous=0;sEux=0;MP={};subLog=[];goals=[];fieldPositions=[];selectedBenchId=null;
 }
+async function deleteMatch(id,e){
+  if(e&&e.stopPropagation) e.stopPropagation();
+  if(!isAdmin)return showToast('Accès admin requis','err');
+  const m=matches.find(x=>x.id===id);
+  if(!m)return;
+  if(!confirm(`Supprimer le match vs ${m.adversaire} ?`))return;
+  await sb.from('convocations').delete().eq('match_id',id);
+  await sb.from('match_players').delete().eq('match_id',id);
+  await sb.from('matches').delete().eq('id',id);
+  showToast('Match supprimé','ok');
+  if(CM?.id===id){closeMatchDetail();}
+  await loadMatches();
+}
+
 function switchTab(tab){
   ['conv','live','tl','res'].forEach(t=>document.getElementById('tab-'+t).style.display=t===tab?'block':'none');
   document.querySelectorAll('.mtab').forEach((el,i)=>el.classList.toggle('active',['conv','live','tl','res'][i]===tab));
   if(tab==='live'){renderField();renderGoals();}
   if(tab==='tl')renderTimeline();
   if(tab==='res')renderResume();
+}
+
+function toggleKiosk(){
+  if(!CM){showToast('Ouvre un match d\'abord','err');return;}
+  kioskMode=!kioskMode;
+  const screen=document.getElementById('kiosk-screen');
+  if(kioskMode){
+    if(CM.statut==='prevu'){showToast('Commence le match pour utiliser le kiosk','err');kioskMode=false;return;}
+    screen.style.display='flex';
+    renderKiosk();
+  } else {
+    screen.style.display='none';
+  }
+}
+
+function renderKiosk(){
+  if(!CM)return;
+  document.getElementById('kiosk-title').textContent=`${CT?.nom||'Équipe'} vs ${CM.adversaire}`;
+  document.getElementById('kiosk-sub').textContent=`${CM.statut==='termine'?'Match terminé':CM.statut==='en_cours'?'Match en cours':'Prévu'}`;
+  document.getElementById('kiosk-our-name').textContent=CT?.nom.slice(0,10)||'Nous';
+  document.getElementById('kiosk-adversaire').textContent=CM.adversaire;
+  document.getElementById('kiosk-score-nous').textContent=sNous;
+  document.getElementById('kiosk-score-eux').textContent=sEux;
+  document.getElementById('kiosk-meta').innerHTML=`<span>${CM.lieu==='domicile'?'🏠 Domicile':'✈️ Extérieur'}</span><span>Mi-${halfN}</span><span>${fmt(chronoS)}</span>`;
+  const el=document.getElementById('kiosk-goals');
+  if(!goals.length){el.innerHTML='<div style="color:var(--text2);font-size:13px">Aucun but enregistré</div>';return;}
+  el.innerHTML=goals.map(g=>`<div class="but-row"><span class="but-min">${g.min}'</span><div style="flex:1"><span style="font-size:13px;font-weight:600">${g.scorer}</span>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div><span class="pill ${g.adv?'pr':'pg'}" style="font-size:10px">${g.adv?'Concédé':'Marqué'}</span></div>`).join('');
 }
 
 // ============ CONVOCATIONS ============
@@ -382,6 +425,7 @@ function toggleChrono(){
     Object.keys(MP).forEach(id=>{if(MP[id].onField&&MP[id].enteredAt===null)MP[id].enteredAt=chronoS;});
     chronoIv=setInterval(()=>{
       chronoS++;document.getElementById('live-time').textContent=fmt(chronoS);
+      if(kioskMode)renderKiosk();
       if(chronoS%15===0){renderField();saveState();}
     },1000);
   } else {
@@ -406,9 +450,10 @@ function switchHalf(){
 }
 function liveSecs(id){const mp=MP[id];if(!mp)return 0;return mp.playSeconds+(mp.enteredAt!==null?chronoS-mp.enteredAt:0);}
 function chgScore(who,d){
-  if(who==='nous'){sNous=Math.max(0,sNous+d);document.getElementById('sc-nous').textContent=sNous;}
-  else{sEux=Math.max(0,sEux+d);document.getElementById('sc-eux').textContent=sEux;}
+  if(who==='nous'){sNous=Math.max(0,sNous+d);document.getElementById('sc-nous').textContent=sNous;CM&&(CM.score_nous=sNous);}
+  else{sEux=Math.max(0,sEux+d);document.getElementById('sc-eux').textContent=sEux;CM&&(CM.score_eux=sEux);}
   saveState();
+  if(document.getElementById('tab-res').style.display==='block')renderResume();
 }
 
 // ============ TERRAIN DRAG & DROP ============
@@ -660,8 +705,10 @@ async function saveScoreEdit(){
   const se=parseInt(document.getElementById('se-eux').value)||0;
   await sb.from('matches').update({score_nous:sn,score_eux:se}).eq('id',CM.id);
   CM.score_nous=sn;CM.score_eux=se;
+  sNous=sn;sEux=se;
   closeModal('modal-score-edit');showToast('Score modifié !','ok');
-  await loadMatches();renderResume();
+  await loadMatches();
+  if(document.getElementById('tab-res').style.display==='block')renderResume();
 }
 
 // ============ TIMELINE ============

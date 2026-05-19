@@ -39,7 +39,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .tname{font-size:13px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mode-btn{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);padding:7px 10px;color:var(--text2);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .mode-btn.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
-.md-banner{background:var(--green);color:#0a1628;padding:7px 14px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;flex-shrink:0}
+.kiosk-screen{position:fixed;inset:0;background:rgba(10,22,40,0.96);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px}
+.kiosk-panel{width:min(980px,100%);max-width:980px;background:rgba(13,26,51,0.98);border:1px solid rgba(255,255,255,0.08);border-radius:22px;padding:24px;display:flex;flex-direction:column;gap:20px;box-shadow:0 24px 60px rgba(0,0,0,0.35)}
+.kiosk-top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.kiosk-title{font-size:24px;font-weight:700}
+.kiosk-sub{font-size:14px;color:var(--text2);margin-top:6px}
+.kiosk-close{background:var(--bg3);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:16px;padding:10px 14px;cursor:pointer}
+.kiosk-score{display:flex;align-items:center;justify-content:center;gap:20px;padding:18px 0;border-top:1px solid rgba(255,255,255,0.08);border-bottom:1px solid rgba(255,255,255,0.08)}
+.kiosk-team{display:flex;flex-direction:column;align-items:center;gap:10px}
+.kiosk-team span{display:block}
+.kiosk-team:first-child span:first-child,
+.kiosk-team:last-child span:last-child{font-size:14px;color:var(--text2)}
+#kiosk-score-nous,#kiosk-score-eux{font-size:54px;font-weight:800;line-height:1}
+.kiosk-vs{font-size:32px;color:var(--text2);letter-spacing:.2em}
+.kiosk-meta{display:flex;flex-wrap:wrap;gap:10px;color:var(--text2);font-size:13px}
+.kiosk-goals{display:grid;gap:10px}
+.kiosk-goals .but-row{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px}
+.kiosk-goals .but-min{font-size:14px;font-weight:700;color:var(--text)}
+.kiosk-goals .pill{font-size:11px}
 
 /* NAV */
 .bnav{display:flex;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:var(--sb);flex-shrink:0}
