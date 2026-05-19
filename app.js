@@ -84,19 +84,25 @@ function selTeam(t){
   isAdmin=tm?.role==='admin';
   document.getElementById('hdr-tname').textContent=t.nom;
   document.getElementById('hdr-dot').style.background=t.couleur;
+  document.getElementById('admin-btn').style.display=isAdmin?'inline-flex':'none';
   loadPlayers();loadMatches();updateStats();
+  if(document.getElementById('page-admin').classList.contains('active'))renderAdminPage();
+  if(document.getElementById('page-stats').classList.contains('active'))renderStatsPage();
 }
 function renderTeamsList(){
   const el=document.getElementById('teams-list');
   if(!teams.length){el.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Aucune équipe</div><div class="empty-s">Crée ta première équipe</div></div>`;return;}
-  el.innerHTML=teams.map(t=>`<div class="card">
-    <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-      <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${t.couleur}22;color:${t.couleur}">${t.nom.slice(0,2).toUpperCase()}</div>
-      <div style="flex:1"><div style="font-size:14px;font-weight:600">${t.nom}</div><div style="font-size:12px;color:var(--text2)">${t.categorie} · ${t.format}</div></div>
-      <button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>
-    </div>
-    <div style="display:flex;gap:5px"><span class="pill pg">${t.categorie}</span><span class="pill pb">${t.format}</span><span class="pill pgr">${t.team_members?.[0]?.role||'membre'}</span></div>
-  </div>`).join('');
+  el.innerHTML=teams.map(t=>{
+    const role=t.team_members?.find(m=>m.profile_id===U.id)?.role||'membre';
+    return `<div class="card">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+        <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${t.couleur}22;color:${t.couleur}">${t.nom.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1"><div style="font-size:14px;font-weight:600">${t.nom}</div><div style="font-size:12px;color:var(--text2)">${t.categorie} · ${t.format}</div></div>
+        <button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>
+      </div>
+      <div style="display:flex;gap:5px"><span class="pill pg">${t.categorie}</span><span class="pill pb">${t.format}</span><span class="pill pgr">${role}</span></div>
+    </div>`;
+  }).join('');
 }
 async function deleteTeam(id,e){
   e.stopPropagation();
@@ -734,6 +740,57 @@ async function updateStats(){
   document.getElementById('sm').textContent=matches.length;
   document.getElementById('sv').textContent=matches.filter(m=>m.score_nous!==null&&m.score_nous>m.score_eux).length;
 }
+async function renderAdminPage(){
+  const panel=document.getElementById('admin-team-members');
+  if(!CT){panel.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Sélectionne d'abord une équipe</div></div>`;return;}
+  if(!isAdmin){panel.innerHTML=`<div class="empty"><div class="empty-i">🔒</div><div class="empty-t">Accès administration réservé aux admins</div></div>`;return;}
+  const {data,error}=await sb.from('team_members').select('id,role,profile_id,profiles(id,prenom,nom,email)').eq('team_id',CT.id);
+  if(error){panel.innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Impossible de charger les membres</div></div>`;return;}
+  if(!data.length){panel.innerHTML=`<div class="empty"><div class="empty-i">👥</div><div class="empty-t">Aucun membre</div><div class="empty-s">Ajoute un membre pour commencer</div></div>`;return;}
+  panel.innerHTML=data.map(m=>{
+    const profile=m.profiles||{};
+    const name=profile.prenom?`${profile.prenom} ${profile.nom}`:'Profil inconnu';
+    const email=profile.email||'—';
+    return `<div class="admin-row">
+      <div class="admin-info"><div class="admin-name">${name}</div><div class="admin-role">${email} · ${m.role==='admin'?'Admin':'Membre'}</div></div>
+      <div class="admin-actions">
+        ${m.role==='admin'?`<button class="bsec" onclick="changeMemberRole('${m.id}','member')">Rendre membre</button>`:`<button class="bsec" onclick="changeMemberRole('${m.id}','admin')">Promouvoir</button>`}
+        <button class="bred" onclick="removeTeamMember('${m.id}')">Retirer</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function openTeamMemberModal(){
+  if(!CT)return showToast('Sélectionne une équipe','err');
+  if(!isAdmin)return showToast('Accès admin requis','err');
+  document.getElementById('tm-email').value='';
+  document.getElementById('tm-role').value='member';
+  openModal('modal-member');
+}
+async function saveTeamMember(){
+  const email=document.getElementById('tm-email').value.trim().toLowerCase();
+  const role=document.getElementById('tm-role').value;
+  if(!email)return showToast('Email requis','err');
+  const {data:profile,error:pErr}=await sb.from('profiles').select('id,prenom,nom,email').eq('email',email).single();
+  if(pErr||!profile)return showToast('Profil introuvable','err');
+  const {error}=await sb.from('team_members').upsert({team_id:CT.id,profile_id:profile.id,role},{onConflict:'team_id,profile_id'});
+  if(error)return showToast('Impossible d\'inviter','err');
+  closeModal('modal-member');
+  showToast('Membre invité','ok');
+  await renderAdminPage();
+}
+async function changeMemberRole(memberId,newRole){
+  if(!confirm(`Modifier le rôle de ce membre en ${newRole} ?`))return;
+  await sb.from('team_members').update({role:newRole}).eq('id',memberId);
+  showToast('Rôle mis à jour','ok');
+  await renderAdminPage();
+}
+async function removeTeamMember(memberId){
+  if(!confirm('Retirer ce membre de l\'équipe ?'))return;
+  await sb.from('team_members').delete().eq('id',memberId);
+  showToast('Membre retiré','ok');
+  await renderAdminPage();
+}
 function renderHome(){
   if(UP){
     const h=new Date().getHours(),g=h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir';
@@ -741,6 +798,42 @@ function renderHome(){
     const d=new Date().toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'});
     document.getElementById('wsub').textContent=d.charAt(0).toUpperCase()+d.slice(1);
   }
+}
+
+function renderStatsPage(){
+  const el=document.getElementById('stats-content');
+  if(!CT){
+    el.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Choisis une équipe</div><div class="empty-s">Les statistiques sont liées à l'équipe sélectionnée</div></div>`;
+    return;
+  }
+  const played=matches.filter(m=>m.statut!=='prevu');
+  const wins=played.filter(m=>m.score_nous!=null&&m.score_nous>m.score_eux).length;
+  const draws=played.filter(m=>m.score_nous!=null&&m.score_nous===m.score_eux).length;
+  const losses=played.filter(m=>m.score_nous!=null&&m.score_nous<m.score_eux).length;
+  const gf=played.reduce((sum,m)=>sum+(m.score_nous||0),0);
+  const ga=played.reduce((sum,m)=>sum+(m.score_eux||0),0);
+  const nextMatch=matches.filter(m=>m.statut==='prevu').sort((a,b)=>new Date(a.date)-new Date(b.date))[0];
+  const recent=played.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,4);
+  el.innerHTML=`
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-num">${played.length}</div><div class="stat-label">Matchs joués</div></div>
+      <div class="stat-card"><div class="stat-num">${wins}</div><div class="stat-label">Victoires</div></div>
+      <div class="stat-card"><div class="stat-num">${draws}</div><div class="stat-label">Nuls</div></div>
+      <div class="stat-card"><div class="stat-num">${losses}</div><div class="stat-label">Défaites</div></div>
+      <div class="stat-card"><div class="stat-num">${gf}</div><div class="stat-label">Buts pour</div></div>
+      <div class="stat-card"><div class="stat-num">${ga}</div><div class="stat-label">Buts contre</div></div>
+    </div>
+    <div class="sh" style="margin-top:8px"><span class="st">Prochain match</span></div>
+    ${nextMatch?`<div class="mc"><div class="mc-top"><span class="mc-vs">vs ${nextMatch.adversaire}</span><span class="mc-sc pb">Prévu</span></div><div class="mc-meta"><span>${new Date(nextMatch.date).toLocaleDateString('fr-BE',{weekday:'short',day:'2-digit',month:'2-digit'})} · ${new Date(nextMatch.date).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</span><span>${nextMatch.lieu==='domicile'?'🏠':'✈️'}</span></div></div>`:`<div class="empty"><div class="empty-i">⏳</div><div class="empty-t">Aucun match prévu</div></div>`}
+    <div class="sh" style="margin-top:14px"><span class="st">Derniers résultats</span></div>
+    <div class="recent-list">
+      ${recent.length?recent.map(m=>{
+        const d=new Date(m.date);
+        const score=m.score_nous!=null?`${m.score_nous}–${m.score_eux}`:'–';
+        const outcome=m.score_nous>m.score_eux?'pg':m.score_nous<m.score_eux?'pr':'pb';
+        return `<div class="recent-item"><div><div style="font-size:13px;font-weight:600">vs ${m.adversaire}</div><div style="font-size:11px;color:var(--text2)">${d.toLocaleDateString('fr-BE',{day:'2-digit',month:'2-digit'})} · ${m.lieu==='domicile'?'Domicile':'Ext.'}</div></div><div class="result ${outcome}">${score}</div></div>`;
+      }).join(''):`<div class="empty"><div class="empty-i">📭</div><div class="empty-t">Pas encore de résultats</div><div class="empty-s">Joue un match pour voir l'historique</div></div>`}
+    </div>`;
 }
 
 // ============ NAV ============
@@ -752,6 +845,12 @@ function goPage(name){
   if(name==='players')loadPlayers();
   if(name==='teams')renderTeamsList();
   if(name==='match')loadMatches();
+  if(name==='admin')renderAdminPage();
+  if(name==='stats')loadMatches().then(()=>renderStatsPage());
+}
+function goAdmin(){
+  renderAdminPage();
+  goPage('admin');
 }
 function toggleMode(){
   mdMode=!mdMode;

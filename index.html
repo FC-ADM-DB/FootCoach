@@ -54,6 +54,7 @@
       <span class="tname" id="hdr-tname">Choisir une équipe</span>
       <span style="color:var(--text3);font-size:11px;flex-shrink:0">▾</span>
     </div>
+    <button class="mode-btn" id="admin-btn" onclick="goAdmin()" style="display:none">Admin</button>
     <button class="mode-btn" id="mode-btn" onclick="toggleMode()">⚽ Match</button>
     <button class="mode-btn" id="logout-btn" onclick="signOut()">Log off</button>
   </div>
@@ -229,9 +230,20 @@
     <div class="pc"><div class="empty" style="padding-top:60px"><div class="empty-i">📋</div><div class="empty-t">Entraînements</div><div class="empty-s">Sprint 4 — bientôt disponible</div></div></div>
   </div>
 
+  <!-- ADMIN -->
+  <div class="page" id="page-admin">
+    <div class="pc">
+      <div class="sh"><span class="st">Administration</span><button class="badd" onclick="openTeamMemberModal()">+ Membre</button></div>
+      <div id="admin-team-members"><div class="spin"></div></div>
+    </div>
+  </div>
+
   <!-- STATS -->
   <div class="page" id="page-stats">
-    <div class="pc"><div class="empty" style="padding-top:60px"><div class="empty-i">📊</div><div class="empty-t">Statistiques</div><div class="empty-s">Sprint 5 — bientôt disponible</div></div></div>
+    <div class="pc">
+      <div class="sh"><span class="st">Statistiques</span></div>
+      <div id="stats-content"><div class="spin"></div></div>
+    </div>
   </div>
 
   <!-- BOTTOM NAV -->
@@ -240,6 +252,7 @@
     <button class="ni" onclick="goPage('players')" id="nav-players"><span class="ni-icon">👥</span><span>Effectif</span></button>
     <button class="ni" onclick="goPage('match')" id="nav-match"><span class="ni-icon">⚽</span><span>Match</span></button>
     <button class="ni" onclick="goPage('teams')" id="nav-teams"><span class="ni-icon">🏆</span><span>Équipes</span></button>
+    <button class="ni" onclick="goPage('admin')" id="nav-admin"><span class="ni-icon">🛠</span><span>Admin</span></button>
     <button class="ni" onclick="goPage('stats')" id="nav-stats"><span class="ni-icon">📊</span><span>Stats</span></button>
   </nav>
 
@@ -343,6 +356,20 @@
       <div class="mfoot">
         <button class="bcan" onclick="closeModal('modal-score-edit')">Annuler</button>
         <button class="bp" onclick="saveScoreEdit()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL MEMBER -->
+  <div class="mo" id="modal-member">
+    <div class="modal">
+      <div class="mh"></div>
+      <div class="mt">Inviter un membre</div>
+      <div class="fg"><label class="fl">Email</label><input class="fi" id="tm-email" type="email" placeholder="membre@club.be"></div>
+      <div class="fg"><label class="fl">Rôle</label><select class="sel" id="tm-role"><option value="member">Membre</option><option value="admin">Admin</option></select></div>
+      <div class="mfoot">
+        <button class="bcan" onclick="closeModal('modal-member')">Annuler</button>
+        <button class="bp" onclick="saveTeamMember()">Inviter</button>
       </div>
     </div>
   </div>

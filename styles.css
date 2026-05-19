@@ -60,6 +60,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 /* CARDS */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:13px;margin-bottom:9px;cursor:pointer}
 .card:active{border-color:var(--border2)}
+.admin-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:8px}
+.admin-info{flex:1;min-width:0}
+.admin-name{font-size:14px;font-weight:600}
+.admin-role{font-size:11px;color:var(--text2);margin-top:4px}
+.admin-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap}
+.admin-actions button{font-size:11px;padding:6px 9px}
 .pill{font-size:10px;font-weight:600;padding:3px 8px;border-radius:99px}
 .pg{background:var(--green-bg);color:var(--green)}
 .pa{background:var(--amber-bg);color:var(--amber)}
@@ -138,6 +144,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .mc-sc.lose{background:var(--red-bg);color:var(--red)}
 .mc-sc.draw{background:var(--amber-bg);color:var(--amber)}
 .mc-meta{font-size:11px;color:var(--text3);display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+
+.stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);padding:14px}
+.stat-num{font-size:24px;font-weight:700;color:var(--green);margin-bottom:4px}
+.stat-label{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em}
+.recent-list{display:grid;gap:8px}
+.recent-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm)}
+.recent-item .result{font-size:14px;font-weight:700}
+.recent-item .result.pg{color:var(--green)}
+.recent-item .result.pr{color:var(--red)}
+.recent-item .result.pb{color:var(--blue)}
 
 /* MATCH DETAIL */
 .mtabs{display:flex;background:var(--bg3);border-radius:var(--rsm);padding:3px;gap:3px;flex-shrink:0}
