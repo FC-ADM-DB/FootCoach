@@ -184,8 +184,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .chrono-btns{display:flex;gap:6px;flex-direction:column;align-items:flex-end}
 
 /* TERRAIN */
-.terrain-wrap{position:relative;margin:12px 14px;user-select:none;max-width:720px;min-width:280px}
-.terrain-svg{display:block;width:100%;max-width:720px;border-radius:12px}
+.terrain-wrap{position:relative;margin:8px auto;user-select:none;max-width:720px;min-width:200px;display:flex;justify-content:center}
+.terrain-svg{display:block;height:min(44dvh,420px);width:auto;max-width:100%;border-radius:12px}
 .player-bubble{position:absolute;transform:translate(-50%,-50%);background:var(--bg2);border:2px solid var(--green);border-radius:99px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;cursor:grab;z-index:5;transition:box-shadow .15s;touch-action:none;text-align:center;min-width:60px}
 .player-bubble:active{cursor:grabbing;box-shadow:0 4px 20px rgba(0,214,143,.4);z-index:20}
 .player-bubble.bench{border-color:var(--amber);background:var(--bg3);font-size:11px}
