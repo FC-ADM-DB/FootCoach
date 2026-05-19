@@ -184,15 +184,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .chrono-btns{display:flex;gap:6px;flex-direction:column;align-items:flex-end}
 
 /* TERRAIN */
-.terrain-wrap{position:relative;margin:12px 14px;user-select:none}
-.terrain-svg{display:block;width:100%;border-radius:12px}
+.terrain-wrap{position:relative;margin:12px 14px;user-select:none;max-width:720px;min-width:280px}
+.terrain-svg{display:block;width:100%;max-width:720px;border-radius:12px}
 .player-bubble{position:absolute;transform:translate(-50%,-50%);background:var(--bg2);border:2px solid var(--green);border-radius:99px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;cursor:grab;z-index:5;transition:box-shadow .15s;touch-action:none;text-align:center;min-width:60px}
 .player-bubble:active{cursor:grabbing;box-shadow:0 4px 20px rgba(0,214,143,.4);z-index:20}
 .player-bubble.bench{border-color:var(--amber);background:var(--bg3);font-size:11px}
+.player-bubble.selected{border-color:var(--green);box-shadow:0 0 0 3px rgba(0,214,143,.18)}
 .player-bubble.dragging{opacity:.5;z-index:1}
 .player-bubble.drag-over{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-bg);transform:translate(-50%,-50%) scale(1.05)}
 .drop-zone{position:absolute;width:64px;height:28px;transform:translate(-50%,-50%);border-radius:99px;background:rgba(255,255,255,.04);border:1.5px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);font-family:var(--mono)}
 .bench-area{padding:8px 14px 14px;border-top:1px solid var(--border)}
+.live-body{display:grid;grid-template-columns:1fr;gap:14px;margin:0 14px 12px}
+.live-sidebar{display:flex;flex-direction:column;gap:14px}
+.live-field{min-width:0}
+@media(min-width:900px){.live-body{grid-template-columns:minmax(320px,1.6fr) minmax(280px,1fr);}.live-field{order:1;}.live-sidebar{order:2;}}
 .bench-title{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px}
 .bench-row{display:flex;flex-wrap:wrap;gap:6px}
 
@@ -263,6 +268,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <span style="color:var(--text3);font-size:11px;flex-shrink:0">▾</span>
     </div>
     <button class="mode-btn" id="mode-btn" onclick="toggleMode()">⚽ Match</button>
+    <button class="mode-btn" id="logout-btn" onclick="signOut()">Log off</button>
   </div>
 
   <!-- HOME -->
@@ -372,44 +378,49 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
               </div>
             </div>
           </div>
-          <!-- TERRAIN -->
-          <div class="terrain-wrap" id="terrain-wrap">
-            <div id="terrain-container" style="position:relative">
-              <svg id="terrain-svg" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;border-radius:12px">
-                <rect width="300" height="420" fill="#2d5a1b" rx="12"/>
-                <rect x="10" y="10" width="280" height="400" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
-                <line x1="10" y1="210" x2="290" y2="210" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
-                <circle cx="150" cy="210" r="35" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
-                <circle cx="150" cy="210" r="2" fill="rgba(255,255,255,0.6)"/>
-                <rect x="85" y="10" width="130" height="50" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
-                <rect x="110" y="10" width="80" height="22" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
-                <rect x="85" y="360" width="130" height="50" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
-                <rect x="110" y="388" width="80" height="22" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
-                <circle cx="150" cy="45" r="2" fill="rgba(255,255,255,0.5)"/>
-                <circle cx="150" cy="375" r="2" fill="rgba(255,255,255,0.5)"/>
-                <rect x="133" y="0" width="34" height="6" fill="rgba(255,255,255,0.6)" rx="2"/>
-                <rect x="133" y="414" width="34" height="6" fill="rgba(255,255,255,0.7)" rx="2"/>
-                <text x="150" y="5" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.4)" font-family="DM Sans,sans-serif">Adversaire</text>
-                <text x="150" y="419" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.7)" font-family="DM Sans,sans-serif">Notre but</text>
-              </svg>
-              <div id="field-players"></div>
+          <div class="live-body">
+            <div class="live-field">
+              <!-- TERRAIN -->
+              <div class="terrain-wrap" id="terrain-wrap">
+                <div id="terrain-container" style="position:relative">
+                  <svg id="terrain-svg" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;border-radius:12px">
+                    <rect width="300" height="420" fill="rgba(255,255,255,0.03)" rx="12"/>
+                    <rect x="10" y="10" width="280" height="400" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+                    <line x1="10" y1="210" x2="290" y2="210" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+                    <circle cx="150" cy="210" r="35" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+                    <circle cx="150" cy="210" r="2" fill="rgba(255,255,255,0.6)"/>
+                    <rect x="85" y="10" width="130" height="50" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+                    <rect x="110" y="10" width="80" height="22" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+                    <rect x="85" y="360" width="130" height="50" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+                    <rect x="110" y="388" width="80" height="22" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+                    <circle cx="150" cy="45" r="2" fill="rgba(255,255,255,0.5)"/>
+                    <circle cx="150" cy="375" r="2" fill="rgba(255,255,255,0.5)"/>
+                    <rect x="133" y="0" width="34" height="6" fill="rgba(255,255,255,0.6)" rx="2"/>
+                    <rect x="133" y="414" width="34" height="6" fill="rgba(255,255,255,0.7)" rx="2"/>
+                    <text x="150" y="5" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.4)" font-family="DM Sans,sans-serif">Adversaire</text>
+                    <text x="150" y="419" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.7)" font-family="DM Sans,sans-serif">Notre but</text>
+                  </svg>
+                  <div id="field-players"></div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="bench-area">
-            <div class="bench-title">Remplaçants — glisser sur un joueur terrain pour remplacer</div>
-            <div class="bench-row" id="bench-bubbles"></div>
-          </div>
-          <!-- BUTS -->
-          <div class="buts-section">
-            <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:8px">Buts</div>
-            <div class="but-btns">
-              <button class="but-btn mk" onclick="openGoalModal(false)">⚽ But marqué</button>
-              <button class="but-btn cd" onclick="openGoalModal(true)">🔴 Concédé</button>
+            <div class="live-sidebar">
+              <div class="bench-area">
+                <div class="bench-title">Remplaçants — glisser ou cliquer sur un joueur terrain pour remplacer</div>
+                <div class="bench-row" id="bench-bubbles"></div>
+              </div>
+              <div class="buts-section">
+                <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:8px">Buts</div>
+                <div class="but-btns">
+                  <button class="but-btn mk" onclick="openGoalModal(false)">⚽ But marqué</button>
+                  <button class="but-btn cd" onclick="openGoalModal(true)">🔴 Concédé</button>
+                </div>
+                <div id="goals-list"></div>
+              </div>
+              <div style="padding:0 14px 16px">
+                <button onclick="endMatch()" style="width:100%;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:11px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">■ Terminer le match</button>
+              </div>
             </div>
-            <div id="goals-list"></div>
-          </div>
-          <div style="padding:0 14px 16px">
-            <button onclick="endMatch()" style="width:100%;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:11px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">■ Terminer le match</button>
           </div>
         </div>
         <!-- TIMELINE -->
@@ -596,7 +607,7 @@ const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(
 const plabel=(n,f)=>(POSTES_MAP[f||CT?.format||'8v8'].find(p=>p.n===n)?.l)||`#${n}`;
 
 // Current formation positions (modifiable per match)
-let fieldPositions=[];
+let fieldPositions=[], selectedBenchId=null;
 
 // ============ AUTH ============
 async function init(){const{data:{session}}=await sb.auth.getSession();if(session)await loadApp(session.user);}
@@ -816,13 +827,23 @@ async function openMatchDetail(id){
     sNous=CM.score_nous||0;sEux=CM.score_eux||0;
     subLog=tl.subLog||[];goals=tl.goals||[];
     MP=tl.MP||{};
-    document.getElementById('live-time').textContent=fmt(chronoS);
-    document.getElementById('sc-nous').textContent=sNous;document.getElementById('sc-eux').textContent=sEux;
-    document.getElementById('sc-eux-lbl').textContent=CM.adversaire.slice(0,12);
     fieldPositions=tl.fieldPositions||getDefaultPositions();
   } else {
     fieldPositions=getDefaultPositions();
+    chronoS=0;halfN=1;
+    sNous=CM.score_nous||0;sEux=CM.score_eux||0;
+    subLog=[];goals=[];
+    MP={};
   }
+  selectedBenchId=null;
+  document.getElementById('live-time').textContent=fmt(chronoS);
+  document.getElementById('live-half').innerHTML=`1ère mi-temps · <span id="live-half-dur">${HALF_MIN[CT?.format||'8v8']}</span> min`;
+  document.getElementById('live-badge').textContent='MT 1';
+  document.getElementById('live-badge').style.cssText='';
+  document.getElementById('sc-nous').textContent=sNous;
+  document.getElementById('sc-eux').textContent=sEux;
+  document.getElementById('sc-eux-lbl').textContent=CM.adversaire.slice(0,12);
+  document.getElementById('sc-nous-lbl').textContent=CT.nom.slice(0,10);
   await loadConvs();
   // Show correct tab based on status
   if(CM.statut==='termine')switchTab('res');
@@ -838,7 +859,7 @@ function closeMatchDetail(){
   document.getElementById('match-list-view').style.display='block';
   document.getElementById('match-detail-view').style.display='none';
   if(chronoOn)toggleChrono();
-  CM=null;chronoS=0;halfN=1;sNous=0;sEux=0;MP={};subLog=[];goals=[];fieldPositions=[];
+  CM=null;chronoS=0;halfN=1;sNous=0;sEux=0;MP={};subLog=[];goals=[];fieldPositions=[];selectedBenchId=null;
 }
 
 function switchTab(tab){
@@ -947,7 +968,7 @@ function freezeTimes(){
 function switchHalf(){
   if(chronoOn)toggleChrono();freezeTimes();halfN=2;chronoS=0;
   document.getElementById('live-time').textContent='00:00';
-  document.getElementById('live-half').textContent=`2ème mi-temps · ${HALF_MIN[CT?.format||'8v8']} min`;
+  document.getElementById('live-half').innerHTML=`2ème mi-temps · <span id="live-half-dur">${HALF_MIN[CT?.format||'8v8']}</span> min`;
   document.getElementById('live-badge').textContent='MT 2';
   document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
   Object.keys(MP).forEach(id=>{if(MP[id].onField)MP[id].enteredAt=null;});
@@ -989,6 +1010,7 @@ function renderField(){
       bubble.innerHTML=`<span style="color:var(--text3)">#${pos.n} libre</span>`;
       bubble.style.borderStyle='dashed';bubble.style.borderColor='rgba(255,255,255,.2)';bubble.style.background='rgba(255,255,255,.03)';
     }
+    bubble.addEventListener('click',()=>handleFieldClick(idx));
     makeDraggable(bubble,idx,'field');
     container.appendChild(bubble);
   });
@@ -999,69 +1021,89 @@ function renderField(){
   if(!benchPlayers.length){benchArea.innerHTML='<span style="font-size:12px;color:var(--text3)">Aucun remplaçant</span>';return;}
   benchPlayers.forEach(p=>{
     const bubble=document.createElement('div');
-    bubble.className='player-bubble bench';
+    bubble.className='player-bubble bench'+(selectedBenchId===p.id?' selected':'');
     bubble.style.cssText='position:relative;transform:none;cursor:grab;touch-action:none';
     bubble.dataset.playerId=p.id;bubble.dataset.type='bench';
     bubble.textContent=`${p.prenom} ${p.nom.charAt(0)}.`;
+    bubble.addEventListener('click',()=>handleBenchSelect(p.id));
     makeDraggableBench(bubble,p.id);
     benchArea.appendChild(bubble);
   });
 }
 
 function makeDraggable(el,posIdx,type){
-  let startX,startY,origX,origY;
-  el.addEventListener('touchstart',e=>{
+  let startX,startY,origX,origY,dragging=false,pointerId=null;
+  const onMove=e=>{
+    if(e.pointerId!==pointerId) return;
+    const dx=e.clientX-startX,dy=e.clientY-startY;
+    if(!dragging&&Math.hypot(dx,dy)>6){dragging=true;el.classList.add('dragging');}
+    if(dragging){
+      el.style.left=(origX+dx)+'px';el.style.top=(origY+dy)+'px';
+      highlightDropTargets(e.clientX,e.clientY,posIdx);
+    }
+  };
+  const onUp=e=>{
+    if(e.pointerId!==pointerId) return;
+    window.removeEventListener('pointermove',onMove);
+    window.removeEventListener('pointerup',onUp);
+    window.removeEventListener('pointercancel',onUp);
+    if(dragging){
+      const target=findDropTarget(e.clientX,e.clientY,posIdx);
+      el.classList.remove('dragging');
+      el.style.zIndex=5;
+      if(target!==null){doFieldSwap(posIdx,target);} else {renderField();}
+    }
+    dragging=false;pointerId=null;
+  };
+  el.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
     e.preventDefault();
-    const t=e.touches[0];
-    startX=t.clientX;startY=t.clientY;
-    const r=el.getBoundingClientRect();
-    origX=parseFloat(el.style.left);origY=parseFloat(el.style.top);
+    pointerId=e.pointerId;
+    startX=e.clientX;startY=e.clientY;
+    const rect=el.getBoundingClientRect();origX=rect.left;origY=rect.top;
     el.style.zIndex=20;el.style.transition='none';
-  },{passive:false});
-  el.addEventListener('touchmove',e=>{
-    e.preventDefault();
-    const t=e.touches[0];
-    const dx=t.clientX-startX,dy=t.clientY-startY;
-    el.style.left=(origX+dx)+'px';el.style.top=(origY+dy)+'px';
-    // Highlight drop targets
-    highlightDropTargets(t.clientX,t.clientY,posIdx);
-  },{passive:false});
-  el.addEventListener('touchend',e=>{
-    e.preventDefault();
-    const t=e.changedTouches[0];
-    el.style.zIndex=5;
-    // Find what we dropped on
-    const target=findDropTarget(t.clientX,t.clientY,posIdx);
-    if(target!==null){doFieldSwap(posIdx,target);}
-    else{renderField();}// Reset
-  },{passive:false});
+    window.addEventListener('pointermove',onMove);
+    window.addEventListener('pointerup',onUp);
+    window.addEventListener('pointercancel',onUp);
+  });
 }
 
 function makeDraggableBench(el,playerId){
-  let startX,startY,clone;
-  el.addEventListener('touchstart',e=>{
-    e.preventDefault();
-    const t=e.touches[0];startX=t.clientX;startY=t.clientY;
-    clone=el.cloneNode(true);
-    clone.style.cssText=`position:fixed;left:${t.clientX-40}px;top:${t.clientY-14}px;z-index:100;opacity:.85;pointer-events:none;transform:none;min-width:60px`;
-    document.body.appendChild(clone);
-    el.style.opacity='.4';
-  },{passive:false});
-  el.addEventListener('touchmove',e=>{
-    e.preventDefault();
-    const t=e.touches[0];
-    if(clone){clone.style.left=(t.clientX-40)+'px';clone.style.top=(t.clientY-14)+'px';}
-    highlightFieldBubbles(t.clientX,t.clientY);
-  },{passive:false});
-  el.addEventListener('touchend',e=>{
-    e.preventDefault();
+  let startX,startY,clone,pointerId=null,dragging=false;
+  const onMove=e=>{
+    if(e.pointerId!==pointerId) return;
+    const dx=e.clientX-startX,dy=e.clientY-startY;
+    if(!dragging&&Math.hypot(dx,dy)>6){dragging=true;el.style.opacity='.4';}
+    if(dragging&&clone){
+      clone.style.left=(e.clientX-40)+'px';clone.style.top=(e.clientY-14)+'px';
+      highlightFieldBubbles(e.clientX,e.clientY);
+    }
+  };
+  const onUp=e=>{
+    if(e.pointerId!==pointerId) return;
+    window.removeEventListener('pointermove',onMove);
+    window.removeEventListener('pointerup',onUp);
+    window.removeEventListener('pointercancel',onUp);
     if(clone){clone.remove();clone=null;}
     el.style.opacity='1';
-    const t=e.changedTouches[0];
-    const targetIdx=findFieldBubbleAt(t.clientX,t.clientY);
-    if(targetIdx!==null){doBenchSwap(playerId,targetIdx);}
-    else{renderField();}
-  },{passive:false});
+    if(dragging){
+      const targetIdx=findFieldBubbleAt(e.clientX,e.clientY);
+      if(targetIdx!==null){doBenchSwap(playerId,targetIdx);} else {renderField();}
+    }
+    dragging=false;pointerId=null;
+  };
+  el.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    e.preventDefault();
+    pointerId=e.pointerId;
+    startX=e.clientX;startY=e.clientY;
+    clone=el.cloneNode(true);
+    clone.style.cssText=`position:fixed;left:${e.clientX-40}px;top:${e.clientY-14}px;z-index:100;opacity:.85;pointer-events:none;transform:none;min-width:60px`;
+    document.body.appendChild(clone);
+    window.addEventListener('pointermove',onMove);
+    window.addEventListener('pointerup',onUp);
+    window.addEventListener('pointercancel',onUp);
+  });
 }
 
 function highlightDropTargets(cx,cy,excludeIdx){
@@ -1298,6 +1340,10 @@ function toggleMode(){
   if(mdMode){btn.textContent='🏠 Bureau';btn.classList.add('on');b.style.display='block';}
   else{btn.textContent='⚽ Match';btn.classList.remove('on');b.style.display='none';}
 }
+function signOut(){sb.auth.signOut().then(()=>{U=null;UP=null;teams=[];CT=null;players=[];matches=[];CM=null;selectedBenchId=null;document.getElementById('screen-app').classList.remove('active');document.getElementById('screen-auth').classList.add('active');document.getElementById('form-login').style.display='block';document.getElementById('form-reg').style.display='none';showToast('Déconnecté','ok');});}
+function handleBenchSelect(playerId){selectedBenchId=playerId;showToast('Remplaçant sélectionné','ok');renderField();}
+function clearBenchSelection(){selectedBenchId=null;renderField();}
+function handleFieldClick(posIdx){const benchPlayers=players.filter(p=>MP[p.id]&&!MP[p.id].onField);if(!benchPlayers.length)return showToast('Aucun remplaçant disponible','err');const playerId=selectedBenchId||benchPlayers[0].id;doBenchSwap(playerId,posIdx);clearBenchSelection();}
 
 // ============ MODALS & TOASTS ============
 function openModal(id){document.getElementById(id).classList.add('open');}
