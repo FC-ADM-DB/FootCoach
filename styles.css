@@ -259,22 +259,28 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
 /* Mobile (iPhone) optimizations */
 @media (max-width:420px){
-  .app-hdr{padding:calc(var(--st) + 8px) 10px 8px}
+  .app-hdr{padding:calc(var(--st) + 6px) 8px 6px}
   .team-sel{padding:6px 8px}
+  .tname{font-size:12px}
   .mode-btn{padding:6px 8px;font-size:11px}
 
-  .chrono-sticky{padding:8px 10px}
-  .chrono-time{font-size:18px;min-width:56px}
+  .chrono-sticky{padding:6px 8px}
+  .chrono-time{font-size:16px;min-width:48px}
   .chrono-info{font-size:12px}
   .chrono-half{font-size:10px}
   .score-val{font-size:18px}
-  .score-lbl{font-size:9px;max-width:80px}
-  .sbtn{width:28px;height:28px;font-size:16px}
+  .score-lbl{font-size:9px;max-width:72px}
+  .sbtn{width:26px;height:26px;font-size:15px}
 
   /* Make terrain smaller so it's visible on narrow screens */
   .terrain-wrap{margin:6px auto;max-width:720px}
-  .terrain-svg{height:calc(36dvh);border-radius:10px}
-  .player-bubble{font-size:11px;padding:6px 8px;min-width:48px}
+  .terrain-svg{height:calc(30dvh);border-radius:10px}
+
+  /* Player bubble compaction */
+  .player-bubble{font-size:10px;padding:4px 6px;min-width:44px;border-width:1.5px}
+  .player-bubble .pnum{font-size:11px}
+  .player-bubble.bench{padding:6px 8px;font-size:10px;border-width:1px}
+  .player-bubble .bench-time{font-size:10px}
 
   /* Bench area should scroll if content overflows */
   .bench-area{padding:6px 10px 12px;border-top:1px solid var(--border);overflow-x:auto}
@@ -282,13 +288,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   .bench-row > *{flex:0 0 auto}
 
   /* Reduce paddings and margins for live view */
-  .live-body{margin:0 8px 12px}
-  .live-sidebar{max-height:28dvh;overflow:auto}
+  .live-body{margin:0 6px 10px}
+  .live-sidebar{max-height:30dvh;overflow:auto}
+
+  /* Compact bottom nav */
+  .ni{padding:6px 2px;font-size:9px}
+  .ni-icon{font-size:18px}
 
   /* Ensure page content isn't hidden behind bottom nav */
-  .page{padding-bottom:calc(88px + var(--sb))}
+  .page{padding-bottom:calc(78px + var(--sb))}
   .modal{max-height:88dvh}
-  .kiosk-panel{padding:16px}
+  .kiosk-panel{padding:12px}
 
   /* Timeline tweaks */
   .tl-wrap{padding:12px 8px}
