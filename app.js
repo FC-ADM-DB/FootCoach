@@ -7,7 +7,8 @@ let U=null,UP=null,teams=[],CT=null,players=[];
 let matches=[],CM=null,mdMode=false,kioskMode=false;
 let selColor_='#00d68f',selPoste=null,editPid=null;
 let convs={},MP={},subLog=[],goals=[];
-let chronoOn=false,chronoS=0,halfN=1,chronoIv=null;
+let chronoOn=false,chronoS=0,halfN=1,chronoIv=null,chronoStartedAt=null;
+let matchListInterval=null,matchListTick=0;
 let sNous=0,sEux=0,goalAdv=false;
 let isAdmin=false;
 
@@ -209,6 +210,14 @@ async function loadMatches(){
   const{data}=await sb.from('matches').select('*').eq('team_id',CT.id).order('date',{ascending:false});
   matches=data||[];renderMatchesList();renderHomeMatches();updateStats();
 }
+function getMatchChrono(m){
+  if(!m.timeline_json)return 0;
+  let secs=m.timeline_json.chronoS||0;
+  if(m.timeline_json.chronoOn && m.timeline_json.chronoStartedAt){
+    secs += Math.floor((Date.now()-m.timeline_json.chronoStartedAt)/1000);
+  }
+  return secs;
+}
 function renderMatchesList(){
   const el=document.getElementById('matches-list');
   if(!matches.length){el.innerHTML=`<div class="empty"><div class="empty-i">📅</div><div class="empty-t">Aucun match</div><div class="empty-s">Crée ton premier match</div></div>`;return;}
@@ -219,8 +228,10 @@ function renderMatchesList(){
     if(m.score_nous!==null&&m.score_eux!==null){sc=`${m.score_nous}–${m.score_eux}`;cls=m.score_nous>m.score_eux?'win':m.score_nous<m.score_eux?'lose':'draw';}
     const stMap={prevu:'pb Prévu',en_cours:'pg En cours',termine:'pgr Terminé'};
     const[spCls,spTxt]=(stMap[m.statut]||'pgr ?').split(' ');
+    const liveInfo = m.statut==='en_cours' ? `<div class="mc-live-info"><span class="mc-chrono">${fmt(getMatchChrono(m))}</span><span class="pill pg" style="font-size:10px;padding:2px 7px">En direct</span></div>` : '';
     return `<div class="mc ${m.statut==='en_cours'?'mc-live':''}" onclick="openMatchDetail('${m.id}')">
       <div class="mc-top"><span class="mc-vs">vs ${m.adversaire}</span><span class="mc-sc ${cls}">${sc}</span></div>
+      ${liveInfo}
       <div class="mc-meta"><span>${d} · ${h}</span><span>${m.lieu==='domicile'?'🏠':'✈️'}</span><span class="pill ${spCls}" style="font-size:10px;padding:2px 7px">${spTxt}</span></div>
       ${isAdmin?`<button class="bsec" onclick="deleteMatch('${m.id}', event)" style="margin-top:10px;font-size:12px">Supprimer</button>`:''}
     </div>`;
@@ -264,6 +275,12 @@ async function openMatchDetail(id){
   if(CM.statut==='en_cours'&&CM.timeline_json){
     const tl=CM.timeline_json;
     chronoS=tl.chronoS||0;halfN=tl.halfN||1;
+    chronoOn=tl.chronoOn===true;
+    chronoStartedAt=tl.chronoStartedAt||null;
+    if(chronoOn && chronoStartedAt){
+      const extra=Math.floor((Date.now()-chronoStartedAt)/1000);
+      chronoS+=extra;
+    }
     sNous=CM.score_nous||0;sEux=CM.score_eux||0;
     subLog=tl.subLog||[];goals=tl.goals||[];
     MP=tl.MP||{};
@@ -288,6 +305,11 @@ async function openMatchDetail(id){
   document.getElementById('sc-nous-lbl').textContent=CT.nom.slice(0,10);
   document.getElementById('match-delete-btn').style.display=isAdmin?'inline-flex':'none';
   await loadConvs();
+  if(chronoOn){
+    const btn=document.getElementById('btn-chrono');
+    if(btn){btn.textContent='⏸ Pause';btn.style.background='var(--amber)';}
+    startChronoInterval();
+  }
   if(CM.statut==='termine')switchTab('res');
   else switchTab('conv');
 }
@@ -298,8 +320,7 @@ function getDefaultPositions(){
 function closeMatchDetail(){
   document.getElementById('match-list-view').style.display='block';
   document.getElementById('match-detail-view').style.display='none';
-  if(chronoOn)toggleChrono();
-  CM=null;chronoS=0;halfN=1;sNous=0;sEux=0;MP={};subLog=[];goals=[];fieldPositions=[];selectedBenchId=null;
+  CM=null;chronoS=0;halfN=1;sNous=0;sEux=0;MP={};subLog=[];goals=[];fieldPositions=[];selectedBenchId=null;chronoOn=false;chronoStartedAt=null;clearInterval(chronoIv);chronoIv=null;
 }
 async function deleteMatch(id,e){
   if(e&&e.stopPropagation) e.stopPropagation();
@@ -430,35 +451,41 @@ function assignPlayersToPositions(onFieldPlayers){
 }
 
 // ============ CHRONO ============
+function startChronoInterval(){
+  if(chronoIv)clearInterval(chronoIv);
+  chronoIv=setInterval(()=>{
+    chronoS++;
+    document.getElementById('live-time').textContent=fmt(chronoS);
+    if(kioskMode)renderKiosk();
+    renderField();
+    syncCurrentMatchInMemory();
+    if(document.getElementById('match-list-view').style.display==='block')renderMatchesList();
+  },1000);
+}
 function toggleChrono(){
   const btn=document.getElementById('btn-chrono');
   const hm=HALF_MIN[CT?.format||'8v8'];
   document.getElementById('live-half-dur').textContent=hm;
   if(!chronoOn){
-    chronoOn=true;btn.textContent='⏸ Pause';btn.style.background='var(--amber)';
+    chronoOn=true;chronoStartedAt=Date.now();
+    btn.textContent='⏸ Pause';btn.style.background='var(--amber)';
     Object.keys(MP).forEach(id=>{
       const mp=MP[id];
       if(mp.onField&&mp.enteredAt===null)mp.enteredAt=chronoS;
       if(!mp.onField && (mp.benchSince===null || mp.benchSince===undefined)) mp.benchSince=chronoS;
     });
-    chronoIv=setInterval(()=>{
-      chronoS++;
-      document.getElementById('live-time').textContent=fmt(chronoS);
-      if(kioskMode)renderKiosk();
-      renderField();
-      syncCurrentMatchInMemory();
-      if(document.getElementById('match-list-view').style.display==='block')renderMatchesList();
-    },1000);
+    startChronoInterval();
+    saveState();
   } else {
-    chronoOn=false;btn.textContent='▶ Start';btn.style.background='var(--green)';
-    clearInterval(chronoIv);freezeTimes();renderField();
+    chronoOn=false;chronoStartedAt=null;
+    btn.textContent='▶ Start';btn.style.background='var(--green)';
+    clearInterval(chronoIv);freezeTimes();renderField();saveState();
   }
 }
 function freezeTimes(){
   Object.keys(MP).forEach(id=>{
     const mp=MP[id];
     if(mp.enteredAt!==null&&mp.onField){mp.segments.push({from:mp.enteredAt,to:chronoS,half:halfN});mp.playSeconds+=chronoS-mp.enteredAt;mp.enteredAt=null;}
-    // pause bench timers
     if(mp && !mp.onField && mp.benchSince!==null){mp.benchSeconds=(mp.benchSeconds||0)+(chronoS-mp.benchSince);mp.benchSince=null}
   });
 }
@@ -737,7 +764,12 @@ async function endMatch(){
 async function saveState(){
   if(!CM)return;
   syncCurrentMatchInMemory();
-  await sb.from('matches').update({score_nous:sNous,score_eux:sEux,timeline_json:{chronoS,halfN,subLog,goals,MP,fieldPositions},statut:CM.statut==='termine'?'termine':'en_cours'}).eq('id',CM.id);
+  await sb.from('matches').update({
+    score_nous:sNous,
+    score_eux:sEux,
+    timeline_json:{chronoS,halfN,chronoOn,chronoStartedAt,subLog,goals,MP,fieldPositions},
+    statut:CM.statut==='termine'?'termine':'en_cours'
+  }).eq('id',CM.id);
 }
 
 // ============ SCORE EDIT (admin) ============
@@ -938,9 +970,20 @@ function goPage(name){
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+name)?.classList.add('active');
   document.getElementById('nav-'+name)?.classList.add('active');
+  if(matchListInterval){clearInterval(matchListInterval);matchListInterval=null;}
   if(name==='players')loadPlayers();
   if(name==='teams')renderTeamsList();
-  if(name==='match')loadMatches();
+  if(name==='match'){
+    loadMatches();
+    matchListTick=0;
+    matchListInterval=setInterval(()=>{
+      if(document.getElementById('page-match').classList.contains('active')){
+        renderMatchesList();
+        matchListTick++;
+        if(matchListTick%5===0)loadMatches();
+      }
+    },1000);
+  }
   if(name==='admin')renderAdminPage();
   if(name==='stats')loadMatches().then(()=>renderStatsPage());
 }

@@ -159,6 +159,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .mc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
 .mc-vs{font-size:15px;font-weight:700}
 .mc-sc{background:var(--bg3);border-radius:10px;padding:4px 10px;font-family:var(--mono);font-size:13px;font-weight:700}
+.mc-live-info{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.mc-chrono{font-size:12px;font-family:var(--mono);color:var(--green);font-weight:700}
 .mc-sc.win{background:var(--green-bg);color:var(--green)}
 .mc-sc.lose{background:var(--red-bg);color:var(--red)}
 .mc-sc.draw{background:var(--amber-bg);color:var(--amber)}
