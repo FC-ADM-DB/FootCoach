@@ -79,6 +79,7 @@ async function loadTeams(){
   else if(CT){const u=teams.find(t=>t.id===CT.id);if(u)selTeam(u);}
 }
 function selTeam(t){
+  if(CM && CT?.id!==t.id){closeMatchDetail();}
   CT=t;
   const tm=t.team_members?.find(m=>m.profile_id===U.id);
   isAdmin=tm?.role==='admin';
@@ -218,7 +219,7 @@ function renderMatchesList(){
     if(m.score_nous!==null&&m.score_eux!==null){sc=`${m.score_nous}–${m.score_eux}`;cls=m.score_nous>m.score_eux?'win':m.score_nous<m.score_eux?'lose':'draw';}
     const stMap={prevu:'pb Prévu',en_cours:'pg En cours',termine:'pgr Terminé'};
     const[spCls,spTxt]=(stMap[m.statut]||'pgr ?').split(' ');
-    return `<div class="mc" onclick="openMatchDetail('${m.id}')">
+    return `<div class="mc ${m.statut==='en_cours'?'mc-live':''}" onclick="openMatchDetail('${m.id}')">
       <div class="mc-top"><span class="mc-vs">vs ${m.adversaire}</span><span class="mc-sc ${cls}">${sc}</span></div>
       <div class="mc-meta"><span>${d} · ${h}</span><span>${m.lieu==='domicile'?'🏠':'✈️'}</span><span class="pill ${spCls}" style="font-size:10px;padding:2px 7px">${spTxt}</span></div>
       ${isAdmin?`<button class="bsec" onclick="deleteMatch('${m.id}', event)" style="margin-top:10px;font-size:12px">Supprimer</button>`:''}
@@ -438,13 +439,15 @@ function toggleChrono(){
     Object.keys(MP).forEach(id=>{
       const mp=MP[id];
       if(mp.onField&&mp.enteredAt===null)mp.enteredAt=chronoS;
-      // resume bench timers for players on bench
       if(!mp.onField && (mp.benchSince===null || mp.benchSince===undefined)) mp.benchSince=chronoS;
     });
     chronoIv=setInterval(()=>{
-      chronoS++;document.getElementById('live-time').textContent=fmt(chronoS);
+      chronoS++;
+      document.getElementById('live-time').textContent=fmt(chronoS);
       if(kioskMode)renderKiosk();
-      if(chronoS%15===0){renderField();saveState();}
+      renderField();
+      syncCurrentMatchInMemory();
+      if(document.getElementById('match-list-view').style.display==='block')renderMatchesList();
     },1000);
   } else {
     chronoOn=false;btn.textContent='▶ Start';btn.style.background='var(--green)';
@@ -469,10 +472,11 @@ function switchHalf(){
   renderField();showToast('2ème mi-temps !','ok');
 }
 function liveSecs(id){const mp=MP[id];if(!mp)return 0;return mp.playSeconds+(mp.enteredAt!==null?chronoS-mp.enteredAt:0);}
+function getBenchSeconds(id){const mp=MP[id];if(!mp)return 0;let secs=(mp.benchSeconds||0);if(mp.benchSince!==null&&mp.benchSince!==undefined)secs+=chronoS-mp.benchSince;return secs;}
+function syncCurrentMatchInMemory(){if(!CM)return;const idx=matches.findIndex(m=>m.id===CM.id);if(idx!==-1){matches[idx]={...matches[idx],score_nous:sNous,score_eux:sEux,statut:CM.statut};}}
 function chgScore(who,d){
-  if(who==='nous'){sNous=Math.max(0,sNous+d);document.getElementById('sc-nous').textContent=sNous;CM&&(CM.score_nous=sNous);}
-  else{sEux=Math.max(0,sEux+d);document.getElementById('sc-eux').textContent=sEux;CM&&(CM.score_eux=sEux);}
-  saveState();
+  if(who==='nous'){sNous=Math.max(0,sNous+d);document.getElementById('sc-nous').textContent=sNous;CM&&(CM.score_nous=sNous);} else {sEux=Math.max(0,sEux+d);document.getElementById('sc-eux').textContent=sEux;CM&&(CM.score_eux=sEux);}
+  syncCurrentMatchInMemory();saveState();
   if(document.getElementById('tab-res').style.display==='block')renderResume();
 }
 
@@ -501,8 +505,9 @@ function renderField(){
     if(p){
       const col=pCol(p);
       bubble.style.borderColor=col;
-      bubble.innerHTML=`<span style="font-size:10px;color:var(--text3);font-family:var(--mono)">${pos.n}</span> ${p.prenom} ${p.nom.charAt(0)}.`;
-      bubble.innerHTML+=`<br><span style="font-size:10px;color:var(--text2);font-family:var(--mono)">${fmt(liveSecs(p.id))}</span>`;
+      bubble.style.background=`${col}15`;
+      bubble.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style=\"font-size:10px;color:var(--text3);font-family:var(--mono)\">${pos.n}</span><span style=\"font-size:10px;color:${col};font-family:var(--mono)\">${p.numero_poste||''}</span></div>`;
+      bubble.innerHTML+=`<div style="font-size:13px;font-weight:600;margin-top:2px">${p.prenom} ${p.nom.charAt(0)}.</div><div style="font-size:10px;color:var(--text2);font-family:var(--mono);margin-top:2px">${fmt(liveSecs(p.id))}</div>`;
     } else {
       bubble.innerHTML=`<span style="color:var(--text3)">#${pos.n} libre</span>`;
       bubble.style.borderStyle='dashed';bubble.style.borderColor='rgba(255,255,255,.2)';bubble.style.background='rgba(255,255,255,.03)';
@@ -518,11 +523,12 @@ function renderField(){
   benchPlayers.forEach(p=>{
     const mp=MP[p.id];
     const bs=(mp?.benchSeconds||0)+((mp?.benchSince!==null && mp?.benchSince!==undefined)?(chronoS-mp.benchSince):0);
+    const col=pCol(p);
     const bubble=document.createElement('div');
     bubble.className='player-bubble bench'+(selectedBenchId===p.id?' selected':'');
-    bubble.style.cssText='position:relative;transform:none;cursor:grab;touch-action:none';
+    bubble.style.cssText=`position:relative;transform:none;cursor:grab;touch-action:none;border-color:${col};background:${col}15;color:${col}`;
     bubble.dataset.playerId=p.id;bubble.dataset.type='bench';
-    bubble.innerHTML=`<div style="font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</div><span class="bench-time">Sur le banc: ${fmt(bs)}</span>`;
+    bubble.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style=\"font-weight:600;color:${col}\">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div><span class=\"bench-time\">Sur le banc: ${fmt(bs)}</span>`;
     bubble.addEventListener('click',()=>handleBenchSelect(p.id));
     makeDraggableBench(bubble,p.id);
     benchArea.appendChild(bubble);
@@ -697,23 +703,23 @@ function openGoalModal(adv){
 async function saveGoal(){
   const sid=document.getElementById('g-scorer').value;
   const aid=document.getElementById('g-assist').value;
-  const min=parseInt(document.getElementById('g-min').value)||Math.floor(chronoS/60);
-  const scorer=goalAdv?CM.adversaire:(players.find(p=>p.id===sid)?.prenom+' '+(players.find(p=>p.id===sid)?.nom)||'?');
+  const t=chronoS;
+  const min=Math.floor(t/60);
+  const scorer=goalAdv?CM.adversaire:(players.find(p=>p.id===sid)?.prenom+' '+(players.find(p=>p.id===sid)?.nom||'')||'?');
   const assist=aid&&!goalAdv?(players.find(p=>p.id===aid)?.prenom||null):null;
-  goals.push({min,scorer,assist,adv:goalAdv,half:halfN});
-  if(goalAdv){sEux++;document.getElementById('sc-eux').textContent=sEux;}
-  else{sNous++;document.getElementById('sc-nous').textContent=sNous;}
-  closeModal('modal-goal');renderGoals();saveState();showToast('But enregistré !','ok');
+  goals.push({t,min,scorer,assist,adv:goalAdv,half:halfN});
+  if(goalAdv){sEux++;document.getElementById('sc-eux').textContent=sEux;} else {sNous++;document.getElementById('sc-nous').textContent=sNous;}
+  closeModal('modal-goal');renderGoals();syncCurrentMatchInMemory();saveState();showToast('But enregistré !','ok');
 }
 function renderGoals(){
   const el=document.getElementById('goals-list');
   if(!goals.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:4px 0">Aucun but enregistré</div>';return;}
-  el.innerHTML=goals.map(g=>`<div class="but-row">
-    <span class="but-min">${g.min}'</span>
+  el.innerHTML=goals.map(g=>{const time=g.t!==undefined?fmt(g.t):g.min!==undefined?`${g.min}'`:'--';return `<div class="but-row">
+    <span class="but-min">${time}</span>
     <span>${g.adv?'🔴':'⚽'}</span>
     <div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div>
     <span class="pill ${g.adv?'pr':'pg'}" style="font-size:10px">${g.adv?'Concédé':'Marqué'}</span>
-  </div>`).join('');
+  </div>`}).join('');
 }
 
 // ============ END MATCH ============
@@ -730,6 +736,7 @@ async function endMatch(){
 }
 async function saveState(){
   if(!CM)return;
+  syncCurrentMatchInMemory();
   await sb.from('matches').update({score_nous:sNous,score_eux:sEux,timeline_json:{chronoS,halfN,subLog,goals,MP,fieldPositions},statut:CM.statut==='termine'?'termine':'en_cours'}).eq('id',CM.id);
 }
 
@@ -770,7 +777,8 @@ function renderTimeline(){
     svg+=`<rect x="${lW}" y="${y+4}" width="${tW}" height="${rowH-8}" rx="3" fill="rgba(255,255,255,0.02)"/>`;
     (mp.segments||[]).forEach(seg=>{const x1=xOf(seg.from,seg.half),x2=xOf(seg.to,seg.half);svg+=`<rect x="${x1}" y="${y+5}" width="${Math.max(x2-x1,2)}" height="${rowH-10}" rx="3" fill="${col}" opacity="0.85"/>`;});
     if(mp.enteredAt!==null&&mp.onField){const x1=xOf(mp.enteredAt,halfN),x2=xOf(chronoS,halfN);svg+=`<rect x="${x1}" y="${y+5}" width="${Math.max(x2-x1,2)}" height="${rowH-10}" rx="3" fill="${col}" opacity="0.4"/>`;}
-    svg+=`<text x="${W-2}" y="${cy+4}" text-anchor="end" font-size="8" fill="${tc}" font-family="DM Mono,monospace">${fmt(liveSecs(p.id))}</text>`;
+    const bench=fmt(getBenchSeconds(p.id));
+    svg+=`<text x="${W-2}" y="${cy+4}" text-anchor="end" font-size="8" fill="${tc}" font-family="DM Mono,monospace">${fmt(liveSecs(p.id))}${bench!=='00:00'?' · '+bench:''}</text>`;
   });
   svg+=`</svg>`;
   document.getElementById('tl-chart').innerHTML=svg;
@@ -809,11 +817,13 @@ function renderResume(){
     const sorted=[...mpPlayers].sort((a,b)=>liveSecs(b.id)-liveSecs(a.id));
     const max=Math.max(...sorted.map(p=>liveSecs(p.id)),1);
     html+=sorted.map(p=>{
-      const s=liveSecs(p.id),pct=Math.round(s/max*100);
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:13px;flex:1">${p.prenom} ${p.nom}</div>
-        <div style="width:80px;height:4px;background:var(--bg3);border-radius:99px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${CT?.couleur||'var(--green)'};border-radius:99px"></div></div>
-        <div style="font-size:12px;font-family:var(--mono);color:var(--text2);min-width:36px;text-align:right">${fmt(s)}</div>
+      const s=liveSecs(p.id), b=getBenchSeconds(p.id), pct=Math.round(s/max*100);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:${pCol(p)}">${p.prenom} ${p.nom}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px">Jeu: ${fmt(s)} · Banc: ${fmt(b)}</div>
+        </div>
+        <div style="width:80px;height:6px;background:var(--bg3);border-radius:99px;overflow:hidden;flex-shrink:0"><div style="width:${pct}%;height:100%;background:${CT?.couleur||'#00d68f'};border-radius:99px"></div></div>
       </div>`;
     }).join('');
   }
