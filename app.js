@@ -8,7 +8,7 @@ let matches=[],CM=null,mdMode=false,kioskMode=false;
 let selColor_='#00d68f',selPoste=null,editPid=null;
 let convs={},MP={},subLog=[],goals=[];
 let chronoOn=false,chronoS=0,halfN=1,chronoIv=null,chronoStartedAt=null;
-let matchListInterval=null,matchListTick=0;
+let matchListInterval=null,matchListTick=0,matchDetailInterval=null;
 let sNous=0,sEux=0,goalAdv=false;
 let isAdmin=false;
 
@@ -296,9 +296,9 @@ async function openMatchDetail(id){
   }
   selectedBenchId=null;
   document.getElementById('live-time').textContent=fmt(chronoS);
-  document.getElementById('live-half').innerHTML=`1ère mi-temps · <span id="live-half-dur">${HALF_MIN[CT?.format||'8v8']}</span> min`;
-  document.getElementById('live-badge').textContent='MT 1';
-  document.getElementById('live-badge').style.cssText='';
+  document.getElementById('live-half').innerHTML=`${halfN===2?'2ème':'1ère'} mi-temps · <span id="live-half-dur">${HALF_MIN[CT?.format||'8v8']}</span> min`;
+  document.getElementById('live-badge').textContent=halfN===2?'MT 2':'MT 1';
+  document.getElementById('live-badge').style.cssText=halfN===2?'background:var(--amber-bg);color:var(--amber);':'';
   document.getElementById('sc-nous').textContent=sNous;
   document.getElementById('sc-eux').textContent=sEux;
   document.getElementById('sc-eux-lbl').textContent=CM.adversaire.slice(0,12);
@@ -310,6 +310,8 @@ async function openMatchDetail(id){
     if(btn){btn.textContent='⏸ Pause';btn.style.background='var(--amber)';}
     startChronoInterval();
   }
+  if(matchDetailInterval)clearInterval(matchDetailInterval);
+  matchDetailInterval=setInterval(refreshActiveMatch,2000);
   if(CM.statut==='termine')switchTab('res');
   else switchTab('conv');
 }
@@ -320,6 +322,7 @@ function getDefaultPositions(){
 function closeMatchDetail(){
   document.getElementById('match-list-view').style.display='block';
   document.getElementById('match-detail-view').style.display='none';
+  if(matchDetailInterval){clearInterval(matchDetailInterval);matchDetailInterval=null;}
   CM=null;chronoS=0;halfN=1;sNous=0;sEux=0;MP={};subLog=[];goals=[];fieldPositions=[];selectedBenchId=null;chronoOn=false;chronoStartedAt=null;clearInterval(chronoIv);chronoIv=null;
 }
 async function deleteMatch(id,e){
@@ -496,7 +499,7 @@ function switchHalf(){
   document.getElementById('live-badge').textContent='MT 2';
   document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
   Object.keys(MP).forEach(id=>{if(MP[id].onField)MP[id].enteredAt=null;});
-  renderField();showToast('2ème mi-temps !','ok');
+  renderField();saveState();showToast('2ème mi-temps !','ok');
 }
 function liveSecs(id){const mp=MP[id];if(!mp)return 0;return mp.playSeconds+(mp.enteredAt!==null?chronoS-mp.enteredAt:0);}
 function getBenchSeconds(id){const mp=MP[id];if(!mp)return 0;let secs=(mp.benchSeconds||0);if(mp.benchSince!==null&&mp.benchSince!==undefined)secs+=chronoS-mp.benchSince;return secs;}
@@ -790,6 +793,44 @@ async function saveScoreEdit(){
 }
 
 // ============ TIMELINE ============
+async function refreshActiveMatch(){
+  if(!CM)return;
+  const {data,error}=await sb.from('matches').select('*').eq('id',CM.id).single();
+  if(error||!data) return;
+  const sameTimeline = data.timeline_json && CM.timeline_json && JSON.stringify(data.timeline_json)===JSON.stringify(CM.timeline_json);
+  if(sameTimeline && data.score_nous===CM.score_nous && data.score_eux===CM.score_eux && data.statut===CM.statut) return;
+  CM=data;
+  if(CM.statut==='en_cours' && CM.timeline_json){
+    const tl=CM.timeline_json;
+    chronoS=tl.chronoS||0;halfN=tl.halfN||1;
+    chronoOn=tl.chronoOn===true;
+    chronoStartedAt=tl.chronoStartedAt||null;
+    if(chronoOn && chronoStartedAt){
+      const extra=Math.floor((Date.now()-chronoStartedAt)/1000);
+      chronoS+=extra;
+    }
+    sNous=CM.score_nous||0;sEux=CM.score_eux||0;
+    subLog=tl.subLog||[];goals=tl.goals||[];
+    MP=tl.MP||{};
+    Object.keys(MP).forEach(k=>{MP[k].benchSeconds=MP[k].benchSeconds||0;MP[k].benchSince=(MP[k].benchSince!==undefined?MP[k].benchSince:null)});
+    fieldPositions=tl.fieldPositions||getDefaultPositions();
+    document.getElementById('live-time').textContent=fmt(chronoS);
+    document.getElementById('sc-nous').textContent=sNous;
+    document.getElementById('sc-eux').textContent=sEux;
+    document.getElementById('det-status').className='pill pg';
+    document.getElementById('det-status').textContent='En cours';
+    document.getElementById('live-half').innerHTML=`${halfN===2?'2ème':'1ère'} mi-temps · <span id="live-half-dur">${HALF_MIN[CT?.format||'8v8']}</span> min`;
+    document.getElementById('live-badge').textContent=halfN===2?'MT 2':'MT 1';
+    if(halfN===2) document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
+    else document.getElementById('live-badge').style.cssText='';
+  }
+  if(document.getElementById('tab-conv').style.display==='block') renderConvs();
+  if(document.getElementById('tab-live').style.display==='block') {renderField();renderGoals();}
+  if(document.getElementById('tab-tl').style.display==='block') renderTimeline();
+  if(document.getElementById('tab-res').style.display==='block') renderResume();
+  if(CM.statut==='termine') switchTab('res');
+}
+
 function renderTimeline(){
   const present=players.filter(p=>MP[p.id]);
   const hS=HALF_MIN[CT?.format||'8v8']*60;
