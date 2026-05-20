@@ -266,6 +266,8 @@ async function openMatchDetail(id){
     sNous=CM.score_nous||0;sEux=CM.score_eux||0;
     subLog=tl.subLog||[];goals=tl.goals||[];
     MP=tl.MP||{};
+    // ensure bench tracking keys exist
+    Object.keys(MP).forEach(k=>{MP[k].benchSeconds=MP[k].benchSeconds||0;MP[k].benchSince=(MP[k].benchSince!==undefined?MP[k].benchSince:null)});
     fieldPositions=tl.fieldPositions||getDefaultPositions();
   } else {
     fieldPositions=getDefaultPositions();
@@ -395,7 +397,18 @@ function startMatch(){
   const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
   if(presents.length<maxOn)return showToast(`Minimum ${maxOn} joueurs requis`,'err');
   MP={};
-  presents.forEach((p,i)=>{MP[p.id]={onField:i<maxOn,playSeconds:0,enteredAt:i<maxOn?0:null,segments:[],poste:p.numero_poste||null};});
+  presents.forEach((p,i)=>{
+    MP[p.id]={
+      onField:i<maxOn,
+      playSeconds:0,
+      enteredAt:i<maxOn?0:null,
+      segments:[],
+      poste:p.numero_poste||null,
+      // bench tracking
+      benchSeconds:0,
+      benchSince: i<maxOn? null : 0
+    };
+  });
   sNous=0;sEux=0;chronoS=0;halfN=1;subLog=[];goals=[];
   document.getElementById('sc-nous').textContent='0';document.getElementById('sc-eux').textContent='0';
   document.getElementById('sc-eux-lbl').textContent=CM.adversaire.slice(0,12);
@@ -422,7 +435,12 @@ function toggleChrono(){
   document.getElementById('live-half-dur').textContent=hm;
   if(!chronoOn){
     chronoOn=true;btn.textContent='⏸ Pause';btn.style.background='var(--amber)';
-    Object.keys(MP).forEach(id=>{if(MP[id].onField&&MP[id].enteredAt===null)MP[id].enteredAt=chronoS;});
+    Object.keys(MP).forEach(id=>{
+      const mp=MP[id];
+      if(mp.onField&&mp.enteredAt===null)mp.enteredAt=chronoS;
+      // resume bench timers for players on bench
+      if(!mp.onField && (mp.benchSince===null || mp.benchSince===undefined)) mp.benchSince=chronoS;
+    });
     chronoIv=setInterval(()=>{
       chronoS++;document.getElementById('live-time').textContent=fmt(chronoS);
       if(kioskMode)renderKiosk();
@@ -437,6 +455,8 @@ function freezeTimes(){
   Object.keys(MP).forEach(id=>{
     const mp=MP[id];
     if(mp.enteredAt!==null&&mp.onField){mp.segments.push({from:mp.enteredAt,to:chronoS,half:halfN});mp.playSeconds+=chronoS-mp.enteredAt;mp.enteredAt=null;}
+    // pause bench timers
+    if(mp && !mp.onField && mp.benchSince!==null){mp.benchSeconds=(mp.benchSeconds||0)+(chronoS-mp.benchSince);mp.benchSince=null}
   });
 }
 function switchHalf(){
@@ -465,7 +485,10 @@ function renderField(){
   container.innerHTML='';
   container.style.cssText=`position:absolute;top:0;left:0;width:${W}px;height:${H}px;pointer-events:none`;
   const onIds=new Set(fieldPositions.filter(p=>p.playerId).map(p=>p.playerId));
-  const benchPlayers=players.filter(p=>MP[p.id]&&!onIds.has(p.id)&&MP[p.id].onField===false);
+  // compute bench seconds and sort bench players by how long they've been on the side (desc)
+  const benchPlayersRaw=players.filter(p=>MP[p.id]&&!onIds.has(p.id)&&MP[p.id].onField===false);
+  benchPlayersRaw.forEach(p=>{const mp=MP[p.id];p._benchSecs=(mp?.benchSeconds||0)+((mp?.benchSince!==null && mp?.benchSince!==undefined)?(chronoS-mp.benchSince):0)});
+  const benchPlayers=benchPlayersRaw.sort((a,b)=>b._benchSecs - a._benchSecs);
 
   fieldPositions.forEach((pos,idx)=>{
     const x=W*pos.x/100,y=H*pos.y/100;
@@ -493,11 +516,13 @@ function renderField(){
   benchArea.innerHTML='';
   if(!benchPlayers.length){benchArea.innerHTML='<span style="font-size:12px;color:var(--text3)">Aucun remplaçant</span>';return;}
   benchPlayers.forEach(p=>{
+    const mp=MP[p.id];
+    const bs=(mp?.benchSeconds||0)+((mp?.benchSince!==null && mp?.benchSince!==undefined)?(chronoS-mp.benchSince):0);
     const bubble=document.createElement('div');
     bubble.className='player-bubble bench'+(selectedBenchId===p.id?' selected':'');
     bubble.style.cssText='position:relative;transform:none;cursor:grab;touch-action:none';
     bubble.dataset.playerId=p.id;bubble.dataset.type='bench';
-    bubble.textContent=`${p.prenom} ${p.nom.charAt(0)}.`;
+    bubble.innerHTML=`<div style="font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</div><span class="bench-time">Sur le banc: ${fmt(bs)}</span>`;
     bubble.addEventListener('click',()=>handleBenchSelect(p.id));
     makeDraggableBench(bubble,p.id);
     benchArea.appendChild(bubble);
@@ -621,21 +646,35 @@ function doFieldSwap(idxA,idxB){
 function doBenchSwap(benchPlayerId,fieldIdx){
   const oldId=fieldPositions[fieldIdx].playerId;
   if(oldId){
-    const mpOut=MP[oldId];const mpIn=MP[benchPlayerId];
+    const mpOut=MP[oldId];
+    const mpIn=MP[benchPlayerId];
     if(!mpIn)return renderField();
+    // close out time for player going out
     if(mpOut&&mpOut.enteredAt!==null){
       mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN});
       mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;
     }
-    if(mpOut)mpOut.onField=false;
-    mpIn.onField=true;mpIn.enteredAt=chronoS;
+    // mark bench start for player going out
+    if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS}
+    // player coming in: accumulate bench seconds and clear benchSince
+    if(mpIn){
+      mpIn.onField=true;
+      if(mpIn.benchSince!==null && mpIn.benchSince!==undefined){mpIn.benchSeconds=(mpIn.benchSeconds||0)+(chronoS-mpIn.benchSince);mpIn.benchSince=null}
+      mpIn.enteredAt=chronoS;
+    }
     const pOut=players.find(p=>p.id===oldId);
     const pIn=players.find(p=>p.id===benchPlayerId);
     subLog.push({t:chronoS,half:halfN,out:(pOut?.prenom||'?')+' '+(pOut?.nom||''),in:(pIn?.prenom||'?')+' '+(pIn?.nom||'')});
     fieldPositions[fieldIdx].playerId=benchPlayerId;
     saveState();showToast(`${pIn?.prenom} entre pour ${pOut?.prenom}`,'ok');
   } else {
-    if(MP[benchPlayerId])MP[benchPlayerId].onField=true;
+    if(MP[benchPlayerId]){
+      // coming from bench into empty slot
+      const mpIn=MP[benchPlayerId];
+      mpIn.onField=true;
+      if(mpIn.benchSince!==null && mpIn.benchSince!==undefined){mpIn.benchSeconds=(mpIn.benchSeconds||0)+(chronoS-mpIn.benchSince);mpIn.benchSince=null}
+      mpIn.enteredAt=chronoS;
+    }
     fieldPositions[fieldIdx].playerId=benchPlayerId;
     saveState();
   }
