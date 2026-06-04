@@ -68,7 +68,28 @@ async function doRegister(){
   const el=document.getElementById('aerr');el.textContent='Compte créé ! Vérifie ton email.';el.style.color='var(--green)';el.classList.add('show');
 }
 function showAErr(m){const el=document.getElementById('aerr');el.textContent=m;el.style.color='';el.classList.add('show');}
-function toggleForm(){const il=document.getElementById('form-login').style.display!=='none';document.getElementById('form-login').style.display=il?'none':'block';document.getElementById('form-reg').style.display=il?'block':'none';document.getElementById('aerr').classList.remove('show');}
+function toggleForm(){const il=document.getElementById('form-login').style.display!=='none';document.getElementById('form-login').style.display=il?'none':'block';document.getElementById('form-reg').style.display=il?'block':'none';document.getElementById('form-reset').style.display='none';document.getElementById('aerr').classList.remove('show');}
+function showResetForm(){document.getElementById('form-login').style.display='none';document.getElementById('form-reg').style.display='none';document.getElementById('form-reset').style.display='block';document.getElementById('aerr').classList.remove('show');}
+function showLoginForm(){document.getElementById('form-login').style.display='block';document.getElementById('form-reg').style.display='none';document.getElementById('form-reset').style.display='none';document.getElementById('aerr').classList.remove('show');}
+async function doResetPassword(){
+  const e=document.getElementById('reset-email').value.trim();
+  const btn=document.getElementById('btn-reset');
+  if(!e) return showAErr('Email requis.');
+  btn.disabled=true;btn.textContent='Envoi...';
+  let response;
+  if(typeof sb.auth.resetPasswordForEmail==='function'){
+    response=await sb.auth.resetPasswordForEmail({email:e});
+  } else if(sb.auth.api && typeof sb.auth.api.resetPasswordForEmail==='function'){
+    response=await sb.auth.api.resetPasswordForEmail(e);
+  } else {
+    btn.disabled=false;btn.textContent='Réinitialiser le mot de passe';
+    return showAErr('Impossible de réinitialiser : méthode manquante.');
+  }
+  btn.disabled=false;btn.textContent='Réinitialiser le mot de passe';
+  const {data,error}=response;
+  if(error) return showAErr(error.message);
+  const el=document.getElementById('aerr');el.textContent='Email envoyé ! Vérifie ta boîte mail.';el.style.color='var(--green)';el.classList.add('show');
+}
 async function loadApp(user){U=user;document.getElementById('screen-auth').classList.remove('active');document.getElementById('screen-app').classList.add('active');await loadProfile();await loadTeams();renderHome();}
 async function loadProfile(){const{data}=await sb.from('profiles').select('*').eq('id',U.id).single();if(data){UP=data;document.getElementById('wname').textContent=`Bonjour ${data.prenom} !`;}}
 

@@ -29,7 +29,15 @@
         <div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="li-email" placeholder="ton@email.com" autocomplete="email"></div>
         <div class="fg"><label class="fl">Mot de passe</label><input class="fi" type="password" id="li-pwd" placeholder="••••••••" autocomplete="current-password"></div>
         <button class="bp" id="btn-li" onclick="doLogin()">Se connecter</button>
-        <div class="auth-sw">Pas encore de compte ? <a href="#" onclick="toggleForm()">S'inscrire</a></div>
+        <div class="auth-sw" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <a href="#" onclick="showResetForm()" style="font-size:12px">Mot de passe oublié ?</a>
+          <span>Pas encore de compte ? <a href="#" onclick="toggleForm()">S'inscrire</a></span>
+        </div>
+      </div>
+      <div id="form-reset" style="display:none">
+        <div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="reset-email" placeholder="ton@email.com" autocomplete="email"></div>
+        <button class="bp" id="btn-reset" onclick="doResetPassword()">Réinitialiser le mot de passe</button>
+        <div class="auth-sw">Retour à la connexion ? <a href="#" onclick="showLoginForm()">Se connecter</a></div>
       </div>
       <div id="form-reg" style="display:none">
         <div class="frow">
