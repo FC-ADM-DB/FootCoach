@@ -50,10 +50,15 @@ async function doLogin(){
   const btn=document.getElementById('btn-li');
   if(!e||!p)return showAErr('Remplis tous les champs.');
   btn.disabled=true;btn.textContent='…';
-  const{data,error}=await sb.auth.signInWithPassword({email:e,password:p});
-  btn.disabled=false;btn.textContent='Se connecter';
-  if(error)return showAErr(error.message);
-  await loadApp(data.user);
+  try {
+    const {data,error} = await sb.auth.signInWithPassword({email:e,password:p});
+    if(error) return showAErr(error.message);
+    await loadApp(data.user);
+  } catch(err) {
+    showAErr(err?.message || 'Connexion impossible. Vérifie ta connexion.');
+  } finally {
+    btn.disabled=false;btn.textContent='Se connecter';
+  }
 }
 async function doRegister(){
   const pn=document.getElementById('rp').value.trim(),nn=document.getElementById('rn').value.trim();
@@ -62,10 +67,15 @@ async function doRegister(){
   if(!pn||!nn||!e||!p)return showAErr('Remplis tous les champs.');
   if(p.length<8)return showAErr('8 caractères minimum.');
   btn.disabled=true;btn.textContent='…';
-  const{error}=await sb.auth.signUp({email:e,password:p,options:{data:{prenom:pn,nom:nn}}});
-  btn.disabled=false;btn.textContent='Créer mon compte';
-  if(error)return showAErr(error.message);
-  const el=document.getElementById('aerr');el.textContent='Compte créé ! Vérifie ton email.';el.style.color='var(--green)';el.classList.add('show');
+  try {
+    const {error} = await sb.auth.signUp({email:e,password:p,options:{data:{prenom:pn,nom:nn}}});
+    if(error) return showAErr(error.message);
+    const el=document.getElementById('aerr');el.textContent='Compte créé ! Vérifie ton email.';el.style.color='var(--green)';el.classList.add('show');
+  } catch(err) {
+    showAErr(err?.message || 'Création impossible. Vérifie ta connexion.');
+  } finally {
+    btn.disabled=false;btn.textContent='Créer mon compte';
+  }
 }
 function showAErr(m){const el=document.getElementById('aerr');el.textContent=m;el.style.color='';el.classList.add('show');}
 function toggleForm(){const il=document.getElementById('form-login').style.display!=='none';document.getElementById('form-login').style.display=il?'none':'block';document.getElementById('form-reg').style.display=il?'block':'none';document.getElementById('form-reset').style.display='none';document.getElementById('aerr').classList.remove('show');}
@@ -76,19 +86,23 @@ async function doResetPassword(){
   const btn=document.getElementById('btn-reset');
   if(!e) return showAErr('Email requis.');
   btn.disabled=true;btn.textContent='Envoi...';
-  let response;
-  if(typeof sb.auth.resetPasswordForEmail==='function'){
-    response=await sb.auth.resetPasswordForEmail({email:e});
-  } else if(sb.auth.api && typeof sb.auth.api.resetPasswordForEmail==='function'){
-    response=await sb.auth.api.resetPasswordForEmail(e);
-  } else {
+  try {
+    let response;
+    if(typeof sb.auth.resetPasswordForEmail==='function'){
+      response=await sb.auth.resetPasswordForEmail({email:e});
+    } else if(sb.auth.api && typeof sb.auth.api.resetPasswordForEmail==='function'){
+      response=await sb.auth.api.resetPasswordForEmail(e);
+    } else {
+      return showAErr('Impossible de réinitialiser : méthode manquante.');
+    }
+    const {data,error}=response;
+    if(error) return showAErr(error.message);
+    const el=document.getElementById('aerr');el.textContent='Email envoyé ! Vérifie ta boîte mail.';el.style.color='var(--green)';el.classList.add('show');
+  } catch(err) {
+    showAErr(err?.message || 'Impossible d’envoyer l’email. Vérifie ta connexion.');
+  } finally {
     btn.disabled=false;btn.textContent='Réinitialiser le mot de passe';
-    return showAErr('Impossible de réinitialiser : méthode manquante.');
   }
-  btn.disabled=false;btn.textContent='Réinitialiser le mot de passe';
-  const {data,error}=response;
-  if(error) return showAErr(error.message);
-  const el=document.getElementById('aerr');el.textContent='Email envoyé ! Vérifie ta boîte mail.';el.style.color='var(--green)';el.classList.add('show');
 }
 async function loadApp(user){U=user;document.getElementById('screen-auth').classList.remove('active');document.getElementById('screen-app').classList.add('active');await loadProfile();await loadTeams();renderHome();}
 async function loadProfile(){const{data}=await sb.from('profiles').select('*').eq('id',U.id).single();if(data){UP=data;document.getElementById('wname').textContent=`Bonjour ${data.prenom} !`;}}
