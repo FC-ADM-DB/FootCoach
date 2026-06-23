@@ -7,7 +7,7 @@ let U=null,UP=null,teams=[],CT=null,players=[];
 let matches=[],CM=null,mdMode=false,kioskMode=false;
 let selColor_='#00d68f',selPoste=null,editPid=null;
 let convs={},MP={},subLog=[],goals=[];
-let chronoOn=false,chronoS=0,halfN=1,chronoIv=null,chronoStartedAt=null;
+let chronoOn=false,chronoS=0,halfN=1,chronoIv=null,chronoStartedAt=null,halfDuration=30;
 let matchListInterval=null,matchListTick=0,matchDetailInterval=null;
 let sNous=0,sEux=0,goalAdv=false;
 let isAdmin=false;
@@ -247,11 +247,10 @@ async function loadMatches(){
 }
 function getMatchChrono(m){
   if(!m.timeline_json)return 0;
-  let secs=m.timeline_json.chronoS||0;
   if(m.timeline_json.chronoOn && m.timeline_json.chronoStartedAt){
-    secs += Math.floor((Date.now()-m.timeline_json.chronoStartedAt)/1000);
+    return Math.floor((Date.now()-m.timeline_json.chronoStartedAt)/1000);
   }
-  return secs;
+  return m.timeline_json.chronoS||0;
 }
 function renderMatchesList(){
   const el=document.getElementById('matches-list');
@@ -285,13 +284,17 @@ function renderHomeMatches(){
 function openMatchCreateModal(){
   if(!CT)return showToast('Sélectionne une équipe','err');
   document.getElementById('m-adv').value='';
+  document.getElementById('m-half').value=HALF_MIN[CT.format]||30;
   const now=new Date();now.setMinutes(0);document.getElementById('m-date').value=now.toISOString().slice(0,16);
   openModal('modal-mc');
 }
 async function saveMatch(){
-  const adv=document.getElementById('m-adv').value.trim(),date=document.getElementById('m-date').value,lieu=document.getElementById('m-lieu').value;
-  if(!adv||!date)return showToast('Remplis tous les champs','err');
-  const{error}=await sb.from('matches').insert({team_id:CT.id,adversaire:adv,date,lieu,statut:'prevu'});
+  const adv=document.getElementById('m-adv').value.trim();
+  const date=document.getElementById('m-date').value;
+  const lieu=document.getElementById('m-lieu').value;
+  const half=parseInt(document.getElementById('m-half').value)||HALF_MIN[CT.format]||30;
+  if(!adv||!date||!half)return showToast('Remplis tous les champs','err');
+  const{error}=await sb.from('matches').insert({team_id:CT.id,adversaire:adv,date,lieu,statut:'prevu',timeline_json:{halfDuration:half}});
   if(error)return showToast('Erreur','err');
   closeModal('modal-mc');showToast('Match créé !','ok');await loadMatches();
 }
@@ -309,13 +312,15 @@ async function openMatchDetail(id){
 
   if(CM.statut==='en_cours'&&CM.timeline_json){
     const tl=CM.timeline_json;
-    chronoS=tl.chronoS||0;halfN=tl.halfN||1;
+    halfDuration=tl.halfDuration||HALF_MIN[CT?.format||'8v8'];
     chronoOn=tl.chronoOn===true;
     chronoStartedAt=tl.chronoStartedAt||null;
     if(chronoOn && chronoStartedAt){
-      const extra=Math.floor((Date.now()-chronoStartedAt)/1000);
-      chronoS+=extra;
+      chronoS=Math.floor((Date.now()-chronoStartedAt)/1000);
+    } else {
+      chronoS=tl.chronoS||0;
     }
+    halfN=tl.halfN||1;
     sNous=CM.score_nous||0;sEux=CM.score_eux||0;
     subLog=tl.subLog||[];goals=tl.goals||[];
     MP=tl.MP||{};
@@ -325,13 +330,14 @@ async function openMatchDetail(id){
   } else {
     fieldPositions=getDefaultPositions();
     chronoS=0;halfN=1;
+    halfDuration=HALF_MIN[CT?.format||'8v8'];
     sNous=CM.score_nous||0;sEux=CM.score_eux||0;
     subLog=[];goals=[];
     MP={};
   }
   selectedBenchId=null;
   document.getElementById('live-time').textContent=fmt(chronoS);
-  document.getElementById('live-half').innerHTML=`${halfN===2?'2ème':'1ère'} mi-temps · <span id="live-half-dur">${HALF_MIN[CT?.format||'8v8']}</span> min`;
+  document.getElementById('live-half').innerHTML=`${halfN===2?'2ème':'1ère'} mi-temps · <span id="live-half-dur">${halfDuration}</span> min`;
   document.getElementById('live-badge').textContent=halfN===2?'MT 2':'MT 1';
   document.getElementById('live-badge').style.cssText=halfN===2?'background:var(--amber-bg);color:var(--amber);':'';
   document.getElementById('sc-nous').textContent=sNous;
@@ -339,15 +345,24 @@ async function openMatchDetail(id){
   document.getElementById('sc-eux-lbl').textContent=CM.adversaire.slice(0,12);
   document.getElementById('sc-nous-lbl').textContent=CT.nom.slice(0,10);
   document.getElementById('match-delete-btn').style.display=isAdmin?'inline-flex':'none';
+  document.getElementById('match-end-btn').style.display=CM.statut==='en_cours'?'inline-flex':'none';
+  const chronoBtn=document.getElementById('btn-chrono');
+  if(CM.statut==='termine'){
+    if(chronoBtn){chronoBtn.textContent='Match terminé';chronoBtn.style.background='var(--bg3)';chronoBtn.disabled=true;}
+  } else {
+    if(chronoBtn){chronoBtn.disabled=false;}
+  }
   await loadConvs();
   if(chronoOn){
-    const btn=document.getElementById('btn-chrono');
+    const btn=chronoBtn;
     if(btn){btn.textContent='⏸ Pause';btn.style.background='var(--amber)';}
     startChronoInterval();
   }
   if(matchDetailInterval)clearInterval(matchDetailInterval);
-  matchDetailInterval=setInterval(refreshActiveMatch,2000);
-  if(CM.statut==='termine')switchTab('res');
+  if(CM.statut!=='termine'){
+    matchDetailInterval=setInterval(refreshActiveMatch,2000);
+  }
+  if(CM.statut==='termine') switchTab('res');
   else switchTab('conv');
 }
 function getDefaultPositions(){
@@ -421,11 +436,12 @@ function renderConvs(){
   const cl=document.getElementById('conv-list');
   cl.innerHTML=players.map(p=>{
     const st=convs[p.id]||'inconnu';
+    const presentDisabled = !isAdmin && st!=='present';
     return `<div class="cv">
       <div class="pinit" style="width:30px;height:30px;border-radius:8px;font-size:11px;background:${pCol(p)}22;color:${pCol(p)}">${pInit(p)}</div>
       <div style="flex:1;font-size:13px;font-weight:500">${p.prenom} ${p.nom}</div>
       <div style="display:flex;gap:3px">
-        <button class="cvb ${st==='present'?'ap':''}" onclick="setConv('${p.id}','present')">✓</button>
+        <button class="cvb ${st==='present'?'ap':''} ${presentDisabled?'disabled':''}" onclick="setConv('${p.id}','present')" ${presentDisabled?'disabled':''}>✓</button>
         <button class="cvb ${st==='incertain'?'ai':''}" onclick="setConv('${p.id}','incertain')">?</button>
         <button class="cvb ${st==='absent'?'aa':''}" onclick="setConv('${p.id}','absent')">✗</button>
       </div>
@@ -447,15 +463,19 @@ function renderConvs(){
   }
 }
 async function setConv(pid,st){
+  if(!isAdmin && st==='present'){
+    return showToast('Seul un administrateur peut convoquer un joueur.','err');
+  }
   convs[pid]=st;renderConvs();
   await sb.from('convocations').upsert({match_id:CM.id,player_id:pid,statut:st},{onConflict:'match_id,player_id'});
 }
 
 // ============ START MATCH ============
 function startMatch(){
+  if(CM.statut==='termine') return showToast('Ce match est terminé, impossible de le redémarrer.','err');
   const maxOn=CT.format==='5v5'?5:8;
   const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
-  if(presents.length<maxOn)return showToast(`Minimum ${maxOn} joueurs requis`,'err');
+  if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
   MP={};
   presents.forEach((p,i)=>{
     MP[p.id]={
@@ -475,8 +495,10 @@ function startMatch(){
   document.getElementById('sc-nous-lbl').textContent=CT.nom.slice(0,10);
   assignPlayersToPositions(presents.slice(0,maxOn));
   switchTab('live');
-  sb.from('matches').update({statut:'en_cours'}).eq('id',CM.id).then(()=>{
+  sb.from('matches').update({statut:'en_cours',timeline_json:{halfDuration}}).eq('id',CM.id).then(()=>{
     CM.statut='en_cours';
+    CM.timeline_json=CM.timeline_json||{};
+    CM.timeline_json.halfDuration=halfDuration;
     const sp=document.getElementById('det-status');sp.className='pill pg';sp.textContent='En cours';
   });
 }
@@ -501,9 +523,9 @@ function startChronoInterval(){
   },1000);
 }
 function toggleChrono(){
+  if(CM?.statut==='termine') return showToast('Ce match est terminé.','err');
   const btn=document.getElementById('btn-chrono');
-  const hm=HALF_MIN[CT?.format||'8v8'];
-  document.getElementById('live-half-dur').textContent=hm;
+  document.getElementById('live-half-dur').textContent=halfDuration;
   if(!chronoOn){
     chronoOn=true;chronoStartedAt=Date.now();
     btn.textContent='⏸ Pause';btn.style.background='var(--amber)';
@@ -528,9 +550,10 @@ function freezeTimes(){
   });
 }
 function switchHalf(){
+  if(CM?.statut==='termine') return showToast('Ce match est terminé.','err');
   if(chronoOn)toggleChrono();freezeTimes();halfN=2;chronoS=0;
   document.getElementById('live-time').textContent='00:00';
-  document.getElementById('live-half').innerHTML=`2ème mi-temps · <span id="live-half-dur">${HALF_MIN[CT?.format||'8v8']}</span> min`;
+  document.getElementById('live-half').innerHTML=`2ème mi-temps · <span id="live-half-dur">${halfDuration}</span> min`;
   document.getElementById('live-badge').textContent='MT 2';
   document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
   Object.keys(MP).forEach(id=>{if(MP[id].onField)MP[id].enteredAt=null;});
@@ -793,7 +816,7 @@ async function endMatch(){
   if(chronoOn)toggleChrono();freezeTimes();
   const entries=Object.keys(MP).map(pid=>({match_id:CM.id,player_id:pid,titulaire:!!MP[pid].segments.find(s=>s.from===0),poste_joue:MP[pid].poste,secondes_jeu:MP[pid].playSeconds,segments:MP[pid].segments}));
   await sb.from('match_players').upsert(entries,{onConflict:'match_id,player_id'});
-  await sb.from('matches').update({statut:'termine',score_nous:sNous,score_eux:sEux,timeline_json:{chronoS,halfN,subLog,goals,MP,fieldPositions}}).eq('id',CM.id);
+  await sb.from('matches').update({statut:'termine',score_nous:sNous,score_eux:sEux,timeline_json:{chronoS,halfN,halfDuration,subLog,goals,MP,fieldPositions}}).eq('id',CM.id);
   CM.statut='termine';CM.score_nous=sNous;CM.score_eux=sEux;
   const sp=document.getElementById('det-status');sp.className='pill pgr';sp.textContent='Terminé';
   showToast('Match sauvegardé !','ok');await loadMatches();
@@ -805,7 +828,7 @@ async function saveState(){
   await sb.from('matches').update({
     score_nous:sNous,
     score_eux:sEux,
-    timeline_json:{chronoS,halfN,chronoOn,chronoStartedAt,subLog,goals,MP,fieldPositions},
+    timeline_json:{chronoS,halfN,halfDuration,chronoOn,chronoStartedAt,subLog,goals,MP,fieldPositions},
     statut:CM.statut==='termine'?'termine':'en_cours'
   }).eq('id',CM.id);
 }
@@ -837,13 +860,15 @@ async function refreshActiveMatch(){
   CM=data;
   if(CM.statut==='en_cours' && CM.timeline_json){
     const tl=CM.timeline_json;
-    chronoS=tl.chronoS||0;halfN=tl.halfN||1;
+    halfDuration=tl.halfDuration||HALF_MIN[CT?.format||'8v8'];
     chronoOn=tl.chronoOn===true;
     chronoStartedAt=tl.chronoStartedAt||null;
     if(chronoOn && chronoStartedAt){
-      const extra=Math.floor((Date.now()-chronoStartedAt)/1000);
-      chronoS+=extra;
+      chronoS=Math.floor((Date.now()-chronoStartedAt)/1000);
+    } else {
+      chronoS=tl.chronoS||0;
     }
+    halfN=tl.halfN||1;
     sNous=CM.score_nous||0;sEux=CM.score_eux||0;
     subLog=tl.subLog||[];goals=tl.goals||[];
     MP=tl.MP||{};
@@ -854,7 +879,7 @@ async function refreshActiveMatch(){
     document.getElementById('sc-eux').textContent=sEux;
     document.getElementById('det-status').className='pill pg';
     document.getElementById('det-status').textContent='En cours';
-    document.getElementById('live-half').innerHTML=`${halfN===2?'2ème':'1ère'} mi-temps · <span id="live-half-dur">${HALF_MIN[CT?.format||'8v8']}</span> min`;
+    document.getElementById('live-half').innerHTML=`${halfN===2?'2ème':'1ère'} mi-temps · <span id="live-half-dur">${halfDuration}</span> min`;
     document.getElementById('live-badge').textContent=halfN===2?'MT 2':'MT 1';
     if(halfN===2) document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
     else document.getElementById('live-badge').style.cssText='';
@@ -868,7 +893,7 @@ async function refreshActiveMatch(){
 
 function renderTimeline(){
   const present=players.filter(p=>MP[p.id]);
-  const hS=HALF_MIN[CT?.format||'8v8']*60;
+  const hS=(halfDuration||HALF_MIN[CT?.format||'8v8'])*60;
   const W=Math.min(380,window.innerWidth-32);
   const lW=54,rowH=24,padT=18,padB=18;
   const tW=W-lW;const svgH=padT+present.length*rowH+padB+10;

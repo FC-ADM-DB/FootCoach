@@ -208,7 +208,7 @@
                 <div id="goals-list"></div>
               </div>
               <div style="padding:0 14px 16px">
-                <button onclick="endMatch()" style="width:100%;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:11px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">■ Terminer le match</button>
+                <button id="match-end-btn" onclick="endMatch()" style="width:100%;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:11px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">■ Terminer le match</button>
               </div>
             </div>
           </div>
@@ -344,6 +344,7 @@
       <div class="fg"><label class="fl">Lieu</label>
         <select class="sel" id="m-lieu"><option value="domicile">🏠 Domicile</option><option value="exterieur">✈️ Extérieur</option></select>
       </div>
+      <div class="fg"><label class="fl">Durée d'une mi-temps</label><input class="fi" id="m-half" type="number" min="10" max="60" step="5" placeholder="30"></div>
       <div class="mfoot">
         <button class="bcan" onclick="closeModal('modal-mc')">Annuler</button>
         <button class="bp" onclick="saveMatch()">Créer</button>
