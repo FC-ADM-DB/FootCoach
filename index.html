@@ -205,7 +205,7 @@
                   <button class="but-btn mk" onclick="openGoalModal(false)">⚽ But marqué</button>
                   <button class="but-btn cd" onclick="openGoalModal(true)">🔴 Concédé</button>
                 </div>
-                <div id="goals-list"></div>
+                <!-- goals moved to Timeline tab for cleaner Live view -->
               </div>
               <div style="padding:0 14px 16px">
                 <button id="match-end-btn" onclick="endMatch()" style="width:100%;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:11px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">■ Terminer le match</button>
@@ -216,6 +216,8 @@
         <!-- TIMELINE -->
         <div id="tab-tl" style="display:none" class="tl-wrap">
           <div id="tl-chart"></div>
+          <div style="margin-top:12px;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px">Buts</div>
+          <div id="goals-list"></div>
           <div style="margin-top:14px;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px">Remplacements</div>
           <div id="sub-log"></div>
         </div>
@@ -230,6 +232,14 @@
   <!-- TRAINING -->
   <div class="page" id="page-training">
     <div class="pc"><div class="empty" style="padding-top:60px"><div class="empty-i">📋</div><div class="empty-t">Entraînements</div><div class="empty-s">Sprint 4 — bientôt disponible</div></div></div>
+  </div>
+
+  <!-- PARENTS VIEW (placeholder) -->
+  <div class="page" id="page-parents">
+    <div class="pc">
+      <div class="sh"><span class="st">Vue Parents</span></div>
+      <div id="parents-content"><div style="font-size:13px;color:var(--text2)">Vue simplifiée pour les parents — pas de remplaçants affichés, ni de timing des joueurs. Statistiques envoyées après le match si besoin.</div></div>
+    </div>
   </div>
 
   <!-- ADMIN -->

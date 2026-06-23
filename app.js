@@ -115,33 +115,18 @@ async function loadTeams(){
   else if(CT){const u=teams.find(t=>t.id===CT.id);if(u)selTeam(u);}
 }
 function selTeam(t){
-  if(CM && CT?.id!==t.id){closeMatchDetail();}
-  CT=t;
-  const tm=t.team_members?.find(m=>m.profile_id===U.id);
-  isAdmin=tm?.role==='admin';
-  document.getElementById('hdr-tname').textContent=t.nom;
-  document.getElementById('hdr-dot').style.background=t.couleur;
-  document.getElementById('admin-btn').style.display=isAdmin?'inline-flex':'none';
-  loadPlayers();loadMatches();updateStats();
-  if(document.getElementById('page-admin').classList.contains('active'))renderAdminPage();
-  if(document.getElementById('page-stats').classList.contains('active'))renderStatsPage();
-}
-function renderTeamsList(){
-  const el=document.getElementById('teams-list');
-  if(!teams.length){el.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Aucune équipe</div><div class="empty-s">Crée ta première équipe</div></div>`;return;}
-  el.innerHTML=teams.map(t=>{
-    const role=t.team_members?.find(m=>m.profile_id===U.id)?.role||'membre';
-    return `<div class="card">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-        <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${t.couleur}22;color:${t.couleur}">${t.nom.slice(0,2).toUpperCase()}</div>
-        <div style="flex:1"><div style="font-size:14px;font-weight:600">${t.nom}</div><div style="font-size:12px;color:var(--text2)">${t.categorie} · ${t.format}</div></div>
-        <button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>
-      </div>
-      <div style="display:flex;gap:5px"><span class="pill pg">${t.categorie}</span><span class="pill pb">${t.format}</span><span class="pill pgr">${role}</span></div>
-    </div>`;
-  }).join('');
-}
-async function deleteTeam(id,e){
+  if(CM.statut==='termine') return showToast('Ce match est terminé, impossible de le redémarrer.','err');
+  // require a validated composition
+  if(!MP || Object.keys(MP).length===0) return showToast('Valide la composition avant de démarrer le match.','err');
+  // set match to en_cours but do not start chrono automatically; user will press Start on live
+  sb.from('matches').update({statut:'en_cours',timeline_json:{halfDuration}}).eq('id',CM.id).then(()=>{
+    CM.statut='en_cours';
+    CM.timeline_json=CM.timeline_json||{};
+    CM.timeline_json.halfDuration=halfDuration;
+    const sp=document.getElementById('det-status');sp.className='pill pg';sp.textContent='En cours';
+    switchTab('live');
+    renderField();
+  });
   e.stopPropagation();
   const t=teams.find(t=>t.id===id);
   if(!confirm(`Supprimer l'équipe "${t?.nom}" ? Cette action est irréversible.`))return;
@@ -350,7 +335,10 @@ async function openMatchDetail(id){
   if(CM.statut==='termine'){
     if(chronoBtn){chronoBtn.textContent='Match terminé';chronoBtn.style.background='var(--bg3)';chronoBtn.disabled=true;}
   } else {
-    if(chronoBtn){chronoBtn.disabled=false;}
+    if(chronoBtn){
+      chronoBtn.disabled=false;
+      if(!chronoOn){chronoBtn.textContent='▶ Start';chronoBtn.style.background='var(--green)';}
+    }
   }
   await loadConvs();
   if(chronoOn){
@@ -392,8 +380,8 @@ async function deleteMatch(id,e){
 function switchTab(tab){
   ['conv','live','tl','res'].forEach(t=>document.getElementById('tab-'+t).style.display=t===tab?'block':'none');
   document.querySelectorAll('.mtab').forEach((el,i)=>el.classList.toggle('active',['conv','live','tl','res'][i]===tab));
-  if(tab==='live'){renderField();renderGoals();}
-  if(tab==='tl')renderTimeline();
+  if(tab==='live'){renderField();}
+  if(tab==='tl'){renderTimeline();renderGoals();}
   if(tab==='res')renderResume();
 }
 
@@ -456,11 +444,36 @@ function renderConvs(){
     area.innerHTML=`<button class="bp" onclick="switchTab('live')" style="margin-top:0">▶ Reprendre le match en cours</button>`;
   } else {
     const canStart=presents.length>=maxOn;
+    const hasComposition = Object.keys(MP||{}).length>0;
     area.innerHTML=`<div style="background:var(--bg3);border-radius:var(--rsm);padding:10px 12px;margin-bottom:10px;font-size:12px;color:${canStart?'var(--green)':'var(--amber)'}">
       ${presents.length} joueur${presents.length>1?'s':''} disponible${presents.length>1?'s':''} · minimum ${maxOn} requis pour un ${CT?.format||'8v8'}
     </div>
-    <button class="bp" onclick="startMatch()" style="margin-top:0" ${canStart?'':'disabled'}>▶ Démarrer le match</button>`;
+    ${hasComposition?`<button class="bp" onclick="startMatch()" style="margin-top:0" ${canStart?'':'disabled'}>▶ Démarrer le match</button>`:`<button class="bp" onclick="validateComposition()" style="margin-top:0" ${canStart?'':'disabled'}>✓ Valider la composition</button>`}`;
   }
+}
+
+function validateComposition(){
+  if(!CM) return;
+  if(CM.statut==='termine') return showToast('Match terminé — impossible','err');
+  const maxOn=CT.format==='5v5'?5:8;
+  const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
+  if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
+  MP={};
+  presents.forEach((p,i)=>{
+    MP[p.id]={
+      onField:i<maxOn,
+      playSeconds:0,
+      enteredAt:i<maxOn?0:null,
+      segments:[],
+      poste:p.numero_poste||null,
+      benchSeconds:0,
+      benchSince: i<maxOn? null : 0
+    };
+  });
+  assignPlayersToPositions(presents.slice(0,maxOn));
+  saveState();
+  showToast('Composition validée','ok');
+  renderConvs();
 }
 async function setConv(pid,st){
   if(!isAdmin && st==='present'){
