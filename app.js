@@ -99,7 +99,7 @@ async function doResetPassword(){
     if(error) return showAErr(error.message);
     const el=document.getElementById('aerr');el.textContent='Email envoyé ! Vérifie ta boîte mail.';el.style.color='var(--green)';el.classList.add('show');
   } catch(err) {
-    showAErr(err?.message || 'Impossible d’envoyer l’email. Vérifie ta connexion.');
+    showAErr(err?.message || "Impossible d’envoyer l’email. Vérifie ta connexion.");
   } finally {
     btn.disabled=false;btn.textContent='Réinitialiser le mot de passe';
   }
@@ -115,24 +115,24 @@ async function loadTeams(){
   else if(CT){const u=teams.find(t=>t.id===CT.id);if(u)selTeam(u);}
 }
 function selTeam(t){
-  if(CM.statut==='termine') return showToast('Ce match est terminé, impossible de le redémarrer.','err');
-  // require a validated composition
-  if(!MP || Object.keys(MP).length===0) return showToast('Valide la composition avant de démarrer le match.','err');
-  // set match to en_cours but do not start chrono automatically; user will press Start on live
-  sb.from('matches').update({statut:'en_cours',timeline_json:{halfDuration}}).eq('id',CM.id).then(()=>{
-    CM.statut='en_cours';
-    CM.timeline_json=CM.timeline_json||{};
-    CM.timeline_json.halfDuration=halfDuration;
-    const sp=document.getElementById('det-status');sp.className='pill pg';sp.textContent='En cours';
-    switchTab('live');
-    renderField();
-  });
-  e.stopPropagation();
-  const t=teams.find(t=>t.id===id);
-  if(!confirm(`Supprimer l'équipe "${t?.nom}" ? Cette action est irréversible.`))return;
+  CT = t;
+  document.getElementById('hdr-tname').textContent = CT?.nom || 'Choisir une équipe';
+  document.getElementById('hdr-dot').style.background = CT?.couleur || '#00d68f';
+  renderTsw();
+  // refresh team-related data (no await to avoid blocking)
+  loadPlayers();
+  loadMatches();
+}
+
+async function deleteTeam(id,e){
+  if(e && e.stopPropagation) e.stopPropagation();
+  if(!isAdmin) return showToast('Accès admin requis','err');
+  const team = teams.find(t=>t.id===id);
+  if(!team) return;
+  if(!confirm(`Supprimer l'équipe "${team?.nom}" ? Cette action est irréversible.`)) return;
   await sb.from('team_members').delete().eq('team_id',id);
   await sb.from('teams').delete().eq('id',id);
-  if(CT?.id===id)CT=null;
+  if(CT?.id===id) CT=null;
   showToast('Équipe supprimée','ok');
   await loadTeams();
 }
