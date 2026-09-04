@@ -792,7 +792,7 @@ function renderField(){
       bubble.style.borderColor=col;bubble.style.background=`${col}15`;
       bubble.innerHTML=`<div class="bb-out" onclick="benchPlayerFromField(${n},event)" title="Mettre sur le banc">↓</div>
         <div style="font-size:13px;font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</div>
-        <div class="bb-timers"><span class="bb-since">Depuis ${fmt(stintSecs(p.id))}</span><span class="bb-total">Total ${fmt(liveSecs(p.id))}</span></div>`;
+        <div class="bb-timers"><span class="bb-since">Depuis ${fmt(stintSecs(p.id))}</span><span class="bb-total">Jeu ${fmt(liveSecs(p.id))}</span></div>`;
     } else {
       bubble.innerHTML=`<span style="color:var(--text3)">libre</span>`;
       bubble.style.borderStyle='dashed';bubble.style.borderColor='rgba(255,255,255,.2)';bubble.style.background='rgba(255,255,255,.03)';
@@ -828,7 +828,7 @@ function renderField(){
     bubble.style.cssText=`position:relative;transform:none;border-color:${col};background:${col}15;color:${col}`;
     bubble.dataset.playerId=p.id;bubble.dataset.type='bench';
     bubble.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style=\"font-weight:600;color:${col}\">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div>
-      <span class="bench-time">Depuis ${fmt(stintSecs(p.id))} · Total ${fmt(getBenchSeconds(p.id))}</span>`;
+      <span class="bench-time">Banc depuis ${fmt(stintSecs(p.id))} · Jeu ${fmt(liveSecs(p.id))}</span>`;
     bubble.addEventListener('click',()=>onBenchTap(p.id));
     benchArea.appendChild(bubble);
   });
