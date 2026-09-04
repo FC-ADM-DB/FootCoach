@@ -118,6 +118,9 @@ async function loadTeams(){
 }
 function selTeam(t){
   CT = t;
+  isAdmin = Array.isArray(t?.team_members) && t.team_members.some(tm=>tm.role==='admin');
+  const adminBtn=document.getElementById('admin-btn');
+  if(adminBtn)adminBtn.style.display=isAdmin?'inline-flex':'none';
   document.getElementById('hdr-tname').textContent = CT?.nom || 'Choisir une équipe';
   document.getElementById('hdr-dot').style.background = CT?.couleur || '#00d68f';
   renderTsw();
