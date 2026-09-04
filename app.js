@@ -636,7 +636,7 @@ function startChronoInterval(){
     chronoS++;
     document.getElementById('live-time').textContent=fmt(chronoS);
     if(kioskMode)renderKiosk();
-    renderField();
+    if(!markerDrag)renderField();
     syncCurrentMatchInMemory();
     if(document.getElementById('match-list-view').style.display==='block')renderMatchesList();
   },1000);
@@ -900,15 +900,22 @@ function startMarkerDrag(el,poste){
   let startX,startY,startPos,pointerId=null,dragging=false;
   const onMove=e=>{
     if(e.pointerId!==pointerId)return;
+    if(!el.isConnected){onUp(e);return;}
     const dx=e.clientX-startX,dy=e.clientY-startY;
-    if(!dragging&&Math.hypot(dx,dy)>6)dragging=true;
+    if(!dragging&&Math.hypot(dx,dy)>6){dragging=true;markerDrag=true;}
     if(dragging){
-      const wrap=el.parentElement.getBoundingClientRect();
+      const container=el.parentElement;
+      const wrap=container.getBoundingClientRect();
       let px=startPos.x+(dx/wrap.width)*100,py=startPos.y+(dy/wrap.height)*100;
       px=Math.max(3,Math.min(97,px));py=Math.max(3,Math.min(97,py));
       const orientation=currentOrientation();
       posteLayout[orientation][poste]={x:px,y:py};
-      renderField();
+      // Repositionne le marker + sa bulle joueur directement (pas de renderField ici :
+      // ça recréerait le DOM et casserait la référence `el` suivie par ce drag).
+      const left=(wrap.width*px/100)+'px',top=(wrap.height*py/100)+'px';
+      el.style.left=left;el.style.top=top;
+      const bubble=container.querySelector(`.player-bubble[data-type="field"][data-poste="${poste}"]`);
+      if(bubble){bubble.style.left=left;bubble.style.top=top;}
     }
   };
   const onUp=e=>{
@@ -916,9 +923,9 @@ function startMarkerDrag(el,poste){
     window.removeEventListener('pointermove',onMove);
     window.removeEventListener('pointerup',onUp);
     window.removeEventListener('pointercancel',onUp);
-    if(dragging)saveState();
+    if(dragging){renderField();saveState();}
     else onFieldTap(poste);
-    dragging=false;pointerId=null;
+    dragging=false;markerDrag=null;pointerId=null;
   };
   el.addEventListener('pointerdown',e=>{
     if(e.pointerType==='mouse'&&e.button!==0)return;
