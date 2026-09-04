@@ -12,26 +12,6 @@ let matchListInterval=null,matchListTick=0,matchDetailInterval=null;
 let sNous=0,sEux=0,goalAdv=false;
 let isAdmin=false;
 
-// Field positions: percent x,y on terrain (0-100), bottom=our goal, top=adversaire
-const FORMATIONS={
-  '8v8':[
-    {n:1,l:'Gardien',x:50,y:88},
-    {n:5,l:'Arr. gauche',x:20,y:72},
-    {n:3,l:'Mil. C',x:50,y:68},
-    {n:2,l:'Arr. droit',x:80,y:72},
-    {n:6,l:'Mil. C',x:50,y:50},
-    {n:11,l:'Att. gauche',x:20,y:28},
-    {n:9,l:'Att. central',x:50,y:22},
-    {n:7,l:'Att. droit',x:80,y:28}
-  ],
-  '5v5':[
-    {n:1,l:'Gardien',x:50,y:88},
-    {n:2,l:'Déf. droit',x:75,y:68},
-    {n:3,l:'Déf. gauche',x:25,y:68},
-    {n:6,l:'Milieu',x:50,y:48},
-    {n:9,l:'Attaquant',x:50,y:25}
-  ]
-};
 const POSTES_MAP={'8v8':[{n:1,l:'Gardien'},{n:2,l:'Arr. droit'},{n:3,l:'Mil. C'},{n:5,l:'Arr. gauche'},{n:6,l:'Mil. C'},{n:7,l:'Att. droit'},{n:9,l:'Att. central'},{n:11,l:'Att. gauche'}],'5v5':[{n:1,l:'Gardien'},{n:2,l:'Déf. droit'},{n:3,l:'Déf. gauche'},{n:6,l:'Milieu'},{n:9,l:'Attaquant'}]};
 const HALF_MIN={'5v5':25,'8v8':30};
 const COLORS=['#00d68f','#4d9fff','#ffb830','#c084fc','#fb923c','#ff5c7c'];
@@ -40,8 +20,30 @@ const pInit=p=>((p.prenom[0]||'')+(p.nom[0]||'')).toUpperCase();
 const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
 const plabel=(n,f)=>(POSTES_MAP[f||CT?.format||'8v8'].find(p=>p.n===n)?.l)||`#${n}`;
 
-// Current formation positions (modifiable per match)
-let fieldPositions=[], selectedBenchId=null;
+// Poste layout: percent x,y on terrain (0-100), per orientation. Portrait: bottom=notre but, haut=adversaire.
+// Landscape: droite=notre but, gauche=adversaire.
+const POSTE_LAYOUT_DEFAULTS={
+  '8v8':{
+    portrait:{1:{x:50,y:88},2:{x:80,y:72},3:{x:50,y:68},5:{x:20,y:72},6:{x:50,y:50},7:{x:80,y:28},9:{x:50,y:22},11:{x:20,y:28}},
+    landscape:{1:{x:90,y:50},2:{x:72,y:22},3:{x:50,y:35},5:{x:72,y:78},6:{x:50,y:65},7:{x:26,y:22},9:{x:14,y:50},11:{x:26,y:78}}
+  },
+  '5v5':{
+    portrait:{1:{x:50,y:88},2:{x:75,y:68},3:{x:25,y:68},6:{x:50,y:48},9:{x:50,y:25}},
+    landscape:{1:{x:90,y:50},2:{x:70,y:22},3:{x:70,y:78},6:{x:48,y:50},9:{x:18,y:50}}
+  }
+};
+function clonePosteLayout(fmt){const d=POSTE_LAYOUT_DEFAULTS[fmt]||POSTE_LAYOUT_DEFAULTS['8v8'];return{portrait:{...d.portrait},landscape:{...d.landscape}};}
+function getPostes(fmt){return (POSTES_MAP[fmt||CT?.format||'8v8']).map(p=>p.n);}
+function currentOrientation(){return landscapeMode?'landscape':'portrait';}
+
+// Current match live state (modifiable per match)
+let posteLayout={portrait:{},landscape:{}};   // {posteN:{x,y}} par orientation
+let assignment={};                             // {posteN: playerId|null}
+let selected=null;                             // null | {type:'bench',playerId} | {type:'field',poste}
+let landscapeMode=false;
+let matchStarted=false;
+let formations=[],defaultFormation=null;       // formations de terrain sauvegardées (localStorage, par équipe)
+let markerDrag=null;                           // état transitoire du glisser d'un repère de poste
 
 // ============ AUTH ============
 async function init(){const{data:{session}}=await sb.auth.getSession();if(session)await loadApp(session.user);}
@@ -311,16 +313,20 @@ async function openMatchDetail(id){
     MP=tl.MP||{};
     // ensure bench tracking keys exist
     Object.keys(MP).forEach(k=>{MP[k].benchSeconds=MP[k].benchSeconds||0;MP[k].benchSince=(MP[k].benchSince!==undefined?MP[k].benchSince:null)});
-    fieldPositions=tl.fieldPositions||getDefaultPositions();
+    matchStarted=tl.matchStarted||false;
+    loadPosteLayoutFromTimeline(tl);
   } else {
-    fieldPositions=getDefaultPositions();
+    posteLayout=getStartingPosteLayout();
+    assignment={};
     chronoS=0;halfN=1;
     halfDuration=HALF_MIN[CT?.format||'8v8'];
     sNous=CM.score_nous||0;sEux=CM.score_eux||0;
     subLog=[];goals=[];
     MP={};
+    matchStarted=false;
   }
-  selectedBenchId=null;
+  selected=null;
+  loadFormationsForTeam();
   document.getElementById('live-time').textContent=fmt(chronoS);
   document.getElementById('live-half').innerHTML=`${halfN===2?'2ème':'1ère'} mi-temps · <span id="live-half-dur">${halfDuration}</span> min`;
   document.getElementById('live-badge').textContent=halfN===2?'MT 2':'MT 1';
@@ -353,15 +359,108 @@ async function openMatchDetail(id){
   if(CM.statut==='termine') switchTab('res');
   else switchTab('conv');
 }
-function getDefaultPositions(){
+// ============ POSTE LAYOUT (formation) ============
+function getStartingPosteLayout(){
+  // formation par défaut de l'équipe si elle existe, sinon la disposition standard
   const fmt=CT?.format||'8v8';
-  return (FORMATIONS[fmt]||FORMATIONS['8v8']).map(p=>({...p}));
+  loadFormationsForTeam();
+  const layout=clonePosteLayout(fmt);
+  if(defaultFormation && defaultFormation.layout){
+    layout[defaultFormation.orientation]={...layout[defaultFormation.orientation],...defaultFormation.layout};
+  }
+  return layout;
+}
+function loadPosteLayoutFromTimeline(tl){
+  const fmt=CT?.format||'8v8';
+  if(tl.posteLayout){
+    posteLayout=clonePosteLayout(fmt);
+    posteLayout.portrait={...posteLayout.portrait,...(tl.posteLayout.portrait||{})};
+    posteLayout.landscape={...posteLayout.landscape,...(tl.posteLayout.landscape||{})};
+    assignment=tl.assignment||{};
+  } else if(tl.fieldPositions){
+    // migration de l'ancien format (tableau à index fixe avec x,y,playerId)
+    posteLayout=clonePosteLayout(fmt);
+    assignment={};
+    tl.fieldPositions.forEach(p=>{
+      if(p.n===undefined)return;
+      posteLayout.portrait[p.n]={x:p.x,y:p.y};
+      assignment[p.n]=p.playerId||null;
+    });
+  } else {
+    posteLayout=getStartingPosteLayout();
+    assignment={};
+  }
+}
+function loadFormationsForTeam(){
+  if(!CT)return;
+  try{formations=JSON.parse(localStorage.getItem('fc_formations_'+CT.id)||'[]');}catch(e){formations=[];}
+  try{defaultFormation=JSON.parse(localStorage.getItem('fc_default_formation_'+CT.id)||'null');}catch(e){defaultFormation=null;}
+}
+function saveFormation(){
+  if(!CT)return;
+  const name=prompt('Nom de la formation :','Formation '+(formations.length+1));
+  if(!name)return;
+  const orientation=currentOrientation();
+  formations.push({name,orientation,layout:{...posteLayout[orientation]}});
+  localStorage.setItem('fc_formations_'+CT.id,JSON.stringify(formations));
+  showToast('Formation sauvegardée','ok');
+  renderFormationsBar();
+}
+function applyFormation(idx){
+  const f=formations[idx];if(!f)return;
+  posteLayout[f.orientation]={...posteLayout[f.orientation],...f.layout};
+  renderField();
+  showToast(`Formation "${f.name}" appliquée`,'ok');
+}
+function deleteFormation(idx,e){
+  e&&e.stopPropagation&&e.stopPropagation();
+  const f=formations[idx];if(!f)return;
+  if(!confirm(`Supprimer la formation "${f.name}" ?`))return;
+  formations.splice(idx,1);
+  localStorage.setItem('fc_formations_'+CT.id,JSON.stringify(formations));
+  if(defaultFormation && defaultFormation.name===f.name && defaultFormation.orientation===f.orientation){
+    defaultFormation=null;localStorage.removeItem('fc_default_formation_'+CT.id);
+  }
+  renderFormationsBar();
+}
+function setDefaultFormation(idx,e){
+  e&&e.stopPropagation&&e.stopPropagation();
+  const f=formations[idx];if(!f)return;
+  defaultFormation=f;
+  localStorage.setItem('fc_default_formation_'+CT.id,JSON.stringify(f));
+  showToast(`"${f.name}" définie par défaut`,'ok');
+  renderFormationsBar();
+}
+function resetToDefaultFormation(){
+  const fmt=CT?.format||'8v8';
+  const orientation=currentOrientation();
+  if(defaultFormation && defaultFormation.orientation===orientation){
+    posteLayout[orientation]={...clonePosteLayout(fmt)[orientation],...defaultFormation.layout};
+  } else {
+    posteLayout[orientation]=clonePosteLayout(fmt)[orientation];
+  }
+  renderField();saveState();
+  showToast('Disposition réinitialisée','ok');
+}
+function renderFormationsBar(){
+  const el=document.getElementById('formations-bar');
+  if(!el)return;
+  if(!formations.length){el.innerHTML='<span style="font-size:11px;color:var(--text3)">Aucune formation sauvegardée</span>';return;}
+  el.innerHTML=formations.map((f,i)=>{
+    const isDefault=defaultFormation&&defaultFormation.name===f.name&&defaultFormation.orientation===f.orientation;
+    return `<div class="form-chip">
+      <span onclick="setDefaultFormation(${i},event)" title="Définir par défaut" style="cursor:pointer;color:${isDefault?'var(--amber)':'var(--text3)'}">★</span>
+      <span onclick="applyFormation(${i})" style="cursor:pointer">${f.name}</span>
+      <span onclick="deleteFormation(${i},event)" style="cursor:pointer;color:var(--text3);padding:0 2px">✕</span>
+    </div>`;
+  }).join('');
 }
 function closeMatchDetail(){
   document.getElementById('match-list-view').style.display='block';
   document.getElementById('match-detail-view').style.display='none';
   if(matchDetailInterval){clearInterval(matchDetailInterval);matchDetailInterval=null;}
-  CM=null;chronoS=0;halfN=1;sNous=0;sEux=0;MP={};subLog=[];goals=[];fieldPositions=[];selectedBenchId=null;chronoOn=false;chronoStartedAt=null;clearInterval(chronoIv);chronoIv=null;
+  CM=null;chronoS=0;halfN=1;sNous=0;sEux=0;MP={};subLog=[];goals=[];posteLayout={portrait:{},landscape:{}};assignment={};selected=null;matchStarted=false;chronoOn=false;chronoStartedAt=null;clearInterval(chronoIv);chronoIv=null;
+  setLiveActive(false);
 }
 async function deleteMatch(id,e){
   if(e&&e.stopPropagation) e.stopPropagation();
@@ -380,9 +479,28 @@ async function deleteMatch(id,e){
 function switchTab(tab){
   ['conv','live','tl','res'].forEach(t=>document.getElementById('tab-'+t).style.display=t===tab?'block':'none');
   document.querySelectorAll('.mtab').forEach((el,i)=>el.classList.toggle('active',['conv','live','tl','res'][i]===tab));
-  if(tab==='live'){renderField();}
+  setLiveActive(tab==='live');
+  if(tab==='live'){renderField();renderFormationsBar();}
   if(tab==='tl'){renderTimeline();renderGoals();}
   if(tab==='res')renderResume();
+}
+function setLiveActive(on){
+  document.getElementById('screen-app').classList.toggle('live-active',!!on);
+  if(on)watchOrientation(); else stopWatchOrientation();
+}
+let orientationMQ=null;
+function watchOrientation(){
+  if(orientationMQ)return;
+  orientationMQ=window.matchMedia('(orientation: landscape)');
+  landscapeMode=orientationMQ.matches;
+  const onChange=()=>{landscapeMode=orientationMQ.matches;if(document.getElementById('tab-live').style.display==='block'){renderField();renderFormationsBar();}};
+  orientationMQ.addEventListener?orientationMQ.addEventListener('change',onChange):orientationMQ.addListener(onChange);
+  orientationMQ._onChange=onChange;
+}
+function stopWatchOrientation(){
+  if(!orientationMQ)return;
+  orientationMQ.removeEventListener?orientationMQ.removeEventListener('change',orientationMQ._onChange):orientationMQ.removeListener(orientationMQ._onChange);
+  orientationMQ=null;
 }
 
 function toggleKiosk(){
@@ -459,20 +577,14 @@ function validateComposition(){
   const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
   if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
   MP={};
-  presents.forEach((p,i)=>{
-    MP[p.id]={
-      onField:i<maxOn,
-      playSeconds:0,
-      enteredAt:i<maxOn?0:null,
-      segments:[],
-      poste:p.numero_poste||null,
-      benchSeconds:0,
-      benchSince: i<maxOn? null : 0
-    };
+  presents.forEach(p=>{
+    MP[p.id]={onField:false,playSeconds:0,enteredAt:null,segments:[],poste:p.numero_poste||null,benchSeconds:0,benchSince:0};
   });
-  assignPlayersToPositions(presents.slice(0,maxOn));
+  posteLayout=getStartingPosteLayout();
+  assignment={};
+  matchStarted=false;
   saveState();
-  showToast('Composition validée','ok');
+  showToast('Composition validée — place les joueurs dans l\'onglet Live','ok');
   renderConvs();
 }
 async function setConv(pid,st){
@@ -489,24 +601,16 @@ function startMatch(){
   const maxOn=CT.format==='5v5'?5:8;
   const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
   if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
-  MP={};
-  presents.forEach((p,i)=>{
-    MP[p.id]={
-      onField:i<maxOn,
-      playSeconds:0,
-      enteredAt:i<maxOn?0:null,
-      segments:[],
-      poste:p.numero_poste||null,
-      // bench tracking
-      benchSeconds:0,
-      benchSince: i<maxOn? null : 0
-    };
-  });
-  sNous=0;sEux=0;chronoS=0;halfN=1;subLog=[];goals=[];
+  if(!Object.keys(MP).length){
+    presents.forEach(p=>{MP[p.id]={onField:false,playSeconds:0,enteredAt:null,segments:[],poste:p.numero_poste||null,benchSeconds:0,benchSince:0};});
+  }
+  if(!Object.keys(posteLayout.portrait).length && !Object.keys(posteLayout.landscape).length){
+    posteLayout=getStartingPosteLayout();
+  }
+  sNous=0;sEux=0;chronoS=0;halfN=1;subLog=[];goals=[];matchStarted=false;
   document.getElementById('sc-nous').textContent='0';document.getElementById('sc-eux').textContent='0';
   document.getElementById('sc-eux-lbl').textContent=CM.adversaire.slice(0,12);
   document.getElementById('sc-nous-lbl').textContent=CT.nom.slice(0,10);
-  assignPlayersToPositions(presents.slice(0,maxOn));
   switchTab('live');
   sb.from('matches').update({statut:'en_cours',timeline_json:{halfDuration}}).eq('id',CM.id).then(()=>{
     CM.statut='en_cours';
@@ -514,13 +618,6 @@ function startMatch(){
     CM.timeline_json.halfDuration=halfDuration;
     const sp=document.getElementById('det-status');sp.className='pill pg';sp.textContent='En cours';
   });
-}
-function assignPlayersToPositions(onFieldPlayers){
-  const fmt=CT?.format||'8v8';
-  const formation=FORMATIONS[fmt]||FORMATIONS['8v8'];
-  fieldPositions=formation.map((pos,i)=>(
-    {...pos,playerId:onFieldPlayers[i]?.id||null}
-  ));
 }
 
 // ============ CHRONO ============
@@ -540,7 +637,7 @@ function toggleChrono(){
   const btn=document.getElementById('btn-chrono');
   document.getElementById('live-half-dur').textContent=halfDuration;
   if(!chronoOn){
-    chronoOn=true;chronoStartedAt=Date.now();
+    chronoOn=true;chronoStartedAt=Date.now();matchStarted=true;
     btn.textContent='⏸ Pause';btn.style.background='var(--amber)';
     Object.keys(MP).forEach(id=>{
       const mp=MP[id];
@@ -552,8 +649,27 @@ function toggleChrono(){
   } else {
     chronoOn=false;chronoStartedAt=null;
     btn.textContent='▶ Start';btn.style.background='var(--green)';
-    clearInterval(chronoIv);freezeTimes();renderField();saveState();
+    // Pause = arrête juste le chrono. On NE gèle PAS les temps de jeu ici :
+    // ça viderait "Depuis" à chaque Start/Pause alors que le joueur n'a pas bougé.
+    clearInterval(chronoIv);renderField();saveState();
   }
+}
+function resetTimers(){
+  if(!confirm('Réinitialiser tous les chronos (temps de jeu, temps de banc, historique) ? La composition et la disposition sur le terrain sont conservées.'))return;
+  if(chronoOn)toggleChrono();
+  chronoS=0;halfN=1;subLog=[];goals=[];matchStarted=false;
+  Object.keys(MP).forEach(id=>{
+    const mp=MP[id];
+    mp.playSeconds=0;mp.segments=[];mp.benchSeconds=0;
+    mp.enteredAt=mp.onField?0:null;
+    mp.benchSince=mp.onField?null:0;
+  });
+  document.getElementById('live-time').textContent='00:00';
+  document.getElementById('live-half').innerHTML=`1ère mi-temps · <span id="live-half-dur">${halfDuration}</span> min`;
+  document.getElementById('live-badge').textContent='MT 1';
+  document.getElementById('live-badge').style.cssText='';
+  renderField();renderGoals();saveState();
+  showToast('Chronos réinitialisés','ok');
 }
 function freezeTimes(){
   Object.keys(MP).forEach(id=>{
@@ -574,6 +690,8 @@ function switchHalf(){
 }
 function liveSecs(id){const mp=MP[id];if(!mp)return 0;return mp.playSeconds+(mp.enteredAt!==null?chronoS-mp.enteredAt:0);}
 function getBenchSeconds(id){const mp=MP[id];if(!mp)return 0;let secs=(mp.benchSeconds||0);if(mp.benchSince!==null&&mp.benchSince!==undefined)secs+=chronoS-mp.benchSince;return secs;}
+// "Depuis" : durée du passage en cours (remise à zéro à chaque changement terrain/banc), distinct du total ci-dessus.
+function stintSecs(id){const mp=MP[id];if(!mp)return 0;if(mp.onField)return mp.enteredAt!==null?Math.max(0,chronoS-mp.enteredAt):0;return mp.benchSince!==null&&mp.benchSince!==undefined?Math.max(0,chronoS-mp.benchSince):0;}
 function syncCurrentMatchInMemory(){if(!CM)return;const idx=matches.findIndex(m=>m.id===CM.id);if(idx!==-1){matches[idx]={...matches[idx],score_nous:sNous,score_eux:sEux,statut:CM.statut};}}
 function chgScore(who,d){
   if(who==='nous'){sNous=Math.max(0,sNous+d);document.getElementById('sc-nous').textContent=sNous;CM&&(CM.score_nous=sNous);} else {sEux=Math.max(0,sEux+d);document.getElementById('sc-eux').textContent=sEux;CM&&(CM.score_eux=sEux);}
@@ -581,211 +699,228 @@ function chgScore(who,d){
   if(document.getElementById('tab-res').style.display==='block')renderResume();
 }
 
-// ============ TERRAIN DRAG & DROP ============
+// ============ TERRAIN : formation + remplacements ============
+function pitchSvgMarkup(landscape){
+  if(landscape){
+    return `<rect width="420" height="300" fill="rgba(255,255,255,0.03)" rx="12"/>
+    <rect x="10" y="10" width="400" height="280" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+    <line x1="210" y1="10" x2="210" y2="290" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+    <circle cx="210" cy="150" r="45" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+    <rect x="10" y="75" width="55" height="150" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+    <rect x="355" y="75" width="55" height="150" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+    <rect x="0" y="133" width="6" height="34" fill="rgba(255,255,255,0.5)" rx="2"/>
+    <rect x="414" y="133" width="6" height="34" fill="rgba(255,255,255,0.7)" rx="2"/>
+    <text x="20" y="150" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.4)" font-family="DM Sans,sans-serif" transform="rotate(-90 20 150)">Adversaire</text>
+    <text x="400" y="150" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.7)" font-family="DM Sans,sans-serif" transform="rotate(-90 400 150)">Notre but</text>`;
+  }
+  return `<rect width="300" height="420" fill="rgba(255,255,255,0.03)" rx="12"/>
+  <rect x="10" y="10" width="280" height="400" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+  <line x1="10" y1="210" x2="290" y2="210" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+  <circle cx="150" cy="210" r="35" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+  <circle cx="150" cy="210" r="2" fill="rgba(255,255,255,0.6)"/>
+  <rect x="85" y="10" width="130" height="50" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+  <rect x="110" y="10" width="80" height="22" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+  <rect x="85" y="360" width="130" height="50" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+  <rect x="110" y="388" width="80" height="22" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+  <circle cx="150" cy="45" r="2" fill="rgba(255,255,255,0.5)"/>
+  <circle cx="150" cy="375" r="2" fill="rgba(255,255,255,0.5)"/>
+  <rect x="133" y="0" width="34" height="6" fill="rgba(255,255,255,0.6)" rx="2"/>
+  <rect x="133" y="414" width="34" height="6" fill="rgba(255,255,255,0.7)" rx="2"/>
+  <text x="150" y="5" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.4)" font-family="DM Sans,sans-serif">Adversaire</text>
+  <text x="150" y="419" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.7)" font-family="DM Sans,sans-serif">Notre but</text>`;
+}
+
 function renderField(){
-  const container=document.getElementById('field-players');
+  const wrap=document.getElementById('terrain-wrap');
   const svg=document.getElementById('terrain-svg');
+  const container=document.getElementById('field-players');
+  const orientation=currentOrientation();
+  wrap.classList.toggle('landscape',landscapeMode);
+  document.querySelector('.live-body')?.classList.toggle('landscape',landscapeMode);
+  if(svg.dataset.orient!==orientation){
+    svg.setAttribute('viewBox',landscapeMode?'0 0 420 300':'0 0 300 420');
+    svg.innerHTML=pitchSvgMarkup(landscapeMode);
+    svg.dataset.orient=orientation;
+  }
   const rect=svg.getBoundingClientRect();
   const W=rect.width,H=rect.height;
   container.innerHTML='';
   container.style.cssText=`position:absolute;top:0;left:0;width:${W}px;height:${H}px;pointer-events:none`;
-  const onIds=new Set(fieldPositions.filter(p=>p.playerId).map(p=>p.playerId));
-  // compute bench seconds and sort bench players by how long they've been on the side (desc)
-  const benchPlayersRaw=players.filter(p=>MP[p.id]&&!onIds.has(p.id)&&MP[p.id].onField===false);
-  benchPlayersRaw.forEach(p=>{const mp=MP[p.id];p._benchSecs=(mp?.benchSeconds||0)+((mp?.benchSince!==null && mp?.benchSince!==undefined)?(chronoS-mp.benchSince):0)});
-  const benchPlayers=benchPlayersRaw.sort((a,b)=>b._benchSecs - a._benchSecs);
+  const fmtKey=CT?.format||'8v8';
+  const postes=getPostes(fmtKey);
+  const layout=posteLayout[orientation]||{};
 
-  fieldPositions.forEach((pos,idx)=>{
+  const benchPlayersRaw=players.filter(p=>MP[p.id]&&MP[p.id].onField===false);
+  benchPlayersRaw.forEach(p=>{p._benchSecs=stintSecs(p.id);});
+  const benchPlayers=benchPlayersRaw.sort((a,b)=>b._benchSecs-a._benchSecs);
+
+  postes.forEach(n=>{
+    const pos=layout[n]||{x:50,y:50};
     const x=W*pos.x/100,y=H*pos.y/100;
-    const p=pos.playerId?players.find(pl=>pl.id===pos.playerId):null;
+    const playerId=assignment[n]||null;
+    const p=playerId?players.find(pl=>pl.id===playerId):null;
+    const isSel=selected&&selected.type==='field'&&selected.poste===n;
+
     const bubble=document.createElement('div');
-    bubble.className='player-bubble';
+    bubble.className='player-bubble'+(isSel?' selected':'');
     bubble.style.cssText=`left:${x}px;top:${y}px;pointer-events:auto`;
-    bubble.dataset.posIdx=idx;
-    bubble.dataset.type='field';
+    bubble.dataset.poste=n;bubble.dataset.type='field';
     if(p){
       const col=pCol(p);
-      bubble.style.borderColor=col;
-      bubble.style.background=`${col}15`;
-      bubble.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style=\"font-size:10px;color:var(--text3);font-family:var(--mono)\">${pos.n}</span><span style=\"font-size:10px;color:${col};font-family:var(--mono)\">${p.numero_poste||''}</span></div>`;
-      bubble.innerHTML+=`<div style="font-size:13px;font-weight:600;margin-top:2px">${p.prenom} ${p.nom.charAt(0)}.</div><div style="font-size:10px;color:var(--text2);font-family:var(--mono);margin-top:2px">${fmt(liveSecs(p.id))}</div>`;
+      bubble.style.borderColor=col;bubble.style.background=`${col}15`;
+      bubble.innerHTML=`<div class="bb-out" onclick="benchPlayerFromField(${n},event)" title="Mettre sur le banc">↓</div>
+        <div style="font-size:13px;font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</div>
+        <div class="bb-timers"><span class="bb-since">Depuis ${fmt(stintSecs(p.id))}</span><span class="bb-total">Total ${fmt(liveSecs(p.id))}</span></div>`;
     } else {
-      bubble.innerHTML=`<span style="color:var(--text3)">#${pos.n} libre</span>`;
+      bubble.innerHTML=`<span style="color:var(--text3)">libre</span>`;
       bubble.style.borderStyle='dashed';bubble.style.borderColor='rgba(255,255,255,.2)';bubble.style.background='rgba(255,255,255,.03)';
     }
-    bubble.addEventListener('click',()=>handleFieldClick(idx));
-    makeDraggable(bubble,idx,'field');
+    bubble.addEventListener('click',(e)=>{if(e.target.closest('.bb-out'))return;onFieldTap(n);});
     container.appendChild(bubble);
+
+    const marker=document.createElement('div');
+    marker.className='poste-marker';
+    marker.style.cssText=`left:${x}px;top:${y}px;pointer-events:auto;background:${p?'var(--bg)':'rgba(255,255,255,.06)'}`;
+    marker.textContent=n;
+    startMarkerDrag(marker,n);
+    container.appendChild(marker);
   });
+
+  if(!container.dataset.pitchClickBound){
+    container.dataset.pitchClickBound='1';
+    container.addEventListener('click',(e)=>{
+      if(!selected||e.target!==container)return;
+      const fmtNow=CT?.format||'8v8';
+      snapToNearestPoste(e,container.clientWidth,container.clientHeight,getPostes(fmtNow),posteLayout[currentOrientation()]||{});
+    });
+  }
 
   const benchArea=document.getElementById('bench-bubbles');
   benchArea.innerHTML='';
-  if(!benchPlayers.length){benchArea.innerHTML='<span style="font-size:12px;color:var(--text3)">Aucun remplaçant</span>';return;}
-  benchPlayers.forEach(p=>{
-    const mp=MP[p.id];
-    const bs=(mp?.benchSeconds||0)+((mp?.benchSince!==null && mp?.benchSince!==undefined)?(chronoS-mp.benchSince):0);
+  if(!benchPlayers.length){benchArea.innerHTML='<span style="font-size:12px;color:var(--text3)">Aucun remplaçant</span>';}
+  else benchPlayers.forEach(p=>{
     const col=pCol(p);
+    const isSel=selected&&selected.type==='bench'&&selected.playerId===p.id;
     const bubble=document.createElement('div');
-    bubble.className='player-bubble bench'+(selectedBenchId===p.id?' selected':'');
-    bubble.style.cssText=`position:relative;transform:none;cursor:grab;touch-action:none;border-color:${col};background:${col}15;color:${col}`;
+    bubble.className='player-bubble bench'+(isSel?' selected':'');
+    bubble.style.cssText=`position:relative;transform:none;border-color:${col};background:${col}15;color:${col}`;
     bubble.dataset.playerId=p.id;bubble.dataset.type='bench';
-    bubble.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style=\"font-weight:600;color:${col}\">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div><span class=\"bench-time\">Sur le banc: ${fmt(bs)}</span>`;
-    bubble.addEventListener('click',()=>handleBenchSelect(p.id));
-    makeDraggableBench(bubble,p.id);
+    bubble.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style=\"font-weight:600;color:${col}\">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div>
+      <span class="bench-time">Depuis ${fmt(stintSecs(p.id))} · Total ${fmt(getBenchSeconds(p.id))}</span>`;
+    bubble.addEventListener('click',()=>onBenchTap(p.id));
     benchArea.appendChild(bubble);
   });
 }
 
-function makeDraggable(el,posIdx,type){
-  let startX,startY,origX,origY,dragging=false,pointerId=null;
-  const onMove=e=>{
-    if(e.pointerId!==pointerId) return;
-    const dx=e.clientX-startX,dy=e.clientY-startY;
-    if(!dragging&&Math.hypot(dx,dy)>6){dragging=true;el.classList.add('dragging');}
-    if(dragging){
-      el.style.left=(origX+dx)+'px';el.style.top=(origY+dy)+'px';
-      highlightDropTargets(e.clientX,e.clientY,posIdx);
-    }
-  };
-  const onUp=e=>{
-    if(e.pointerId!==pointerId) return;
-    window.removeEventListener('pointermove',onMove);
-    window.removeEventListener('pointerup',onUp);
-    window.removeEventListener('pointercancel',onUp);
-    if(dragging){
-      const target=findDropTarget(e.clientX,e.clientY,posIdx);
-      el.classList.remove('dragging');
-      el.style.zIndex=5;
-      if(target!==null){doFieldSwap(posIdx,target);} else {renderField();}
-    }
-    dragging=false;pointerId=null;
-  };
-  el.addEventListener('pointerdown',e=>{
-    if(e.pointerType==='mouse'&&e.button!==0)return;
-    e.preventDefault();
-    pointerId=e.pointerId;
-    startX=e.clientX;startY=e.clientY;
-    origX=parseFloat(el.style.left)||0;origY=parseFloat(el.style.top)||0;
-    el.style.zIndex=20;el.style.transition='none';
-    window.addEventListener('pointermove',onMove);
-    window.addEventListener('pointerup',onUp);
-    window.addEventListener('pointercancel',onUp);
-  });
-}
-
-function makeDraggableBench(el,playerId){
-  let startX,startY,clone,pointerId=null,dragging=false;
-  const onMove=e=>{
-    if(e.pointerId!==pointerId) return;
-    const dx=e.clientX-startX,dy=e.clientY-startY;
-    if(!dragging&&Math.hypot(dx,dy)>6){dragging=true;el.style.opacity='.4';}
-    if(dragging&&clone){
-      clone.style.left=(e.clientX-40)+'px';clone.style.top=(e.clientY-14)+'px';
-      highlightFieldBubbles(e.clientX,e.clientY);
-    }
-  };
-  const onUp=e=>{
-    if(e.pointerId!==pointerId) return;
-    window.removeEventListener('pointermove',onMove);
-    window.removeEventListener('pointerup',onUp);
-    window.removeEventListener('pointercancel',onUp);
-    if(clone){clone.remove();clone=null;}
-    el.style.opacity='1';
-    if(dragging){
-      const targetIdx=findFieldBubbleAt(e.clientX,e.clientY);
-      if(targetIdx!==null){doBenchSwap(playerId,targetIdx);} else {renderField();}
-    }
-    dragging=false;pointerId=null;
-  };
-  el.addEventListener('pointerdown',e=>{
-    if(e.pointerType==='mouse'&&e.button!==0)return;
-    e.preventDefault();
-    pointerId=e.pointerId;
-    startX=e.clientX;startY=e.clientY;
-    clone=el.cloneNode(true);
-    clone.style.cssText=`position:fixed;left:${e.clientX-40}px;top:${e.clientY-14}px;z-index:100;opacity:.85;pointer-events:none;transform:none;min-width:60px`;
-    document.body.appendChild(clone);
-    window.addEventListener('pointermove',onMove);
-    window.addEventListener('pointerup',onUp);
-    window.addEventListener('pointercancel',onUp);
-  });
-}
-
-function highlightDropTargets(cx,cy,excludeIdx){
-  document.querySelectorAll('.player-bubble[data-type="field"]').forEach((b,i)=>{
-    if(i===excludeIdx)return;
-    const r=b.getBoundingClientRect();
-    const hit=cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom;
-    b.classList.toggle('drag-over',hit);
-  });
-}
-function highlightFieldBubbles(cx,cy){
-  document.querySelectorAll('.player-bubble[data-type="field"]').forEach(b=>{
-    const r=b.getBoundingClientRect();
-    b.classList.toggle('drag-over',cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom);
-  });
-}
-function findDropTarget(cx,cy,excludeIdx){
-  const bubbles=document.querySelectorAll('.player-bubble[data-type="field"]');
-  for(let i=0;i<bubbles.length;i++){
-    if(parseInt(bubbles[i].dataset.posIdx)===excludeIdx)continue;
-    const r=bubbles[i].getBoundingClientRect();
-    if(cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom)return parseInt(bubbles[i].dataset.posIdx);
+// --- Sélection unifiée : null | {type:'bench',playerId} | {type:'field',poste} ---
+function onFieldTap(poste){
+  if(!selected){
+    if(assignment[poste])selected={type:'field',poste};
+    return renderField();
   }
-  return null;
-}
-function findFieldBubbleAt(cx,cy){
-  const bubbles=document.querySelectorAll('.player-bubble[data-type="field"]');
-  for(let i=0;i<bubbles.length;i++){
-    const r=bubbles[i].getBoundingClientRect();
-    if(cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom)return parseInt(bubbles[i].dataset.posIdx);
+  if(selected.type==='bench')return assignBenchToPoste(selected.playerId,poste);
+  if(selected.type==='field'){
+    if(selected.poste===poste){selected=null;return renderField();}
+    return swapPostes(selected.poste,poste);
   }
-  return null;
 }
-
-function doFieldSwap(idxA,idxB){
-  const tmp=fieldPositions[idxA].playerId;
-  fieldPositions[idxA].playerId=fieldPositions[idxB].playerId;
-  fieldPositions[idxB].playerId=tmp;
-  renderField();saveState();showToast('Position échangée','ok');
-}
-
-function doBenchSwap(benchPlayerId,fieldIdx){
-  const oldId=fieldPositions[fieldIdx].playerId;
-  if(oldId){
-    const mpOut=MP[oldId];
-    const mpIn=MP[benchPlayerId];
-    if(!mpIn)return renderField();
-    // close out time for player going out
-    if(mpOut&&mpOut.enteredAt!==null){
-      mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN});
-      mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;
-    }
-    // mark bench start for player going out
-    if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS}
-    // player coming in: accumulate bench seconds and clear benchSince
-    if(mpIn){
-      mpIn.onField=true;
-      if(mpIn.benchSince!==null && mpIn.benchSince!==undefined){mpIn.benchSeconds=(mpIn.benchSeconds||0)+(chronoS-mpIn.benchSince);mpIn.benchSince=null}
-      mpIn.enteredAt=chronoS;
-    }
-    const pOut=players.find(p=>p.id===oldId);
-    const pIn=players.find(p=>p.id===benchPlayerId);
-    subLog.push({t:chronoS,half:halfN,out:(pOut?.prenom||'?')+' '+(pOut?.nom||''),in:(pIn?.prenom||'?')+' '+(pIn?.nom||'')});
-    fieldPositions[fieldIdx].playerId=benchPlayerId;
-    saveState();showToast(`${pIn?.prenom} entre pour ${pOut?.prenom}`,'ok');
-  } else {
-    if(MP[benchPlayerId]){
-      // coming from bench into empty slot
-      const mpIn=MP[benchPlayerId];
-      mpIn.onField=true;
-      if(mpIn.benchSince!==null && mpIn.benchSince!==undefined){mpIn.benchSeconds=(mpIn.benchSeconds||0)+(chronoS-mpIn.benchSince);mpIn.benchSince=null}
-      mpIn.enteredAt=chronoS;
-    }
-    fieldPositions[fieldIdx].playerId=benchPlayerId;
-    saveState();
-  }
+function onBenchTap(playerId){
+  if(selected&&selected.type==='bench'&&selected.playerId===playerId){selected=null;return renderField();}
+  if(selected&&selected.type==='field')return assignBenchToPoste(playerId,selected.poste);
+  selected={type:'bench',playerId};
   renderField();
+}
+function snapToNearestPoste(e,W,H,postes,layout){
+  const rect=e.currentTarget.getBoundingClientRect();
+  const px=(e.clientX-rect.left)/W*100,py=(e.clientY-rect.top)/H*100;
+  let best=null,bestD=Infinity;
+  postes.forEach(n=>{const pos=layout[n]||{x:50,y:50};const d=Math.hypot(pos.x-px,pos.y-py);if(d<bestD){bestD=d;best=n;}});
+  if(best!==null)onFieldTap(best);
+}
+
+function assignBenchToPoste(playerId,poste){
+  const outId=assignment[poste]||null;
+  const mpIn=MP[playerId];
+  if(!mpIn)return;
+  if(outId){
+    const mpOut=MP[outId];
+    if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
+    if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS;}
+  }
+  mpIn.onField=true;
+  if(mpIn.benchSince!==null&&mpIn.benchSince!==undefined){mpIn.benchSeconds=(mpIn.benchSeconds||0)+(chronoS-mpIn.benchSince);mpIn.benchSince=null;}
+  mpIn.enteredAt=chronoS;
+  assignment[poste]=playerId;
+  selected=null;
+  if(matchStarted){
+    const pOut=outId?players.find(p=>p.id===outId):null;
+    const pIn=players.find(p=>p.id===playerId);
+    subLog.push({t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:(pIn?.prenom||'?')+' '+(pIn?.nom||'')});
+    showToast(pOut?`${pIn?.prenom} entre pour ${pOut.prenom}`:`${pIn?.prenom} entre en jeu`,'ok');
+  }
+  renderField();saveState();
+}
+function swapPostes(posteA,posteB){
+  const tmp=assignment[posteA]||null;
+  assignment[posteA]=assignment[posteB]||null;
+  assignment[posteB]=tmp;
+  selected=null;
+  if(matchStarted){
+    const a=players.find(p=>p.id===assignment[posteA]),b=players.find(p=>p.id===assignment[posteB]);
+    subLog.push({t:chronoS,half:halfN,out:'',in:`Positions échangées${a&&b?' : '+a.prenom+' ↔ '+b.prenom:''}`});
+  }
+  renderField();saveState();showToast('Positions échangées','ok');
+}
+function benchPlayerFromField(poste,e){
+  e&&e.stopPropagation&&e.stopPropagation();
+  const outId=assignment[poste];if(!outId)return;
+  const mpOut=MP[outId];
+  if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
+  if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS;}
+  assignment[poste]=null;selected=null;
+  if(matchStarted){
+    const pOut=players.find(p=>p.id===outId);
+    subLog.push({t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:'banc'});
+    showToast(`${pOut?.prenom||'Joueur'} va sur le banc`,'ok');
+  }
+  renderField();saveState();
+}
+
+// --- Glisser un repère de poste (redessine la formation, ne touche pas à l'affectation) ---
+function startMarkerDrag(el,poste){
+  let startX,startY,startPos,pointerId=null,dragging=false;
+  const onMove=e=>{
+    if(e.pointerId!==pointerId)return;
+    const dx=e.clientX-startX,dy=e.clientY-startY;
+    if(!dragging&&Math.hypot(dx,dy)>6)dragging=true;
+    if(dragging){
+      const wrap=el.parentElement.getBoundingClientRect();
+      let px=startPos.x+(dx/wrap.width)*100,py=startPos.y+(dy/wrap.height)*100;
+      px=Math.max(3,Math.min(97,px));py=Math.max(3,Math.min(97,py));
+      const orientation=currentOrientation();
+      posteLayout[orientation][poste]={x:px,y:py};
+      renderField();
+    }
+  };
+  const onUp=e=>{
+    if(e.pointerId!==pointerId)return;
+    window.removeEventListener('pointermove',onMove);
+    window.removeEventListener('pointerup',onUp);
+    window.removeEventListener('pointercancel',onUp);
+    if(dragging)saveState();
+    else onFieldTap(poste);
+    dragging=false;pointerId=null;
+  };
+  el.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    e.preventDefault();e.stopPropagation();
+    pointerId=e.pointerId;dragging=false;
+    startX=e.clientX;startY=e.clientY;
+    startPos={...(posteLayout[currentOrientation()][poste]||{x:50,y:50})};
+    window.addEventListener('pointermove',onMove);
+    window.addEventListener('pointerup',onUp);
+    window.addEventListener('pointercancel',onUp);
+  });
 }
 
 // ============ GOALS ============
@@ -804,13 +939,32 @@ function openGoalModal(adv){
 async function saveGoal(){
   const sid=document.getElementById('g-scorer').value;
   const aid=document.getElementById('g-assist').value;
-  const t=chronoS;
-  const min=Math.floor(t/60);
   const scorer=goalAdv?CM.adversaire:(players.find(p=>p.id===sid)?.prenom+' '+(players.find(p=>p.id===sid)?.nom||'')||'?');
   const assist=aid&&!goalAdv?(players.find(p=>p.id===aid)?.prenom||null):null;
-  goals.push({t,min,scorer,assist,adv:goalAdv,half:halfN});
-  if(goalAdv){sEux++;document.getElementById('sc-eux').textContent=sEux;} else {sNous++;document.getElementById('sc-nous').textContent=sNous;}
-  closeModal('modal-goal');renderGoals();syncCurrentMatchInMemory();saveState();showToast('But enregistré !','ok');
+  closeModal('modal-goal');
+  recordGoal(goalAdv,scorer,assist);
+}
+function recordGoal(adv,scorer,assist){
+  const t=chronoS,min=Math.floor(t/60);
+  goals.push({t,min,scorer,assist:assist||null,adv,half:halfN});
+  if(adv){sEux++;document.getElementById('sc-eux').textContent=sEux;} else {sNous++;document.getElementById('sc-nous').textContent=sNous;}
+  renderGoals();syncCurrentMatchInMemory();saveState();showToast('But enregistré !','ok');
+}
+function openQuickGoalPicker(adv){
+  goalAdv=adv;
+  if(adv){recordGoal(true,CM.adversaire,null);return;}
+  const postes=getPostes(CT?.format||'8v8');
+  const onField=postes.map(n=>assignment[n]).filter(Boolean).map(id=>players.find(p=>p.id===id)).filter(Boolean);
+  const box=document.getElementById('quick-goal-list');
+  if(!onField.length){box.innerHTML='<div style="font-size:12px;color:var(--text3);padding:6px 0">Aucun joueur sur le terrain</div>';}
+  else box.innerHTML=onField.map(p=>`<button class="qg-opt" style="border-color:${pCol(p)};color:${pCol(p)}" onclick="quickGoal('${p.id}')">${p.prenom} ${p.nom}</button>`).join('');
+  box.innerHTML+=`<button class="qg-opt qg-none" onclick="quickGoal(null)">Sans buteur précis</button>`;
+  openModal('modal-quick-goal');
+}
+function quickGoal(playerId){
+  closeModal('modal-quick-goal');
+  const p=playerId?players.find(pl=>pl.id===playerId):null;
+  recordGoal(false,p?(p.prenom+' '+p.nom):'But marqué',null);
 }
 function renderGoals(){
   const el=document.getElementById('goals-list');
@@ -829,7 +983,7 @@ async function endMatch(){
   if(chronoOn)toggleChrono();freezeTimes();
   const entries=Object.keys(MP).map(pid=>({match_id:CM.id,player_id:pid,titulaire:!!MP[pid].segments.find(s=>s.from===0),poste_joue:MP[pid].poste,secondes_jeu:MP[pid].playSeconds,segments:MP[pid].segments}));
   await sb.from('match_players').upsert(entries,{onConflict:'match_id,player_id'});
-  await sb.from('matches').update({statut:'termine',score_nous:sNous,score_eux:sEux,timeline_json:{chronoS,halfN,halfDuration,subLog,goals,MP,fieldPositions}}).eq('id',CM.id);
+  await sb.from('matches').update({statut:'termine',score_nous:sNous,score_eux:sEux,timeline_json:{chronoS,halfN,halfDuration,subLog,goals,MP,posteLayout,assignment,matchStarted}}).eq('id',CM.id);
   CM.statut='termine';CM.score_nous=sNous;CM.score_eux=sEux;
   const sp=document.getElementById('det-status');sp.className='pill pgr';sp.textContent='Terminé';
   showToast('Match sauvegardé !','ok');await loadMatches();
@@ -841,7 +995,7 @@ async function saveState(){
   await sb.from('matches').update({
     score_nous:sNous,
     score_eux:sEux,
-    timeline_json:{chronoS,halfN,halfDuration,chronoOn,chronoStartedAt,subLog,goals,MP,fieldPositions},
+    timeline_json:{chronoS,halfN,halfDuration,chronoOn,chronoStartedAt,subLog,goals,MP,posteLayout,assignment,matchStarted},
     statut:CM.statut==='termine'?'termine':'en_cours'
   }).eq('id',CM.id);
 }
@@ -886,7 +1040,8 @@ async function refreshActiveMatch(){
     subLog=tl.subLog||[];goals=tl.goals||[];
     MP=tl.MP||{};
     Object.keys(MP).forEach(k=>{MP[k].benchSeconds=MP[k].benchSeconds||0;MP[k].benchSince=(MP[k].benchSince!==undefined?MP[k].benchSince:null)});
-    fieldPositions=tl.fieldPositions||getDefaultPositions();
+    matchStarted=tl.matchStarted||false;
+    loadPosteLayoutFromTimeline(tl);
     document.getElementById('live-time').textContent=fmt(chronoS);
     document.getElementById('sc-nous').textContent=sNous;
     document.getElementById('sc-eux').textContent=sEux;
@@ -1111,10 +1266,7 @@ function toggleMode(){
   if(mdMode){btn.textContent='🏠 Bureau';btn.classList.add('on');b.style.display='block';}
   else{btn.textContent='⚽ Match';btn.classList.remove('on');b.style.display='none';}
 }
-function signOut(){sb.auth.signOut().then(()=>{U=null;UP=null;teams=[];CT=null;players=[];matches=[];CM=null;selectedBenchId=null;document.getElementById('screen-app').classList.remove('active');document.getElementById('screen-auth').classList.add('active');document.getElementById('form-login').style.display='block';document.getElementById('form-reg').style.display='none';showToast('Déconnecté','ok');});}
-function handleBenchSelect(playerId){selectedBenchId=playerId;showToast('Remplaçant sélectionné','ok');renderField();}
-function clearBenchSelection(){selectedBenchId=null;renderField();}
-function handleFieldClick(posIdx){const benchPlayers=players.filter(p=>MP[p.id]&&!MP[p.id].onField);if(!benchPlayers.length)return showToast('Aucun remplaçant disponible','err');const playerId=selectedBenchId||benchPlayers[0].id;doBenchSwap(playerId,posIdx);clearBenchSelection();}
+function signOut(){sb.auth.signOut().then(()=>{U=null;UP=null;teams=[];CT=null;players=[];matches=[];CM=null;selected=null;document.getElementById('screen-app').classList.remove('active');document.getElementById('screen-auth').classList.add('active');document.getElementById('form-login').style.display='block';document.getElementById('form-reg').style.display='none';showToast('Déconnecté','ok');});}
 
 // ============ MODALS & TOASTS ============
 function openModal(id){document.getElementById(id).classList.add('open');}
