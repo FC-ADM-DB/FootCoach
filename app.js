@@ -347,7 +347,6 @@ async function openMatchDetail(id){
   selected=null;
   loadFormationsForTeam();
   document.getElementById('live-time').textContent=fmt(chronoS);
-  document.getElementById('live-half').innerHTML=`${halfN===2?'2ème':'1ère'} mi-temps · <span id="live-half-dur">${halfDuration}</span> min`;
   document.getElementById('live-badge').textContent=halfN===2?'MT 2':'MT 1';
   document.getElementById('live-badge').style.cssText=halfN===2?'background:var(--amber-bg);color:var(--amber);':'';
   document.getElementById('sc-nous').textContent=sNous;
@@ -561,14 +560,12 @@ async function loadConvs(){
 }
 function renderConvs(){
   const cl=document.getElementById('conv-list');
-  const dbg=`players:${players.length} CT:${CT?.nom||'?'}(${(CT?.id||'').slice(0,8)}) CM.team:${(CM?.team_id||'').slice(0,8)} match:vs ${CM?.adversaire||'?'}`;
-  const dbgEl=`<div style="font-size:10px;color:var(--text3);font-family:var(--mono);padding:6px 8px;margin-bottom:8px;background:var(--bg3);border-radius:6px;word-break:break-all">${dbg}</div>`;
   if(!players.length){
-    cl.innerHTML=dbgEl+`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide pour "${CT?.nom||'?'}"</div><div class="empty-s">Ajoute des joueurs dans l'onglet Joueurs (vérifie que c'est bien la même équipe, en haut de l'écran Joueurs)</div></div>`;
+    cl.innerHTML=`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide pour "${CT?.nom||'?'}"</div><div class="empty-s">Ajoute des joueurs dans l'onglet Joueurs</div></div>`;
     document.getElementById('start-match-area').innerHTML='';
     return;
   }
-  cl.innerHTML=dbgEl+players.map(p=>{
+  cl.innerHTML=players.map(p=>{
     const st=convs[p.id]||'inconnu';
     const presentDisabled = !isAdmin && st!=='present';
     return `<div class="cv">
@@ -663,7 +660,6 @@ function startChronoInterval(){
 function toggleChrono(){
   if(CM?.statut==='termine') return showToast('Ce match est terminé.','err');
   const btn=document.getElementById('btn-chrono');
-  document.getElementById('live-half-dur').textContent=halfDuration;
   if(!chronoOn){
     chronoOn=true;chronoStartedAt=Date.now();matchStarted=true;
     btn.textContent='⏸ Pause';btn.style.background='var(--amber)';
@@ -693,7 +689,6 @@ function resetTimers(){
     mp.benchSince=mp.onField?null:0;
   });
   document.getElementById('live-time').textContent='00:00';
-  document.getElementById('live-half').innerHTML=`1ère mi-temps · <span id="live-half-dur">${halfDuration}</span> min`;
   document.getElementById('live-badge').textContent='MT 1';
   document.getElementById('live-badge').style.cssText='';
   renderField();renderGoals();saveState();
@@ -710,7 +705,6 @@ function switchHalf(){
   if(CM?.statut==='termine') return showToast('Ce match est terminé.','err');
   if(chronoOn)toggleChrono();freezeTimes();halfN=2;chronoS=0;
   document.getElementById('live-time').textContent='00:00';
-  document.getElementById('live-half').innerHTML=`2ème mi-temps · <span id="live-half-dur">${halfDuration}</span> min`;
   document.getElementById('live-badge').textContent='MT 2';
   document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
   Object.keys(MP).forEach(id=>{if(MP[id].onField)MP[id].enteredAt=null;});
@@ -1082,7 +1076,6 @@ async function refreshActiveMatch(){
     document.getElementById('sc-eux').textContent=sEux;
     document.getElementById('det-status').className='pill pg';
     document.getElementById('det-status').textContent='En cours';
-    document.getElementById('live-half').innerHTML=`${halfN===2?'2ème':'1ère'} mi-temps · <span id="live-half-dur">${halfDuration}</span> min`;
     document.getElementById('live-badge').textContent=halfN===2?'MT 2':'MT 1';
     if(halfN===2) document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
     else document.getElementById('live-badge').style.cssText='';
