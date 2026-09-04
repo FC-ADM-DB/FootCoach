@@ -212,11 +212,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .player-bubble.bench{padding:6px 10px;font-size:13px}
 .player-bubble .bench-time{display:block;font-size:11px;color:var(--text2);margin-top:4px;font-family:var(--mono)}
 
-/* TERRAIN */
-.terrain-wrap{position:relative;margin:8px auto;user-select:none;max-width:920px;min-width:260px;display:flex;justify-content:center}
-.terrain-svg{display:block;height:clamp(320px,62dvh,500px);width:auto;max-width:100%;border-radius:12px}
-.terrain-wrap.landscape{margin:8px 0;max-width:none;justify-content:flex-start;align-items:flex-start}
-.terrain-wrap.landscape .terrain-svg{height:clamp(280px,calc(100dvh - 140px),1100px);width:auto}
+/* TERRAIN — la boîte a un rapport largeur/hauteur fixe (aspect-ratio) et le SVG
+   remplit cette boîte à 100%/100% ; le SVG préserve son ratio interne tout seul
+   (comportement natif "xMidYMid meet"). Plus robuste qu'une largeur dérivée
+   d'un calcul de hauteur, qui peut se faire mal résoudre dans une grille "auto". */
+.terrain-wrap{position:relative;margin:8px auto;user-select:none;width:100%;max-width:420px;aspect-ratio:300/420}
+.terrain-svg{display:block;width:100%;height:100%;border-radius:12px}
+.terrain-wrap.landscape{margin:8px 0;width:auto;max-width:100%;aspect-ratio:420/300;height:calc(100dvh - 150px)}
 .player-bubble{position:absolute;transform:translate(-50%,-50%);background:var(--bg2);border:2px solid var(--green);border-radius:12px;padding:5px 9px;font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;z-index:5;text-align:center;min-width:64px}
 .player-bubble.bench{border-radius:99px;border-width:2px;padding:8px 12px;font-size:12px;background:var(--bg3);cursor:pointer}
 .player-bubble[data-type="field"]{cursor:pointer}
@@ -232,8 +234,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .live-body{display:grid;grid-template-columns:1fr;gap:14px;margin:0 14px 12px}
 .live-sidebar{display:flex;flex-direction:column;gap:14px}
 .live-field{min-width:0}
-@media(min-width:760px){.live-body:not(.landscape){grid-template-columns:minmax(340px,2fr) minmax(280px,1fr);}.live-body:not(.landscape) .live-field{order:1;}.live-body:not(.landscape) .live-sidebar{order:2;overflow-y:auto;max-height:calc(100dvh - 190px);}.terrain-wrap:not(.landscape) .terrain-svg{height:clamp(320px,calc(100dvh - 190px),700px);}}
-.live-body.landscape{grid-template-columns:auto minmax(260px,1fr);align-items:flex-start}
+@media(min-width:760px){
+  .live-body:not(.landscape){grid-template-columns:minmax(340px,2fr) minmax(280px,1fr);}
+  .live-body:not(.landscape) .live-field{order:1;}
+  .live-body:not(.landscape) .live-sidebar{order:2;overflow-y:auto;max-height:calc(100dvh - 190px);}
+  .terrain-wrap:not(.landscape){width:auto;max-width:100%;height:min(calc(100dvh - 190px),640px)}
+}
+.live-body.landscape{grid-template-columns:minmax(300px,62%) minmax(240px,1fr);align-items:flex-start}
 .live-body.landscape .live-field{order:1}
 .live-body.landscape .live-sidebar{order:2;overflow-y:auto;max-height:calc(100dvh - 160px)}
 .bench-title{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px}
@@ -300,9 +307,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   .live-hint{display:none}
 
   /* Make terrain smaller so it's visible on narrow screens, mais assez haut pour les bulles + repères */
-  .terrain-wrap{margin:6px auto;max-width:720px}
-  .terrain-svg{height:clamp(280px,42dvh,380px);border-radius:10px}
-  .terrain-wrap.landscape .terrain-svg{height:clamp(220px,calc(100dvh - 120px),500px)}
+  .terrain-wrap{margin:6px auto;max-width:min(90vw,380px)}
+  .terrain-svg{border-radius:10px}
+  .terrain-wrap.landscape{height:min(calc(100dvh - 120px),500px)}
 
   /* Player bubble compaction : sur iPhone on n'affiche que "Depuis", pas le total, pour ne pas surcharger */
   .player-bubble{font-size:10px;padding:4px 6px;min-width:48px;border-width:1.5px;border-radius:9px}
