@@ -561,12 +561,14 @@ async function loadConvs(){
 }
 function renderConvs(){
   const cl=document.getElementById('conv-list');
+  const dbg=`players:${players.length} CT:${CT?.nom||'?'}(${(CT?.id||'').slice(0,8)}) CM.team:${(CM?.team_id||'').slice(0,8)} match:vs ${CM?.adversaire||'?'}`;
+  const dbgEl=`<div style="font-size:10px;color:var(--text3);font-family:var(--mono);padding:6px 8px;margin-bottom:8px;background:var(--bg3);border-radius:6px;word-break:break-all">${dbg}</div>`;
   if(!players.length){
-    cl.innerHTML=`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide pour "${CT?.nom||'?'}"</div><div class="empty-s">Ajoute des joueurs dans l'onglet Joueurs (vérifie que c'est bien la même équipe, en haut de l'écran Joueurs)</div></div>`;
+    cl.innerHTML=dbgEl+`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide pour "${CT?.nom||'?'}"</div><div class="empty-s">Ajoute des joueurs dans l'onglet Joueurs (vérifie que c'est bien la même équipe, en haut de l'écran Joueurs)</div></div>`;
     document.getElementById('start-match-area').innerHTML='';
     return;
   }
-  cl.innerHTML=players.map(p=>{
+  cl.innerHTML=dbgEl+players.map(p=>{
     const st=convs[p.id]||'inconnu';
     const presentDisabled = !isAdmin && st!=='present';
     return `<div class="cv">
