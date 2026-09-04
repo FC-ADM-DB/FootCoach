@@ -536,7 +536,8 @@ function renderKiosk(){
 
 // ============ CONVOCATIONS ============
 async function loadConvs(){
-  if(!CM||!players.length)return;
+  if(!CM)return;
+  if(!players.length){renderConvs();return;}
   const{data}=await sb.from('convocations').select('*').eq('match_id',CM.id);
   convs={};(data||[]).forEach(c=>{convs[c.player_id]=c.statut;});
   players.forEach(p=>{if(!convs[p.id])convs[p.id]='inconnu';});
