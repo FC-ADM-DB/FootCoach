@@ -349,6 +349,7 @@ async function openMatchDetail(id){
       if(!chronoOn){chronoBtn.textContent='▶ Start';chronoBtn.style.background='var(--green)';}
     }
   }
+  if(!players.length) await loadPlayers();
   await loadConvs();
   if(chronoOn){
     const btn=chronoBtn;
@@ -543,6 +544,11 @@ async function loadConvs(){
 }
 function renderConvs(){
   const cl=document.getElementById('conv-list');
+  if(!players.length){
+    cl.innerHTML=`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide</div><div class="empty-s">Ajoute des joueurs dans l'onglet Joueurs</div></div>`;
+    document.getElementById('start-match-area').innerHTML='';
+    return;
+  }
   cl.innerHTML=players.map(p=>{
     const st=convs[p.id]||'inconnu';
     const presentDisabled = !isAdmin && st!=='present';
