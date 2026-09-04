@@ -129,6 +129,21 @@ function selTeam(t){
   loadMatches();
 }
 
+function renderTeamsList(){
+  const el=document.getElementById('teams-list');
+  if(!teams.length){el.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Aucune équipe</div><div class="empty-s">Crée ta première équipe</div></div>`;return;}
+  el.innerHTML=teams.map(t=>{
+    const role=t.team_members?.find(m=>m.profile_id===U.id)?.role||'membre';
+    return `<div class="card" onclick="switchTeam('${t.id}');goPage('home')">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+        <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${t.couleur}22;color:${t.couleur}">${t.nom.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1"><div style="font-size:14px;font-weight:600">${t.nom}</div><div style="font-size:12px;color:var(--text2)">${t.categorie} · ${t.format}</div></div>
+        <button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>
+      </div>
+      <div style="display:flex;gap:5px"><span class="pill pg">${t.categorie}</span><span class="pill pb">${t.format}</span><span class="pill pgr">${role}</span></div>
+    </div>`;
+  }).join('');
+}
 async function deleteTeam(id,e){
   if(e && e.stopPropagation) e.stopPropagation();
   if(!isAdmin) return showToast('Accès admin requis','err');
