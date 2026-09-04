@@ -168,7 +168,8 @@ async function saveTeam(){
 // ============ PLAYERS ============
 async function loadPlayers(){
   if(!CT)return;
-  const{data}=await sb.from('players').select('*').eq('team_id',CT.id).eq('actif',true).order('prenom');
+  const{data,error}=await sb.from('players').select('*').eq('team_id',CT.id).eq('actif',true).order('prenom');
+  if(error){showToast('Erreur chargement joueurs : '+error.message,'err');}
   players=data||[];renderPlayers();updateStats();
 }
 function renderPlayers(){
@@ -546,7 +547,7 @@ async function loadConvs(){
 function renderConvs(){
   const cl=document.getElementById('conv-list');
   if(!players.length){
-    cl.innerHTML=`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide</div><div class="empty-s">Ajoute des joueurs dans l'onglet Joueurs</div></div>`;
+    cl.innerHTML=`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide pour "${CT?.nom||'?'}"</div><div class="empty-s">Ajoute des joueurs dans l'onglet Joueurs (vérifie que c'est bien la même équipe, en haut de l'écran Joueurs)</div></div>`;
     document.getElementById('start-match-area').innerHTML='';
     return;
   }
