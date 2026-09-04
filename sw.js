@@ -1,4 +1,4 @@
-const CACHE = 'footcoach-v1';
+const CACHE = 'footcoach-v2';
 const ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
@@ -15,7 +15,9 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.url.includes('supabase.co')) return;
+  // no-store : on a été piégés plusieurs fois par du JS/CSS resservi depuis
+  // le cache HTTP du navigateur alors que le déploiement était déjà à jour.
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    fetch(e.request, { cache: 'no-store' }).catch(() => caches.match(e.request))
   );
 });
