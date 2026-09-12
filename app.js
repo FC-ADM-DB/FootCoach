@@ -339,10 +339,11 @@ async function openMatchDetail(id){
   }
   updateSyncBadge();
 
-  // Restaure aussi pour un match "termine" : sinon rouvrir un match fini repartait sur
-  // un état vide (0 but, aucun joueur) alors que endMatch() avait bien tout sauvegardé
-  // dans timeline_json — le Résumé semblait avoir perdu les stats.
-  if((CM.statut==='en_cours'||CM.statut==='termine')&&CM.timeline_json){
+  // Restaure dès que timeline_json contient une vraie composition (MP non vide),
+  // quel que soit le statut. Avant, seul "en_cours"/"termine" restaurait : un match
+  // encore "prevu" avec des joueurs déjà placés sur le terrain (avant le coup d'envoi)
+  // perdait ce placement à chaque réouverture, alors qu'il était bien sauvegardé.
+  if(CM.timeline_json && Object.keys(CM.timeline_json.MP||{}).length){
     const tl=CM.timeline_json;
     halfDuration=tl.halfDuration||HALF_MIN[CT?.format||'8v8'];
     chronoOn=tl.chronoOn===true;
@@ -714,12 +715,15 @@ function toggleChrono(){
     // Recule le point de départ du temps déjà écoulé (chronoS) : un spectateur calcule
     // le temps via Date.now()-chronoStartedAt, donc sans ce recul, chaque reprise après
     // pause repartait de zéro pour lui (le temps semblait "se réinitialiser").
+    const firstStart=!matchStarted; // distingue le vrai coup d'envoi d'une reprise après pause
     chronoOn=true;chronoStartedAt=Date.now()-chronoS*1000;matchStarted=true;
     btn.textContent='⏸ Pause';btn.style.background='var(--amber)';
     Object.keys(MP).forEach(id=>{
       const mp=MP[id];
       if(mp.onField&&mp.enteredAt===null)mp.enteredAt=chronoS;
       if(!mp.onField && (mp.benchSince===null || mp.benchSince===undefined)) mp.benchSince=chronoS;
+      // Mémorise qui était sur le terrain au coup d'envoi, pour l'afficher dans le Résumé.
+      if(firstStart) mp.starter=mp.onField===true;
     });
     startChronoInterval();
     saveState();
@@ -1075,7 +1079,7 @@ async function endMatch(){
   if(chronoOn)toggleChrono();freezeTimes();
   CM.statut='termine';
   await saveState();
-  const entries=Object.keys(MP).map(pid=>({match_id:CM.id,player_id:pid,titulaire:!!MP[pid].segments.find(s=>s.from===0),poste_joue:MP[pid].poste,secondes_jeu:MP[pid].playSeconds,segments:MP[pid].segments}));
+  const entries=Object.keys(MP).map(pid=>({match_id:CM.id,player_id:pid,titulaire:MP[pid].starter===true,poste_joue:MP[pid].poste,secondes_jeu:MP[pid].playSeconds,segments:MP[pid].segments}));
   sb.from('match_players').upsert(entries,{onConflict:'match_id,player_id'});
   const sp=document.getElementById('det-status');sp.className='pill pgr';sp.textContent='Terminé';
   if(pendingSync){
@@ -1187,7 +1191,7 @@ async function refreshActiveMatch(){
     const sameTimeline = data.timeline_json && CM.timeline_json && JSON.stringify(data.timeline_json)===JSON.stringify(CM.timeline_json);
     if(sameTimeline && data.score_nous===CM.score_nous && data.score_eux===CM.score_eux && data.statut===CM.statut) return;
     CM=data;
-  if(CM.statut==='en_cours' && CM.timeline_json){
+  if(CM.timeline_json && (CM.statut==='en_cours' || Object.keys(CM.timeline_json.MP||{}).length)){
     const tl=CM.timeline_json;
     halfDuration=tl.halfDuration||HALF_MIN[CT?.format||'8v8'];
     chronoOn=tl.chronoOn===true;
@@ -1215,8 +1219,10 @@ async function refreshActiveMatch(){
     document.getElementById('live-time').textContent=fmt(chronoS);
     document.getElementById('sc-nous').textContent=sNous;
     document.getElementById('sc-eux').textContent=sEux;
-    document.getElementById('det-status').className='pill pg';
-    document.getElementById('det-status').textContent='En cours';
+    if(CM.statut==='en_cours'){
+      document.getElementById('det-status').className='pill pg';
+      document.getElementById('det-status').textContent='En cours';
+    }
     document.getElementById('live-badge').textContent=halfN===2?'MT 2':'MT 1';
     if(halfN===2) document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
     else document.getElementById('live-badge').style.cssText='';
@@ -1291,9 +1297,10 @@ function renderResume(){
     const max=Math.max(...sorted.map(p=>liveSecs(p.id)),1);
     html+=sorted.map(p=>{
       const s=liveSecs(p.id), b=getBenchSeconds(p.id), pct=Math.round(s/max*100);
+      const starter=MP[p.id]?.starter===true;
       return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:${pCol(p)}">${p.prenom} ${p.nom}</div>
+          <div style="font-size:13px;font-weight:600;color:${pCol(p)}">${p.prenom} ${p.nom}${starter?' <span class="pill pg" style="font-size:9px;vertical-align:middle">★ Titulaire</span>':''}</div>
           <div style="font-size:11px;color:var(--text2);margin-top:3px">Jeu: ${fmt(s)} · Banc: ${fmt(b)}</div>
         </div>
         <div style="width:80px;height:6px;background:var(--bg3);border-radius:99px;overflow:hidden;flex-shrink:0"><div style="width:${pct}%;height:100%;background:${CT?.couleur||'#00d68f'};border-radius:99px"></div></div>
