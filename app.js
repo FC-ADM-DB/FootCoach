@@ -609,7 +609,7 @@ function renderConvs(){
   }).join('');
   const area=document.getElementById('start-match-area');
   const maxOn=CT?.format==='5v5'?5:8;
-  const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
+  const presents=players.filter(p=>convs[p.id]==='present');
   if(CM.statut==='termine'){
     area.innerHTML=`<div style="background:var(--bg3);border-radius:var(--rsm);padding:12px;text-align:center;color:var(--text2);font-size:13px">Match terminé — voir l'onglet Résumé</div>`;
   } else if(CM.statut==='en_cours'){
@@ -624,20 +624,29 @@ function renderConvs(){
   }
 }
 
-// Construit MP à partir des joueurs convoqués dès que le minimum est atteint, sans
-// attendre un clic explicite sur "Valider la composition" — sinon un coach qui ouvre
-// directement l'onglet Live après avoir convoqué ne voit personne sur le banc.
+// Construit/actualise MP à partir des joueurs marqués "présent" (uniquement —
+// "incertain"/non renseigné ne compte plus comme disponible). Reflète en continu
+// l'état réel des convocations : un joueur toujours convoqué garde sa position et son
+// temps de jeu déjà enregistrés ; un joueur retiré des convocations est retiré de MP
+// et de son poste sur le terrain.
 function ensureComposition(){
   if(!CM||CM.statut==='termine'||matchStarted)return;
-  if(Object.keys(MP).length)return;
-  const maxOn=CT?.format==='5v5'?5:8;
-  const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
-  if(presents.length<maxOn)return;
-  presents.forEach(p=>{
-    MP[p.id]={onField:false,playSeconds:0,enteredAt:null,segments:[],poste:p.numero_poste||null,benchSeconds:0,benchSince:0};
+  const presentIds=players.filter(p=>convs[p.id]==='present').map(p=>p.id);
+  const presentSet=new Set(presentIds);
+  const currentIds=Object.keys(MP);
+  const same=presentIds.length===currentIds.length && currentIds.every(id=>presentSet.has(id));
+  if(same)return;
+  const newMP={};
+  presentIds.forEach(id=>{
+    newMP[id]=MP[id]||{onField:false,playSeconds:0,enteredAt:null,segments:[],poste:players.find(p=>p.id===id)?.numero_poste||null,benchSeconds:0,benchSince:0};
   });
-  posteLayout=getStartingPosteLayout();
-  assignment={};
+  MP=newMP;
+  Object.keys(assignment).forEach(poste=>{
+    if(assignment[poste] && !presentSet.has(assignment[poste])) assignment[poste]=null;
+  });
+  if(!Object.keys(posteLayout.portrait).length && !Object.keys(posteLayout.landscape).length){
+    posteLayout=getStartingPosteLayout();
+  }
   // Sans ceci, MP n'existe qu'en mémoire locale : le polling live (refreshActiveMatch,
   // 2s) trouve le serveur toujours vide, le considère "plus à jour" et écrase MP —
   // les joueurs affichés sur le banc disparaissaient donc après un très court instant.
@@ -647,7 +656,7 @@ function validateComposition(){
   if(!CM) return;
   if(CM.statut==='termine') return showToast('Match terminé — impossible','err');
   const maxOn=CT.format==='5v5'?5:8;
-  const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
+  const presents=players.filter(p=>convs[p.id]==='present');
   if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
   ensureComposition();
   matchStarted=false;
@@ -667,7 +676,7 @@ async function setConv(pid,st){
 function startMatch(){
   if(CM.statut==='termine') return showToast('Ce match est terminé, impossible de le redémarrer.','err');
   const maxOn=CT.format==='5v5'?5:8;
-  const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
+  const presents=players.filter(p=>convs[p.id]==='present');
   if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
   ensureComposition();
   sNous=0;sEux=0;chronoS=0;halfN=1;subLog=[];goals=[];matchStarted=false;
