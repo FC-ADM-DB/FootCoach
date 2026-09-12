@@ -178,6 +178,10 @@
                 <div class="bench-title">Remplaçants</div>
                 <div class="bench-row" id="bench-bubbles"></div>
               </div>
+              <div class="sublog-section">
+                <div class="bench-title">Remplacements</div>
+                <div id="live-sub-log"></div>
+              </div>
               <div class="formations-section">
                 <div class="fs-head">
                   <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500">Formations</span>
@@ -381,6 +385,19 @@
       <div class="mfoot">
         <button class="bcan" onclick="closeModal('modal-score-edit')">Annuler</button>
         <button class="bp" onclick="saveScoreEdit()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL FORMATION NAME -->
+  <div class="mo" id="modal-formation-name">
+    <div class="modal">
+      <div class="mh"></div>
+      <div class="mt">Sauvegarder la formation</div>
+      <div class="fg"><label class="fl">Nom</label><input class="fi" id="fn-name" type="text" maxlength="30" placeholder="Formation 1"></div>
+      <div class="mfoot">
+        <button class="bcan" onclick="closeModal('modal-formation-name')">Annuler</button>
+        <button class="bp" onclick="confirmSaveFormation()">Enregistrer</button>
       </div>
     </div>
   </div>

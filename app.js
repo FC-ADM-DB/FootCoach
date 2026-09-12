@@ -432,11 +432,17 @@ function loadFormationsForTeam(){
 }
 function saveFormation(){
   if(!CT)return;
-  const name=prompt('Nom de la formation :','Formation '+(formations.length+1));
-  if(!name)return;
+  document.getElementById('fn-name').value='Formation '+(formations.length+1);
+  openModal('modal-formation-name');
+}
+function confirmSaveFormation(){
+  if(!CT)return;
+  const name=document.getElementById('fn-name').value.trim();
+  if(!name)return showToast('Donne un nom','err');
   const orientation=currentOrientation();
   formations.push({name,orientation,layout:{...posteLayout[orientation]}});
   localStorage.setItem('fc_formations_'+CT.id,JSON.stringify(formations));
+  closeModal('modal-formation-name');
   showToast('Formation sauvegardée','ok');
   renderFormationsBar();
 }
@@ -844,6 +850,19 @@ function renderField(){
     bubble.addEventListener('click',()=>onBenchTap(p.id));
     benchArea.appendChild(bubble);
   });
+  renderLiveSubLog();
+}
+function renderLiveSubLog(){
+  const el=document.getElementById('live-sub-log');
+  if(!el)return;
+  const subs=subLog.filter(e=>e.type!=='swap'&&!(e.in||'').startsWith('Positions échangées'));
+  if(!subs.length){el.innerHTML='<div style="font-size:11px;color:var(--text3)">Aucun remplacement</div>';return;}
+  el.innerHTML=subs.slice().reverse().map(e=>`<div class="sublog-row">
+    <span class="sublog-t">${fmt(e.t)}</span>
+    <span class="sublog-out">↑ ${e.out}</span>
+    <span style="color:var(--text3);flex-shrink:0">→</span>
+    <span class="sublog-in">↓ ${e.in}</span>
+  </div>`).join('');
 }
 
 // --- Sélection unifiée : null | {type:'bench',playerId} | {type:'field',poste} ---
@@ -889,7 +908,7 @@ function assignBenchToPoste(playerId,poste){
   if(matchStarted){
     const pOut=outId?players.find(p=>p.id===outId):null;
     const pIn=players.find(p=>p.id===playerId);
-    subLog.push({t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:(pIn?.prenom||'?')+' '+(pIn?.nom||'')});
+    subLog.push({type:'sub',t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:(pIn?.prenom||'?')+' '+(pIn?.nom||'')});
     showToast(pOut?`${pIn?.prenom} entre pour ${pOut.prenom}`:`${pIn?.prenom} entre en jeu`,'ok');
   }
   renderField();saveState();
@@ -901,7 +920,7 @@ function swapPostes(posteA,posteB){
   selected=null;
   if(matchStarted){
     const a=players.find(p=>p.id===assignment[posteA]),b=players.find(p=>p.id===assignment[posteB]);
-    subLog.push({t:chronoS,half:halfN,out:'',in:`Positions échangées${a&&b?' : '+a.prenom+' ↔ '+b.prenom:''}`});
+    subLog.push({type:'swap',t:chronoS,half:halfN,out:'',in:`Positions échangées${a&&b?' : '+a.prenom+' ↔ '+b.prenom:''}`});
   }
   renderField();saveState();showToast('Positions échangées','ok');
 }
@@ -914,7 +933,7 @@ function benchPlayerFromField(poste,e){
   assignment[poste]=null;selected=null;
   if(matchStarted){
     const pOut=players.find(p=>p.id===outId);
-    subLog.push({t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:'banc'});
+    subLog.push({type:'sub',t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:'banc'});
     showToast(`${pOut?.prenom||'Joueur'} va sur le banc`,'ok');
   }
   renderField();saveState();
@@ -1062,7 +1081,11 @@ async function saveState(){
     score_nous:sNous,
     score_eux:sEux,
     timeline_json:{chronoS,halfN,halfDuration,chronoOn,chronoStartedAt,subLog,goals,MP,posteLayout,assignment,matchStarted},
-    statut:CM.statut==='termine'?'termine':'en_cours'
+    // Ne force "en_cours" que si le match a vraiment démarré (chrono lancé au moins
+    // une fois). validateComposition() appelle aussi saveState() avant le coup d'envoi
+    // (pour ne pas perdre la composition) : sans ce garde-fou, le statut passait en
+    // direct dès la validation de la composition, avant même d'avoir démarré.
+    statut:CM.statut==='termine'?'termine':(matchStarted?'en_cours':(CM.statut||'prevu'))
   };
   savePendingLocal(CM.id,snapshot);
   pendingSync=true;updateSyncBadge();

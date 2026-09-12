@@ -248,6 +248,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .bench-title{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px}
 .bench-row{display:flex;flex-wrap:wrap;gap:6px}
 
+/* HISTORIQUE DES REMPLACEMENTS (banc <-> terrain uniquement, pas les échanges de postes) */
+.sublog-section{padding:8px 14px 0;border-top:1px solid var(--border)}
+.sublog-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px}
+.sublog-row:last-child{border-bottom:none}
+.sublog-t{font-weight:600;color:var(--green);font-family:var(--mono);min-width:26px;flex-shrink:0}
+.sublog-out{color:var(--red);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sublog-in{color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* FORMATIONS */
 .formations-section{padding:10px 14px 0}
 .fs-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
