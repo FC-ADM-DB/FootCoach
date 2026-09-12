@@ -669,23 +669,18 @@ function startMatch(){
   const maxOn=CT.format==='5v5'?5:8;
   const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
   if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
-  if(!Object.keys(MP).length){
-    presents.forEach(p=>{MP[p.id]={onField:false,playSeconds:0,enteredAt:null,segments:[],poste:p.numero_poste||null,benchSeconds:0,benchSince:0};});
-  }
-  if(!Object.keys(posteLayout.portrait).length && !Object.keys(posteLayout.landscape).length){
-    posteLayout=getStartingPosteLayout();
-  }
+  ensureComposition();
   sNous=0;sEux=0;chronoS=0;halfN=1;subLog=[];goals=[];matchStarted=false;
   document.getElementById('sc-nous').textContent='0';document.getElementById('sc-eux').textContent='0';
   document.getElementById('sc-eux-lbl').textContent=CM.adversaire.slice(0,12);
   document.getElementById('sc-nous-lbl').textContent=CT.nom.slice(0,10);
+  const sp=document.getElementById('det-status');sp.className='pill pg';sp.textContent='En cours';
+  // Passe par saveState() (snapshot complet + retry) au lieu d'un update brut qui
+  // remplaçait tout timeline_json par {halfDuration} seul — ça effaçait MP/posteLayout/
+  // assignment déjà sauvegardés par les placements faits avant le démarrage.
+  CM.statut='en_cours';
+  saveState();
   switchTab('live');
-  sb.from('matches').update({statut:'en_cours',timeline_json:{halfDuration}}).eq('id',CM.id).then(()=>{
-    CM.statut='en_cours';
-    CM.timeline_json=CM.timeline_json||{};
-    CM.timeline_json.halfDuration=halfDuration;
-    const sp=document.getElementById('det-status');sp.className='pill pg';sp.textContent='En cours';
-  });
 }
 
 // ============ CHRONO ============
