@@ -1160,20 +1160,30 @@ async function saveScoreEdit(){
 }
 
 // ============ TIMELINE ============
+// matchDetailInterval déclenche refreshActiveMatch() toutes les 2s SANS attendre que
+// l'appel précédent soit terminé. En cas de requête lente, deux (ou plus) appels
+// pouvaient donc être en vol en même temps — et celui qui finissait EN DERNIER
+// écrasait tout (CM=data;), même s'il avait été lancé avant des actions plus
+// récentes (start/pause) et ramenait donc une version périmée (chrono à 0 inclus).
+// Ce garde-fou fait qu'un seul appel est actif à la fois : les autres sont ignorés,
+// le prochain tick (2s plus tard) réessaiera de toute façon.
+let refreshInFlight=false;
 async function refreshActiveMatch(){
-  if(!CM)return;
-  if(pendingSync){
-    // Des changements locaux n'ont pas encore atteint Supabase : on retente l'envoi
-    // au lieu d'aller chercher le serveur, sinon sa version périmée écraserait l'état
-    // local plus récent (c'était le bug des changements "annulés").
-    await saveState();
-    return;
-  }
-  const {data,error}=await sb.from('matches').select('*').eq('id',CM.id).single();
-  if(error||!data) return;
-  const sameTimeline = data.timeline_json && CM.timeline_json && JSON.stringify(data.timeline_json)===JSON.stringify(CM.timeline_json);
-  if(sameTimeline && data.score_nous===CM.score_nous && data.score_eux===CM.score_eux && data.statut===CM.statut) return;
-  CM=data;
+  if(!CM||refreshInFlight)return;
+  refreshInFlight=true;
+  try{
+    if(pendingSync){
+      // Des changements locaux n'ont pas encore atteint Supabase : on retente l'envoi
+      // au lieu d'aller chercher le serveur, sinon sa version périmée écraserait l'état
+      // local plus récent (c'était le bug des changements "annulés").
+      await saveState();
+      return;
+    }
+    const {data,error}=await sb.from('matches').select('*').eq('id',CM.id).single();
+    if(error||!data) return;
+    const sameTimeline = data.timeline_json && CM.timeline_json && JSON.stringify(data.timeline_json)===JSON.stringify(CM.timeline_json);
+    if(sameTimeline && data.score_nous===CM.score_nous && data.score_eux===CM.score_eux && data.statut===CM.statut) return;
+    CM=data;
   if(CM.statut==='en_cours' && CM.timeline_json){
     const tl=CM.timeline_json;
     halfDuration=tl.halfDuration||HALF_MIN[CT?.format||'8v8'];
@@ -1208,11 +1218,14 @@ async function refreshActiveMatch(){
     if(halfN===2) document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
     else document.getElementById('live-badge').style.cssText='';
   }
-  if(document.getElementById('tab-conv').style.display==='block') renderConvs();
-  if(document.getElementById('tab-live').style.display==='block') {renderField();renderGoals();}
-  if(document.getElementById('tab-tl').style.display==='block') renderTimeline();
-  if(document.getElementById('tab-res').style.display==='block') renderResume();
-  if(CM.statut==='termine') switchTab('res');
+    if(document.getElementById('tab-conv').style.display==='block') renderConvs();
+    if(document.getElementById('tab-live').style.display==='block') {renderField();renderGoals();}
+    if(document.getElementById('tab-tl').style.display==='block') renderTimeline();
+    if(document.getElementById('tab-res').style.display==='block') renderResume();
+    if(CM.statut==='termine') switchTab('res');
+  } finally {
+    refreshInFlight=false;
+  }
 }
 
 function renderTimeline(){
