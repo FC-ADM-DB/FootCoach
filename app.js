@@ -288,19 +288,27 @@ function renderHomeMatches(){
     return `<div class="mc" onclick="goPage('match')"><div class="mc-top"><span class="mc-vs">vs ${m.adversaire}</span><span class="pill pb">Prévu</span></div><div class="mc-meta"><span>${d} · ${h}</span><span>${m.lieu==='domicile'?'🏠':'✈️'}</span></div></div>`;
   }).join('');
 }
+// datetime-local travaille en heure locale sans fuseau ; toISOString() renvoie de l'UTC.
+// Les mélanger décale l'heure affichée/enregistrée de son décalage horaire (ex: +1h/+2h
+// en Belgique) — d'où l'écart entre l'heure encodée et l'heure visible ensuite.
+function toLocalInputValue(d){
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 function openMatchCreateModal(){
   if(!CT)return showToast('Sélectionne une équipe','err');
   document.getElementById('m-adv').value='';
   document.getElementById('m-half').value=HALF_MIN[CT.format]||30;
-  const now=new Date();now.setMinutes(0);document.getElementById('m-date').value=now.toISOString().slice(0,16);
+  const now=new Date();now.setMinutes(0);document.getElementById('m-date').value=toLocalInputValue(now);
   openModal('modal-mc');
 }
 async function saveMatch(){
   const adv=document.getElementById('m-adv').value.trim();
-  const date=document.getElementById('m-date').value;
+  const dateLocal=document.getElementById('m-date').value;
   const lieu=document.getElementById('m-lieu').value;
   const half=parseInt(document.getElementById('m-half').value)||HALF_MIN[CT.format]||30;
-  if(!adv||!date||!half)return showToast('Remplis tous les champs','err');
+  if(!adv||!dateLocal||!half)return showToast('Remplis tous les champs','err');
+  const date=new Date(dateLocal).toISOString();
   const{error}=await sb.from('matches').insert({team_id:CT.id,adversaire:adv,date,lieu,statut:'prevu',timeline_json:{halfDuration:half}});
   if(error)return showToast('Erreur','err');
   closeModal('modal-mc');showToast('Match créé !','ok');await loadMatches();
@@ -630,6 +638,10 @@ function ensureComposition(){
   });
   posteLayout=getStartingPosteLayout();
   assignment={};
+  // Sans ceci, MP n'existe qu'en mémoire locale : le polling live (refreshActiveMatch,
+  // 2s) trouve le serveur toujours vide, le considère "plus à jour" et écrase MP —
+  // les joueurs affichés sur le banc disparaissaient donc après un très court instant.
+  saveState();
 }
 function validateComposition(){
   if(!CM) return;
