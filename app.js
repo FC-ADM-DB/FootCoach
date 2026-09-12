@@ -520,7 +520,7 @@ function switchTab(tab){
   ['conv','live','tl','res'].forEach(t=>document.getElementById('tab-'+t).style.display=t===tab?'block':'none');
   document.querySelectorAll('.mtab').forEach((el,i)=>el.classList.toggle('active',['conv','live','tl','res'][i]===tab));
   setLiveActive(tab==='live');
-  if(tab==='live'){renderField();renderFormationsBar();}
+  if(tab==='live'){ensureComposition();renderField();renderFormationsBar();}
   if(tab==='tl'){renderTimeline();renderGoals();}
   if(tab==='res')renderResume();
 }
@@ -616,18 +616,28 @@ function renderConvs(){
   }
 }
 
+// Construit MP à partir des joueurs convoqués dès que le minimum est atteint, sans
+// attendre un clic explicite sur "Valider la composition" — sinon un coach qui ouvre
+// directement l'onglet Live après avoir convoqué ne voit personne sur le banc.
+function ensureComposition(){
+  if(!CM||CM.statut==='termine'||matchStarted)return;
+  if(Object.keys(MP).length)return;
+  const maxOn=CT?.format==='5v5'?5:8;
+  const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
+  if(presents.length<maxOn)return;
+  presents.forEach(p=>{
+    MP[p.id]={onField:false,playSeconds:0,enteredAt:null,segments:[],poste:p.numero_poste||null,benchSeconds:0,benchSince:0};
+  });
+  posteLayout=getStartingPosteLayout();
+  assignment={};
+}
 function validateComposition(){
   if(!CM) return;
   if(CM.statut==='termine') return showToast('Match terminé — impossible','err');
   const maxOn=CT.format==='5v5'?5:8;
   const presents=players.filter(p=>['present','inconnu'].includes(convs[p.id]||'inconnu'));
   if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
-  MP={};
-  presents.forEach(p=>{
-    MP[p.id]={onField:false,playSeconds:0,enteredAt:null,segments:[],poste:p.numero_poste||null,benchSeconds:0,benchSince:0};
-  });
-  posteLayout=getStartingPosteLayout();
-  assignment={};
+  ensureComposition();
   matchStarted=false;
   saveState();
   showToast('Composition validée — place les joueurs dans l\'onglet Live','ok');
