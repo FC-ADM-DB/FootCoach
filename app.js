@@ -699,7 +699,10 @@ function toggleChrono(){
   if(CM?.statut==='termine') return showToast('Ce match est terminé.','err');
   const btn=document.getElementById('btn-chrono');
   if(!chronoOn){
-    chronoOn=true;chronoStartedAt=Date.now();matchStarted=true;
+    // Recule le point de départ du temps déjà écoulé (chronoS) : un spectateur calcule
+    // le temps via Date.now()-chronoStartedAt, donc sans ce recul, chaque reprise après
+    // pause repartait de zéro pour lui (le temps semblait "se réinitialiser").
+    chronoOn=true;chronoStartedAt=Date.now()-chronoS*1000;matchStarted=true;
     btn.textContent='⏸ Pause';btn.style.background='var(--amber)';
     Object.keys(MP).forEach(id=>{
       const mp=MP[id];
@@ -1179,6 +1182,14 @@ async function refreshActiveMatch(){
     Object.keys(MP).forEach(k=>{MP[k].benchSeconds=MP[k].benchSeconds||0;MP[k].benchSince=(MP[k].benchSince!==undefined?MP[k].benchSince:null)});
     matchStarted=tl.matchStarted||false;
     loadPosteLayoutFromTimeline(tl);
+    // Un appareil qui ne fait que regarder (n'a jamais appuyé sur Start) ne recevait
+    // le temps à jour qu'au moment où le JSON du match changeait sur le serveur — or
+    // il ne change pas à chaque seconde qui passe. Résultat : l'affichage restait figé
+    // jusqu'au prochain vrai événement (pause, etc.). On démarre/arrête ici le même
+    // ticker local que celui utilisé par l'appareil qui pilote le match (aucune
+    // écriture réseau déclenchée par ce ticker, juste l'affichage).
+    if(chronoOn){ if(!chronoIv) startChronoInterval(); }
+    else if(chronoIv){ clearInterval(chronoIv); chronoIv=null; }
     document.getElementById('live-time').textContent=fmt(chronoS);
     document.getElementById('sc-nous').textContent=sNous;
     document.getElementById('sc-eux').textContent=sEux;
