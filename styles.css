@@ -11,6 +11,7 @@
   --st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+@keyframes fc-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px}
 .screen{display:none;height:100dvh;flex-direction:column;overflow:hidden}
 .screen.active{display:flex}

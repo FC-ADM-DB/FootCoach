@@ -11,6 +11,7 @@ let chronoOn=false,chronoS=0,halfN=1,chronoIv=null,chronoStartedAt=null,halfDura
 let matchListInterval=null,matchListTick=0,matchDetailInterval=null;
 let sNous=0,sEux=0,goalAdv=false;
 let isAdmin=false;
+let pendingSync=false;   // true si le dernier saveState() n'a pas (encore) atteint Supabase
 
 const POSTES_MAP={'8v8':[{n:1,l:'Gardien'},{n:2,l:'Arr. droit'},{n:3,l:'Mil. C'},{n:5,l:'Arr. gauche'},{n:6,l:'Mil. C'},{n:7,l:'Att. droit'},{n:9,l:'Att. central'},{n:11,l:'Att. gauche'}],'5v5':[{n:1,l:'Gardien'},{n:2,l:'Déf. droit'},{n:3,l:'Déf. gauche'},{n:6,l:'Milieu'},{n:9,l:'Attaquant'}]};
 const HALF_MIN={'5v5':25,'8v8':30};
@@ -316,6 +317,20 @@ async function openMatchDetail(id){
   document.getElementById('match-list-view').style.display='none';
   document.getElementById('match-detail-view').style.display='flex';
 
+  // Si une sauvegarde précédente n'a pas atteint Supabase (coupure réseau sur le
+  // terrain), on repart de cette version locale plus récente plutôt que de la
+  // version (périmée) du serveur.
+  const pending=CM.statut!=='termine'?loadPendingLocal(CM.id):null;
+  if(pending){
+    CM.timeline_json=pending.timeline_json;
+    CM.score_nous=pending.score_nous;CM.score_eux=pending.score_eux;
+    CM.statut=pending.statut||CM.statut;
+    pendingSync=true;
+  } else {
+    pendingSync=false;
+  }
+  updateSyncBadge();
+
   if(CM.statut==='en_cours'&&CM.timeline_json){
     const tl=CM.timeline_json;
     halfDuration=tl.halfDuration||HALF_MIN[CT?.format||'8v8'];
@@ -372,7 +387,7 @@ async function openMatchDetail(id){
     startChronoInterval();
   }
   if(matchDetailInterval)clearInterval(matchDetailInterval);
-  if(CM.statut!=='termine'){
+  if(CM.statut!=='termine'||pendingSync){
     matchDetailInterval=setInterval(refreshActiveMatch,2000);
   }
   if(CM.statut==='termine') switchTab('res');
@@ -1007,23 +1022,63 @@ function renderGoals(){
 async function endMatch(){
   if(!confirm('Terminer et sauvegarder le match ?'))return;
   if(chronoOn)toggleChrono();freezeTimes();
+  CM.statut='termine';
+  await saveState();
   const entries=Object.keys(MP).map(pid=>({match_id:CM.id,player_id:pid,titulaire:!!MP[pid].segments.find(s=>s.from===0),poste_joue:MP[pid].poste,secondes_jeu:MP[pid].playSeconds,segments:MP[pid].segments}));
-  await sb.from('match_players').upsert(entries,{onConflict:'match_id,player_id'});
-  await sb.from('matches').update({statut:'termine',score_nous:sNous,score_eux:sEux,timeline_json:{chronoS,halfN,halfDuration,subLog,goals,MP,posteLayout,assignment,matchStarted}}).eq('id',CM.id);
-  CM.statut='termine';CM.score_nous=sNous;CM.score_eux=sEux;
+  sb.from('match_players').upsert(entries,{onConflict:'match_id,player_id'});
   const sp=document.getElementById('det-status');sp.className='pill pgr';sp.textContent='Terminé';
-  showToast('Match sauvegardé !','ok');await loadMatches();
+  if(pendingSync){
+    showToast('Match terminé, mais pas encore synchronisé (réseau absent) — nouvelle tentative automatique','err');
+  } else {
+    showToast('Match sauvegardé !','ok');
+  }
+  await loadMatches();
   switchTab('res');
+}
+// ============ SAUVEGARDE RÉSILIENTE (résiste aux coupures réseau sur le terrain) ============
+// Le match live n'a pas de connexion garantie (terrain sans 4G). Chaque saveState() écrit
+// d'abord une copie locale (localStorage) AVANT d'essayer Supabase : si l'écriture réseau
+// échoue, rien n'est perdu — le prochain refreshActiveMatch() retentera l'envoi au lieu
+// d'écraser l'état local avec la version périmée du serveur (c'était le bug : des
+// changements "annulés" après une coupure, et des stats visibles sur un seul appareil).
+function pendingKey(matchId){return 'fc_pending_'+matchId;}
+function savePendingLocal(matchId,snapshot){
+  try{localStorage.setItem(pendingKey(matchId),JSON.stringify(snapshot));}catch(e){}
+}
+function clearPendingLocal(matchId){
+  try{localStorage.removeItem(pendingKey(matchId));}catch(e){}
+}
+function loadPendingLocal(matchId){
+  try{const raw=localStorage.getItem(pendingKey(matchId));return raw?JSON.parse(raw):null;}catch(e){return null;}
+}
+function updateSyncBadge(){
+  const el=document.getElementById('sync-badge');
+  if(el)el.style.display=pendingSync?'inline-flex':'none';
 }
 async function saveState(){
   if(!CM)return;
   syncCurrentMatchInMemory();
-  await sb.from('matches').update({
+  const snapshot={
     score_nous:sNous,
     score_eux:sEux,
     timeline_json:{chronoS,halfN,halfDuration,chronoOn,chronoStartedAt,subLog,goals,MP,posteLayout,assignment,matchStarted},
     statut:CM.statut==='termine'?'termine':'en_cours'
-  }).eq('id',CM.id);
+  };
+  savePendingLocal(CM.id,snapshot);
+  pendingSync=true;updateSyncBadge();
+  try{
+    const{error}=await sb.from('matches').update(snapshot).eq('id',CM.id);
+    if(error)throw error;
+    pendingSync=false;
+    clearPendingLocal(CM.id);
+    CM.timeline_json=snapshot.timeline_json;
+    CM.score_nous=snapshot.score_nous;CM.score_eux=snapshot.score_eux;CM.statut=snapshot.statut;
+    updateSyncBadge();
+    if(CM.statut==='termine'&&matchDetailInterval){clearInterval(matchDetailInterval);matchDetailInterval=null;}
+  }catch(e){
+    // reste en attente : sera retenté par refreshActiveMatch() dès que le réseau revient
+    updateSyncBadge();
+  }
 }
 
 // ============ SCORE EDIT (admin) ============
@@ -1046,6 +1101,13 @@ async function saveScoreEdit(){
 // ============ TIMELINE ============
 async function refreshActiveMatch(){
   if(!CM)return;
+  if(pendingSync){
+    // Des changements locaux n'ont pas encore atteint Supabase : on retente l'envoi
+    // au lieu d'aller chercher le serveur, sinon sa version périmée écraserait l'état
+    // local plus récent (c'était le bug des changements "annulés").
+    await saveState();
+    return;
+  }
   const {data,error}=await sb.from('matches').select('*').eq('id',CM.id).single();
   if(error||!data) return;
   const sameTimeline = data.timeline_json && CM.timeline_json && JSON.stringify(data.timeline_json)===JSON.stringify(CM.timeline_json);
