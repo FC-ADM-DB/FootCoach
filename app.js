@@ -339,7 +339,10 @@ async function openMatchDetail(id){
   }
   updateSyncBadge();
 
-  if(CM.statut==='en_cours'&&CM.timeline_json){
+  // Restaure aussi pour un match "termine" : sinon rouvrir un match fini repartait sur
+  // un état vide (0 but, aucun joueur) alors que endMatch() avait bien tout sauvegardé
+  // dans timeline_json — le Résumé semblait avoir perdu les stats.
+  if((CM.statut==='en_cours'||CM.statut==='termine')&&CM.timeline_json){
     const tl=CM.timeline_json;
     halfDuration=tl.halfDuration||HALF_MIN[CT?.format||'8v8'];
     chronoOn=tl.chronoOn===true;
