@@ -1096,7 +1096,16 @@ function updateSyncBadge(){
   const el=document.getElementById('sync-badge');
   if(el)el.style.display=pendingSync?'inline-flex':'none';
 }
-async function saveState(){
+// saveState() est appelé (sans await) depuis de nombreux endroits du live — placement
+// d'un joueur, chrono, mi-temps... Sans file d'attente, deux appels rapprochés peuvent
+// partir en parallèle et arriver dans le désordre : le plus ancien, arrivé en dernier,
+// écrase alors le plus récent (un placement de joueur pouvait ainsi disparaître).
+let saveChain=Promise.resolve();
+function saveState(){
+  saveChain=saveChain.then(doSaveState,doSaveState);
+  return saveChain;
+}
+async function doSaveState(){
   if(!CM)return;
   syncCurrentMatchInMemory();
   const snapshot={
