@@ -1158,9 +1158,11 @@ function openScoreEdit(){
 async function saveScoreEdit(){
   const sn=parseInt(document.getElementById('se-nous').value)||0;
   const se=parseInt(document.getElementById('se-eux').value)||0;
-  await sb.from('matches').update({score_nous:sn,score_eux:se}).eq('id',CM.id);
-  CM.score_nous=sn;CM.score_eux=se;
   sNous=sn;sEux=se;
+  // Passe par saveState() (file d'attente + retry) au lieu d'un update brut : celui-ci
+  // pouvait arriver avant/après une autre sauvegarde en vol et se faire écraser par une
+  // version plus ancienne du score — un des cas du problème de "retour en arrière".
+  await saveState();
   closeModal('modal-score-edit');showToast('Score modifié !','ok');
   await loadMatches();
   if(document.getElementById('tab-res').style.display==='block')renderResume();
