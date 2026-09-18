@@ -374,6 +374,18 @@
     </div>
   </div>
 
+  <!-- MODAL CONFIRMATION (remplace confirm(), peu fiable en PWA iOS standalone) -->
+  <div class="mo" id="modal-confirm">
+    <div class="modal">
+      <div class="mh"></div>
+      <div class="mt" id="confirm-message">Confirmer ?</div>
+      <div class="mfoot">
+        <button class="bcan" onclick="askConfirmResolve(false)">Annuler</button>
+        <button class="bred" id="confirm-ok-btn" onclick="askConfirmResolve(true)">Confirmer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL SCORE EDIT (admin) -->
   <div class="mo" id="modal-score-edit">
     <div class="modal">

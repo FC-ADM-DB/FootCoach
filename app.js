@@ -150,7 +150,7 @@ async function deleteTeam(id,e){
   if(!isAdmin) return showToast('Accès admin requis','err');
   const team = teams.find(t=>t.id===id);
   if(!team) return;
-  if(!confirm(`Supprimer l'équipe "${team?.nom}" ? Cette action est irréversible.`)) return;
+  if(!await askConfirm(`Supprimer l'équipe "${team?.nom}" ? Cette action est irréversible.`)) return;
   await sb.from('team_members').delete().eq('team_id',id);
   await sb.from('teams').delete().eq('id',id);
   if(CT?.id===id) CT=null;
@@ -241,7 +241,7 @@ async function savePlayer(){
 }
 async function delPlayer(id,e){
   e.stopPropagation();const p=players.find(pl=>pl.id===id);
-  if(!confirm(`Supprimer ${p?.prenom} ${p?.nom} ?`))return;
+  if(!await askConfirm(`Supprimer ${p?.prenom} ${p?.nom} ?`))return;
   await sb.from('players').update({actif:false}).eq('id',id);
   showToast('Retiré','ok');await loadPlayers();
 }
@@ -464,10 +464,10 @@ function applyFormation(idx){
   renderField();
   showToast(`Formation "${f.name}" appliquée`,'ok');
 }
-function deleteFormation(idx,e){
+async function deleteFormation(idx,e){
   e&&e.stopPropagation&&e.stopPropagation();
   const f=formations[idx];if(!f)return;
-  if(!confirm(`Supprimer la formation "${f.name}" ?`))return;
+  if(!await askConfirm(`Supprimer la formation "${f.name}" ?`))return;
   formations.splice(idx,1);
   localStorage.setItem('fc_formations_'+CT.id,JSON.stringify(formations));
   if(defaultFormation && defaultFormation.name===f.name && defaultFormation.orientation===f.orientation){
@@ -519,7 +519,7 @@ async function deleteMatch(id,e){
   if(!isAdmin)return showToast('Accès admin requis','err');
   const m=matches.find(x=>x.id===id);
   if(!m)return;
-  if(!confirm(`Supprimer le match vs ${m.adversaire} ?`))return;
+  if(!await askConfirm(`Supprimer le match vs ${m.adversaire} ?`))return;
   await sb.from('convocations').delete().eq('match_id',id);
   await sb.from('match_players').delete().eq('match_id',id);
   await sb.from('matches').delete().eq('id',id);
@@ -735,8 +735,8 @@ function toggleChrono(){
     clearInterval(chronoIv);renderField();saveState();
   }
 }
-function resetTimers(){
-  if(!confirm('Réinitialiser tous les chronos (temps de jeu, temps de banc, historique) ? La composition et la disposition sur le terrain sont conservées.'))return;
+async function resetTimers(){
+  if(!await askConfirm('Réinitialiser tous les chronos (temps de jeu, temps de banc, historique) ? La composition et la disposition sur le terrain sont conservées.'))return;
   if(chronoOn)toggleChrono();
   chronoS=0;halfN=1;subLog=[];goals=[];matchStarted=false;
   Object.keys(MP).forEach(id=>{
@@ -1075,7 +1075,7 @@ function renderGoals(){
 
 // ============ END MATCH ============
 async function endMatch(){
-  if(!confirm('Terminer et sauvegarder le match ?'))return;
+  if(!await askConfirm('Terminer et sauvegarder le match ?'))return;
   if(chronoOn)toggleChrono();freezeTimes();
   CM.statut='termine';
   await saveState();
@@ -1356,13 +1356,13 @@ async function saveTeamMember(){
   await renderAdminPage();
 }
 async function changeMemberRole(memberId,newRole){
-  if(!confirm(`Modifier le rôle de ce membre en ${newRole} ?`))return;
+  if(!await askConfirm(`Modifier le rôle de ce membre en ${newRole} ?`))return;
   await sb.from('team_members').update({role:newRole}).eq('id',memberId);
   showToast('Rôle mis à jour','ok');
   await renderAdminPage();
 }
 async function removeTeamMember(memberId){
-  if(!confirm('Retirer ce membre de l\'équipe ?'))return;
+  if(!await askConfirm('Retirer ce membre de l\'équipe ?'))return;
   await sb.from('team_members').delete().eq('id',memberId);
   showToast('Membre retiré','ok');
   await renderAdminPage();
@@ -1450,9 +1450,34 @@ function signOut(){sb.auth.signOut().then(()=>{U=null;UP=null;teams=[];CT=null;p
 // ============ MODALS & TOASTS ============
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+// Remplace window.confirm() : peu fiable (voire silencieusement no-op, renvoyant
+// toujours false) dans une PWA iOS ajoutée à l'écran d'accueil (mode standalone, sans
+// chrome navigateur pour héberger la boîte de dialogue native). C'est ce qui faisait
+// croire que "le match ne se termine plus" — confirm() renvoyait false sans même
+// afficher de dialogue, donc endMatch() s'arrêtait immédiatement au if(!confirm(...)).
+let askConfirmResolver=null;
+function askConfirm(message){
+  return new Promise(resolve=>{
+    askConfirmResolver=resolve;
+    document.getElementById('confirm-message').textContent=message;
+    openModal('modal-confirm');
+  });
+}
+function askConfirmResolve(result){
+  closeModal('modal-confirm');
+  const resolve=askConfirmResolver;askConfirmResolver=null;
+  if(resolve)resolve(result);
+}
 let tt;
 function showToast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast show ${type}`;clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2800);}
-document.querySelectorAll('.mo').forEach(o=>o.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');}));
+document.querySelectorAll('.mo').forEach(o=>o.addEventListener('click',function(e){
+  if(e.target!==this)return;
+  this.classList.remove('open');
+  // modal-confirm attend une réponse via une Promise : un tap sur le fond doit résoudre
+  // en "annulé", sinon askConfirm() ne se termine jamais et bloque l'appelant.
+  if(this.id==='modal-confirm')askConfirmResolve(false);
+}));
 document.getElementById('t-cat')?.addEventListener('change',function(){document.getElementById('t-fmt').value=['U8','U9'].includes(this.value)?'5v5':'8v8';});
 
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
