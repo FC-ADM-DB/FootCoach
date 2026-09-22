@@ -12,6 +12,7 @@ let matchListInterval=null,matchListTick=0,matchDetailInterval=null;
 let sNous=0,sEux=0,goalAdv=false;
 let isAdmin=false;
 let pendingSync=false;   // true si le dernier saveState() n'a pas (encore) atteint Supabase
+let lastSubSnapshot=null; // permet d'annuler le dernier remplacement (erreur de manipulation)
 
 const POSTES_MAP={'8v8':[{n:1,l:'Gardien'},{n:2,l:'Arr. droit'},{n:3,l:'Mil. C'},{n:5,l:'Arr. gauche'},{n:6,l:'Mil. C'},{n:7,l:'Att. droit'},{n:9,l:'Att. central'},{n:11,l:'Att. gauche'}],'5v5':[{n:1,l:'Gardien'},{n:2,l:'Déf. droit'},{n:3,l:'Déf. gauche'},{n:6,l:'Milieu'},{n:9,l:'Attaquant'}]};
 const HALF_MIN={'5v5':25,'8v8':30};
@@ -855,7 +856,7 @@ function renderField(){
     bubble.dataset.poste=n;bubble.dataset.type='field';
     if(p){
       const subCount=MP[p.id]?.subCount||0;
-      bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} changement${subCount>1?'s':''}">${subCount}</div>`:''}<div class="bb-out" onclick="benchPlayerFromField(${n},event)" title="Mettre sur le banc">↓</div>
+      bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} fois sur le banc">${subCount}</div>`:''}<div class="bb-out" onclick="benchPlayerFromField(${n},event)" title="Mettre sur le banc">↓</div>
         <div style="font-size:13px;font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</div>
         <div class="bb-timers"><span class="bb-since">Depuis ${fmt(stintSecs(p.id))}</span><span class="bb-total">Jeu ${fmt(liveSecs(p.id))}</span></div>`;
     } else {
@@ -887,11 +888,12 @@ function renderField(){
   if(!benchPlayers.length){benchArea.innerHTML='<span style="font-size:12px;color:var(--text3)">Aucun remplaçant</span>';}
   else benchPlayers.forEach(p=>{
     const isSel=selected&&selected.type==='bench'&&selected.playerId===p.id;
+    const subCount=MP[p.id]?.subCount||0;
     const bubble=document.createElement('div');
     bubble.className='player-bubble bench'+(isSel?' selected':'');
     bubble.style.cssText=`position:relative;transform:none`;
     bubble.dataset.playerId=p.id;bubble.dataset.type='bench';
-    bubble.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div>
+    bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} fois sur le banc">${subCount}</div>`:''}<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div>
       <span class="bench-time">Banc depuis ${fmt(stintSecs(p.id))} · Jeu ${fmt(liveSecs(p.id))}</span>`;
     bubble.addEventListener('click',()=>onBenchTap(p.id));
     benchArea.appendChild(bubble);
@@ -937,10 +939,23 @@ function snapToNearestPoste(e,W,H,postes,layout){
   if(best!==null)onFieldTap(best);
 }
 
+// Garde une copie de l'état juste avant un remplacement, pour pouvoir l'annuler en cas
+// d'erreur de manipulation (un seul niveau — la dernière action seulement).
+function snapshotForUndo(){
+  lastSubSnapshot={MP:JSON.parse(JSON.stringify(MP)),assignment:{...assignment},subLog:subLog.slice()};
+}
+function undoLastSub(){
+  if(!lastSubSnapshot)return showToast('Rien à annuler','err');
+  MP=lastSubSnapshot.MP;assignment=lastSubSnapshot.assignment;subLog=lastSubSnapshot.subLog;
+  lastSubSnapshot=null;selected=null;
+  renderField();saveState();
+  showToast('Dernier changement annulé','ok');
+}
 function assignBenchToPoste(playerId,poste){
   const outId=assignment[poste]||null;
   const mpIn=MP[playerId];
   if(!mpIn)return;
+  snapshotForUndo();
   if(outId){
     const mpOut=MP[outId];
     if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
@@ -956,7 +971,7 @@ function assignBenchToPoste(playerId,poste){
     const pIn=players.find(p=>p.id===playerId);
     subLog.push({type:'sub',t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:(pIn?.prenom||'?')+' '+(pIn?.nom||'')});
     showToast(pOut?`${pIn?.prenom} entre pour ${pOut.prenom}`:`${pIn?.prenom} entre en jeu`,'ok');
-    mpIn.subCount=(mpIn.subCount||0)+1;
+    // Ne compte que les fois où le joueur part sur le banc (pas quand il entre en jeu).
     if(outId&&MP[outId])MP[outId].subCount=(MP[outId].subCount||0)+1;
   }
   renderField();saveState();
@@ -975,6 +990,7 @@ function swapPostes(posteA,posteB){
 function benchPlayerFromField(poste,e){
   e&&e.stopPropagation&&e.stopPropagation();
   const outId=assignment[poste];if(!outId)return;
+  snapshotForUndo();
   const mpOut=MP[outId];
   if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
   if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS;}
