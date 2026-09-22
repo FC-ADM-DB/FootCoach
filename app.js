@@ -763,10 +763,14 @@ async function resetTimers(){
   renderField();renderGoals();saveState();
   showToast('Chronos réinitialisés','ok');
 }
+function currentPosteOf(id){
+  const entry=Object.entries(assignment).find(([,pid])=>pid===id);
+  return entry?entry[0]:null;
+}
 function freezeTimes(){
   Object.keys(MP).forEach(id=>{
     const mp=MP[id];
-    if(mp.enteredAt!==null&&mp.onField){mp.segments.push({from:mp.enteredAt,to:chronoS,half:halfN});mp.playSeconds+=chronoS-mp.enteredAt;mp.enteredAt=null;}
+    if(mp.enteredAt!==null&&mp.onField){mp.segments.push({from:mp.enteredAt,to:chronoS,half:halfN,poste:currentPosteOf(id)});mp.playSeconds+=chronoS-mp.enteredAt;mp.enteredAt=null;}
     if(mp && !mp.onField && mp.benchSince!==null){mp.benchSeconds=(mp.benchSeconds||0)+(chronoS-mp.benchSince);mp.benchSince=null}
   });
 }
@@ -786,6 +790,22 @@ function liveSecs(id){const mp=MP[id];if(!mp)return 0;return mp.playSeconds+(mp.
 function getBenchSeconds(id){const mp=MP[id];if(!mp)return 0;let secs=(mp.benchSeconds||0);if(mp.benchSince!==null&&mp.benchSince!==undefined)secs+=chronoS-mp.benchSince;return Math.max(0,secs);}
 // "Depuis" : durée du passage en cours (remise à zéro à chaque changement terrain/banc), distinct du total ci-dessus.
 function stintSecs(id){const mp=MP[id];if(!mp)return 0;if(mp.onField)return mp.enteredAt!==null?Math.max(0,chronoS-mp.enteredAt):0;return mp.benchSince!==null&&mp.benchSince!==undefined?Math.max(0,chronoS-mp.benchSince):0;}
+// Temps de jeu cumulé par poste occupé (segments passés + le passage en cours), trié
+// du plus joué au moins joué. Les segments d'avant l'ajout du suivi par poste n'ont
+// pas de champ "poste" et sont ignorés plutôt que faussement regroupés.
+function postesBreakdown(id){
+  const mp=MP[id];if(!mp)return[];
+  const totals={};
+  (mp.segments||[]).forEach(seg=>{
+    if(seg.poste===undefined||seg.poste===null)return;
+    totals[seg.poste]=(totals[seg.poste]||0)+Math.max(0,seg.to-seg.from);
+  });
+  if(mp.onField&&mp.enteredAt!==null){
+    const poste=currentPosteOf(id);
+    if(poste!==null)totals[poste]=(totals[poste]||0)+Math.max(0,chronoS-mp.enteredAt);
+  }
+  return Object.entries(totals).map(([poste,secs])=>({poste,secs})).sort((a,b)=>b.secs-a.secs);
+}
 function syncCurrentMatchInMemory(){if(!CM)return;const idx=matches.findIndex(m=>m.id===CM.id);if(idx!==-1){matches[idx]={...matches[idx],score_nous:sNous,score_eux:sEux,statut:CM.statut};}}
 function chgScore(who,d){
   if(who==='nous'){sNous=Math.max(0,sNous+d);document.getElementById('sc-nous').textContent=sNous;CM&&(CM.score_nous=sNous);} else {sEux=Math.max(0,sEux+d);document.getElementById('sc-eux').textContent=sEux;CM&&(CM.score_eux=sEux);}
@@ -980,7 +1000,7 @@ function assignBenchToPoste(playerId,poste){
   snapshotForUndo();
   if(outId){
     const mpOut=MP[outId];
-    if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
+    if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN,poste});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
     if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS;}
   }
   mpIn.onField=true;
@@ -999,6 +1019,21 @@ function assignBenchToPoste(playerId,poste){
   renderField();saveState();
 }
 function swapPostes(posteA,posteB){
+  const idA=assignment[posteA]||null,idB=assignment[posteB]||null;
+  // Clôture le segment en cours à l'ancien poste et en rouvre un au nouveau : sans ça,
+  // le temps de jeu resterait attribué au poste de départ après l'échange.
+  if(matchStarted){
+    if(idA&&MP[idA]&&MP[idA].enteredAt!==null){
+      const mp=MP[idA];
+      mp.segments.push({from:mp.enteredAt,to:chronoS,half:halfN,poste:posteA});
+      mp.playSeconds+=chronoS-mp.enteredAt;mp.enteredAt=chronoS;
+    }
+    if(idB&&MP[idB]&&MP[idB].enteredAt!==null){
+      const mp=MP[idB];
+      mp.segments.push({from:mp.enteredAt,to:chronoS,half:halfN,poste:posteB});
+      mp.playSeconds+=chronoS-mp.enteredAt;mp.enteredAt=chronoS;
+    }
+  }
   const tmp=assignment[posteA]||null;
   assignment[posteA]=assignment[posteB]||null;
   assignment[posteB]=tmp;
@@ -1014,7 +1049,7 @@ function benchPlayerFromField(poste,e){
   const outId=assignment[poste];if(!outId)return;
   snapshotForUndo();
   const mpOut=MP[outId];
-  if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
+  if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN,poste});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
   if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS;}
   assignment[poste]=null;selected=null;
   if(matchStarted){
@@ -1089,11 +1124,12 @@ async function saveGoal(){
   const scorer=goalAdv?CM.adversaire:(players.find(p=>p.id===sid)?.prenom+' '+(players.find(p=>p.id===sid)?.nom||'')||'?');
   const assist=aid&&!goalAdv?(players.find(p=>p.id===aid)?.prenom||null):null;
   closeModal('modal-goal');
-  recordGoal(goalAdv,scorer,assist);
+  recordGoal(goalAdv,scorer,assist,goalAdv?null:sid);
 }
-function recordGoal(adv,scorer,assist){
+function recordGoal(adv,scorer,assist,scorerId){
   const t=chronoS,min=Math.floor(t/60);
-  goals.push({t,min,scorer,assist:assist||null,adv,half:halfN});
+  const poste=scorerId?currentPosteOf(scorerId):null;
+  goals.push({t,min,scorer,assist:assist||null,adv,half:halfN,poste});
   if(adv){sEux++;document.getElementById('sc-eux').textContent=sEux;} else {sNous++;document.getElementById('sc-nous').textContent=sNous;}
   renderGoals();syncCurrentMatchInMemory();saveState();showToast('But enregistré !','ok');
 }
@@ -1111,7 +1147,7 @@ function openQuickGoalPicker(adv){
 function quickGoal(playerId){
   closeModal('modal-quick-goal');
   const p=playerId?players.find(pl=>pl.id===playerId):null;
-  recordGoal(false,p?(p.prenom+' '+p.nom):'But marqué',null);
+  recordGoal(false,p?(p.prenom+' '+p.nom):'But marqué',null,playerId);
 }
 function renderGoals(){
   const el=document.getElementById('goals-list');
@@ -1352,7 +1388,7 @@ function renderResume(){
   if(isAdmin&&fin){html+=`<button onclick="openScoreEdit()" class="bsec" style="width:100%;margin-bottom:12px;font-size:13px">✎ Modifier le score</button>`;}
   if(goals.length){
     html+=`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px">Buts</div>`;
-    html+=goals.map(g=>`<div class="but-row"><span class="but-min">${g.min}'</span><span>${g.adv?'🔴':'⚽'}</span><div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div></div>`).join('');
+    html+=goals.map(g=>`<div class="but-row"><span class="but-min">${g.min}'</span><span>${g.adv?'🔴':'⚽'}</span><div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}${g.poste?` <span class="pill pgr" style="font-size:9px;vertical-align:middle">#${g.poste}</span>`:''}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div></div>`).join('');
     html+=`</div>`;
   }
   const mpPlayers=players.filter(p=>MP[p.id]);
@@ -1363,10 +1399,14 @@ function renderResume(){
     html+=sorted.map(p=>{
       const s=liveSecs(p.id), b=getBenchSeconds(p.id), pct=Math.round(s/max*100);
       const starter=MP[p.id]?.starter===true;
+      const subCount=MP[p.id]?.subCount||0;
+      const postes=postesBreakdown(p.id);
+      const postesLine=postes.length?postes.map(pb=>`#${pb.poste} ${fmt(pb.secs)}`).join(' · '):null;
       return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;color:${pCol(p)}">${p.prenom} ${p.nom}${starter?' <span class="pill pg" style="font-size:9px;vertical-align:middle">★ Titulaire</span>':''}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px">Jeu: ${fmt(s)} · Banc: ${fmt(b)}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px">Jeu: ${fmt(s)} · Banc: ${fmt(b)}${subCount?` · ${subCount} fois sur le banc`:''}</div>
+          ${postesLine?`<div style="font-size:10px;color:var(--text3);margin-top:2px;font-family:var(--mono)">${postesLine}</div>`:''}
         </div>
         <div style="width:80px;height:6px;background:var(--bg3);border-radius:99px;overflow:hidden;flex-shrink:0"><div style="width:${pct}%;height:100%;background:${CT?.couleur||'#00d68f'};border-radius:99px"></div></div>
       </div>`;
