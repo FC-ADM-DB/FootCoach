@@ -836,11 +836,16 @@ function renderField(){
 
   // Les N joueurs sur le terrain ayant le plus joué (N = nombre de remplaçants
   // disponibles) ressortent en bleu : ce sont les candidats prioritaires à faire
-  // sortir, à apparier avec les N remplaçants prêts à entrer.
+  // sortir, à apparier avec les N remplaçants prêts à entrer. Si d'autres joueurs sont
+  // à ±30s du Nème (quasi ex æquo), ils ressortent aussi, même au-delà de N.
   const onFieldIds=Object.values(assignment).filter(Boolean);
-  const mostPlayedFieldIds=new Set(
-    [...onFieldIds].sort((a,b)=>liveSecs(b)-liveSecs(a)).slice(0,benchPlayers.length)
-  );
+  const mostPlayedFieldIds=new Set();
+  if(benchPlayers.length>0 && onFieldIds.length){
+    const sortedByPlay=[...onFieldIds].sort((a,b)=>liveSecs(b)-liveSecs(a));
+    const cutoffIdx=Math.min(benchPlayers.length,sortedByPlay.length)-1;
+    const threshold=liveSecs(sortedByPlay[cutoffIdx]);
+    sortedByPlay.forEach(id=>{if(liveSecs(id)>=threshold-30)mostPlayedFieldIds.add(id);});
+  }
 
   postes.forEach(n=>{
     const pos=layout[n]||{x:50,y:50};
