@@ -946,14 +946,13 @@ function renderField(){
     });
   }
 
-  // Repère simple pour cadencer les rotations : durée du match / nombre de joueurs sur
-  // le terrain (fixe pour le format, ex. 8 en 8v8) — donne un rythme de rotation
-  // régulier, pas juste "chaque remplaçant tourne une fois sur tout le match".
+  // Repère simple pour cadencer les rotations : durée du match / nombre total de
+  // joueurs convoqués (terrain + banc).
   const rotHint=document.getElementById('rotation-hint');
   if(rotHint){
     const totalMin=(halfDuration||HALF_MIN[CT?.format||'8v8'])*2;
-    const fieldCount=postes.length;
-    rotHint.textContent=fieldCount?`⏱ Rotation conseillée : ~toutes les ${Math.round(totalMin/fieldCount)} min (${fieldCount} joueurs sur le terrain · ${totalMin} min de match)`:'';
+    const totalCount=Object.keys(MP).length;
+    rotHint.textContent=totalCount?`⏱ Rotation conseillée : ~toutes les ${Math.round(totalMin/totalCount)} min (${totalCount} joueurs convoqués · ${totalMin} min de match)`:'';
   }
   const benchArea=document.getElementById('bench-bubbles');
   benchArea.innerHTML='';
