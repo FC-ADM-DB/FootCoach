@@ -939,6 +939,13 @@ function renderField(){
     });
   }
 
+  // Repère simple pour cadencer les rotations : étale les remplaçants disponibles sur
+  // la durée totale du match (les deux mi-temps), à ajuster à l'usage.
+  const rotHint=document.getElementById('rotation-hint');
+  if(rotHint){
+    const totalMin=(halfDuration||HALF_MIN[CT?.format||'8v8'])*2;
+    rotHint.textContent=benchPlayers.length?`⏱ Rotation conseillée : ~toutes les ${Math.round(totalMin/benchPlayers.length)} min (${benchPlayers.length} remplaçant${benchPlayers.length>1?'s':''} · ${totalMin} min de match)`:'';
+  }
   const benchArea=document.getElementById('bench-bubbles');
   benchArea.innerHTML='';
   if(!benchPlayers.length){benchArea.innerHTML='<span style="font-size:12px;color:var(--text3)">Aucun remplaçant</span>';}
