@@ -177,7 +177,13 @@
             <div class="live-sidebar">
               <div class="bench-area">
                 <div class="bench-title">Remplaçants</div>
-                <div id="rotation-hint" style="font-size:10px;color:var(--text3);margin:-3px 0 7px"></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin:-3px 0 7px">
+                  <span id="rotation-hint" style="font-size:10px;color:var(--text3)"></span>
+                  <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text3);cursor:pointer;flex-shrink:0;white-space:nowrap">
+                    <input type="checkbox" id="gk-in-rotation" onchange="toggleGkRotation()" style="width:11px;height:11px;accent-color:var(--green)">
+                    Gardien inclus
+                  </label>
+                </div>
                 <div class="bench-row" id="bench-bubbles"></div>
               </div>
               <div class="sublog-section">

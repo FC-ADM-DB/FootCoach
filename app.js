@@ -15,6 +15,7 @@ let pendingSync=false;   // true si le dernier saveState() n'a pas (encore) atte
 let lastSubSnapshot=null; // permet d'annuler le dernier remplacement (erreur de manipulation)
 let halfTimePending=false; // vrai entre "Mi-temps" et le Start suivant : reset des temps différé
 let initialBenchCount=0; // nb de remplaçants au coup d'envoi, figé (pas le nb courant qui varie)
+let gkInRotation=false; // le gardien compte-t-il dans le calcul de cadence de rotation ?
 
 const POSTES_MAP={'8v8':[{n:1,l:'Gardien'},{n:2,l:'Arr. droit'},{n:3,l:'Mil. C'},{n:5,l:'Arr. gauche'},{n:6,l:'Mil. C'},{n:7,l:'Att. droit'},{n:9,l:'Att. central'},{n:11,l:'Att. gauche'}],'5v5':[{n:1,l:'Gardien'},{n:2,l:'Déf. droit'},{n:3,l:'Déf. gauche'},{n:6,l:'Milieu'},{n:9,l:'Attaquant'}]};
 const HALF_MIN={'5v5':25,'8v8':30};
@@ -446,6 +447,12 @@ function loadFormationsForTeam(){
   if(!CT)return;
   try{formations=JSON.parse(localStorage.getItem('fc_formations_'+CT.id)||'[]');}catch(e){formations=[];}
   try{defaultFormation=JSON.parse(localStorage.getItem('fc_default_formation_'+CT.id)||'null');}catch(e){defaultFormation=null;}
+  try{gkInRotation=localStorage.getItem('fc_gk_rotation_'+CT.id)==='1';}catch(e){gkInRotation=false;}
+}
+function toggleGkRotation(){
+  gkInRotation=document.getElementById('gk-in-rotation').checked;
+  if(CT)try{localStorage.setItem('fc_gk_rotation_'+CT.id,gkInRotation?'1':'0');}catch(e){}
+  renderField();
 }
 function saveFormation(){
   if(!CT)return;
@@ -947,12 +954,15 @@ function renderField(){
   }
 
   // Repère simple pour cadencer les rotations : durée du match / nombre total de
-  // joueurs convoqués (terrain + banc).
+  // joueurs convoqués (terrain + banc), gardien exclu par défaut (case à cocher).
   const rotHint=document.getElementById('rotation-hint');
+  const gkChk=document.getElementById('gk-in-rotation');
+  if(gkChk)gkChk.checked=gkInRotation;
   if(rotHint){
     const totalMin=(halfDuration||HALF_MIN[CT?.format||'8v8'])*2;
-    const totalCount=Object.keys(MP).length;
-    rotHint.textContent=totalCount?`⏱ Rotation conseillée : ~toutes les ${Math.round(totalMin/totalCount)} min (${totalCount} joueurs convoqués · ${totalMin} min de match)`:'';
+    const gkId=assignment[1]||null;
+    const totalCount=Object.keys(MP).length-(!gkInRotation&&gkId&&MP[gkId]?1:0);
+    rotHint.textContent=totalCount?`⏱ Rotation conseillée : ~toutes les ${Math.round(totalMin/totalCount)} min (${totalCount} joueurs${gkInRotation?'':' (hors gardien)'} · ${totalMin} min de match)`:'';
   }
   const benchArea=document.getElementById('bench-bubbles');
   benchArea.innerHTML='';
