@@ -682,6 +682,10 @@ async function setConv(pid,st){
 // ============ START MATCH ============
 function startMatch(){
   if(CM.statut==='termine') return showToast('Ce match est terminé, impossible de le redémarrer.','err');
+  // Si le match a déjà été démarré (ex: bouton pressé une 2e fois, ou par réflexe faute
+  // de trouver "Terminer le match"), on ne touche plus à rien — cette remise à zéro
+  // écrasait un match déjà en cours (chronoS remis à 0 en pleine 2ème mi-temps).
+  if(matchStarted){switchTab('live');return;}
   const maxOn=CT.format==='5v5'?5:8;
   const presents=players.filter(p=>convs[p.id]==='present');
   if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
@@ -735,10 +739,22 @@ function toggleChrono(){
       if(mp.onField&&mp.enteredAt===null)mp.enteredAt=chronoS;
       if(!mp.onField && (mp.benchSince===null || mp.benchSince===undefined)) mp.benchSince=chronoS;
       // Mémorise qui était sur le terrain au coup d'envoi, pour l'afficher dans le Résumé.
-      if(firstStart) mp.starter=mp.onField===true;
+      if(firstStart){
+        mp.starter=mp.onField===true;
+        // Un joueur qui débute sur le banc en est déjà à son 1er passage, pas 0.
+        if(!mp.onField)mp.subCount=1;
+      }
     });
     startChronoInterval();
     saveState();
+    // "Terminer le match" n'était affiché/masqué qu'à l'ouverture du match (openMatchDetail),
+    // jamais réévalué ensuite : démarrer directement depuis Live sans repasser par
+    // "Démarrer le match" dans Convocs le laissait invisible en permanence, forçant un
+    // détour par Convocs qui, lui, réinitialisait chronoS en pleine mi-temps 2 (d'où le
+    // "compteur revenu à 0"). On le réaffiche ici, au vrai moment où le match démarre.
+    document.getElementById('match-end-btn').style.display='inline-flex';
+    const spEnd=document.getElementById('det-status');
+    if(spEnd){spEnd.className='pill pg';spEnd.textContent='En cours';}
   } else {
     chronoOn=false;chronoStartedAt=null;
     btn.textContent='▶ Start';btn.style.background='var(--green)';
@@ -786,7 +802,7 @@ function switchHalf(){
   document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
   renderField();saveState();showToast('2ème mi-temps ! Les temps se remettront à jour au prochain Start','ok');
 }
-function liveSecs(id){const mp=MP[id];if(!mp)return 0;return mp.playSeconds+(mp.enteredAt!==null?chronoS-mp.enteredAt:0);}
+function liveSecs(id){const mp=MP[id];if(!mp)return 0;return Math.max(0,mp.playSeconds+(mp.enteredAt!==null?chronoS-mp.enteredAt:0));}
 function getBenchSeconds(id){const mp=MP[id];if(!mp)return 0;let secs=(mp.benchSeconds||0);if(mp.benchSince!==null&&mp.benchSince!==undefined)secs+=chronoS-mp.benchSince;return Math.max(0,secs);}
 // "Depuis" : durée du passage en cours (remise à zéro à chaque changement terrain/banc), distinct du total ci-dessus.
 function stintSecs(id){const mp=MP[id];if(!mp)return 0;if(mp.onField)return mp.enteredAt!==null?Math.max(0,chronoS-mp.enteredAt):0;return mp.benchSince!==null&&mp.benchSince!==undefined?Math.max(0,chronoS-mp.benchSince):0;}
