@@ -845,7 +845,8 @@ function renderField(){
     bubble.style.cssText=`left:${x}px;top:${y}px;pointer-events:auto`;
     bubble.dataset.poste=n;bubble.dataset.type='field';
     if(p){
-      bubble.innerHTML=`<div class="bb-out" onclick="benchPlayerFromField(${n},event)" title="Mettre sur le banc">↓</div>
+      const subCount=MP[p.id]?.subCount||0;
+      bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} changement${subCount>1?'s':''}">${subCount}</div>`:''}<div class="bb-out" onclick="benchPlayerFromField(${n},event)" title="Mettre sur le banc">↓</div>
         <div style="font-size:13px;font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</div>
         <div class="bb-timers"><span class="bb-since">Depuis ${fmt(stintSecs(p.id))}</span><span class="bb-total">Jeu ${fmt(liveSecs(p.id))}</span></div>`;
     } else {
@@ -946,6 +947,8 @@ function assignBenchToPoste(playerId,poste){
     const pIn=players.find(p=>p.id===playerId);
     subLog.push({type:'sub',t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:(pIn?.prenom||'?')+' '+(pIn?.nom||'')});
     showToast(pOut?`${pIn?.prenom} entre pour ${pOut.prenom}`:`${pIn?.prenom} entre en jeu`,'ok');
+    mpIn.subCount=(mpIn.subCount||0)+1;
+    if(outId&&MP[outId])MP[outId].subCount=(MP[outId].subCount||0)+1;
   }
   renderField();saveState();
 }
@@ -971,6 +974,7 @@ function benchPlayerFromField(poste,e){
     const pOut=players.find(p=>p.id===outId);
     subLog.push({type:'sub',t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:'banc'});
     showToast(`${pOut?.prenom||'Joueur'} va sur le banc`,'ok');
+    if(mpOut)mpOut.subCount=(mpOut.subCount||0)+1;
   }
   renderField();saveState();
 }
