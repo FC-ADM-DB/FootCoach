@@ -14,6 +14,7 @@ let isAdmin=false;
 let pendingSync=false;   // true si le dernier saveState() n'a pas (encore) atteint Supabase
 let lastSubSnapshot=null; // permet d'annuler le dernier remplacement (erreur de manipulation)
 let halfTimePending=false; // vrai entre "Mi-temps" et le Start suivant : reset des temps différé
+let initialBenchCount=0; // nb de remplaçants au coup d'envoi, figé (pas le nb courant qui varie)
 
 const POSTES_MAP={'8v8':[{n:1,l:'Gardien'},{n:2,l:'Arr. droit'},{n:3,l:'Mil. C'},{n:5,l:'Arr. gauche'},{n:6,l:'Mil. C'},{n:7,l:'Att. droit'},{n:9,l:'Att. central'},{n:11,l:'Att. gauche'}],'5v5':[{n:1,l:'Gardien'},{n:2,l:'Déf. droit'},{n:3,l:'Déf. gauche'},{n:6,l:'Milieu'},{n:9,l:'Attaquant'}]};
 const HALF_MIN={'5v5':25,'8v8':30};
@@ -363,6 +364,7 @@ async function openMatchDetail(id){
     Object.keys(MP).forEach(k=>{MP[k].benchSeconds=MP[k].benchSeconds||0;MP[k].benchSince=(MP[k].benchSince!==undefined?MP[k].benchSince:null)});
     matchStarted=tl.matchStarted||false;
     halfTimePending=tl.halfTimePending===true;
+    initialBenchCount=tl.initialBenchCount||0;
     loadPosteLayoutFromTimeline(tl);
   } else {
     posteLayout=getStartingPosteLayout();
@@ -745,6 +747,11 @@ function toggleChrono(){
         if(!mp.onField)mp.subCount=1;
       }
     });
+    if(firstStart){
+      // Figé au coup d'envoi : le repère de rotation doit rester basé sur l'effectif de
+      // départ, pas sur le nombre de remplaçants dispo à l'instant T (qui varie).
+      initialBenchCount=Object.values(MP).filter(mp=>!mp.onField).length;
+    }
     startChronoInterval();
     saveState();
     // "Terminer le match" n'était affiché/masqué qu'à l'ouverture du match (openMatchDetail),
@@ -939,12 +946,14 @@ function renderField(){
     });
   }
 
-  // Repère simple pour cadencer les rotations : étale les remplaçants disponibles sur
-  // la durée totale du match (les deux mi-temps), à ajuster à l'usage.
+  // Repère simple pour cadencer les rotations : étale les remplaçants CONVOQUÉS AU
+  // DÉPART (figé, pas le nombre courant qui varie à chaque remplacement) sur la durée
+  // totale du match. Avant le coup d'envoi, le nombre courant sert d'aperçu.
   const rotHint=document.getElementById('rotation-hint');
   if(rotHint){
     const totalMin=(halfDuration||HALF_MIN[CT?.format||'8v8'])*2;
-    rotHint.textContent=benchPlayers.length?`⏱ Rotation conseillée : ~toutes les ${Math.round(totalMin/benchPlayers.length)} min (${benchPlayers.length} remplaçant${benchPlayers.length>1?'s':''} · ${totalMin} min de match)`:'';
+    const rotCount=matchStarted?initialBenchCount:benchPlayers.length;
+    rotHint.textContent=rotCount?`⏱ Rotation conseillée : ~toutes les ${Math.round(totalMin/rotCount)} min (${rotCount} remplaçant${rotCount>1?'s':''} au départ · ${totalMin} min de match)`:'';
   }
   const benchArea=document.getElementById('bench-bubbles');
   benchArea.innerHTML='';
@@ -1235,7 +1244,7 @@ async function doSaveState(){
   const snapshot={
     score_nous:sNous,
     score_eux:sEux,
-    timeline_json:{chronoS,halfN,halfDuration,chronoOn,chronoStartedAt,subLog,goals,MP,posteLayout,assignment,matchStarted,halfTimePending},
+    timeline_json:{chronoS,halfN,halfDuration,chronoOn,chronoStartedAt,subLog,goals,MP,posteLayout,assignment,matchStarted,halfTimePending,initialBenchCount},
     // Ne force "en_cours" que si le match a vraiment démarré (chrono lancé au moins
     // une fois). validateComposition() appelle aussi saveState() avant le coup d'envoi
     // (pour ne pas perdre la composition) : sans ce garde-fou, le statut passait en
@@ -1320,6 +1329,7 @@ async function refreshActiveMatch(){
     Object.keys(MP).forEach(k=>{MP[k].benchSeconds=MP[k].benchSeconds||0;MP[k].benchSince=(MP[k].benchSince!==undefined?MP[k].benchSince:null)});
     matchStarted=tl.matchStarted||false;
     halfTimePending=tl.halfTimePending===true;
+    initialBenchCount=tl.initialBenchCount||0;
     loadPosteLayoutFromTimeline(tl);
     // Un appareil qui ne fait que regarder (n'a jamais appuyé sur Start) ne recevait
     // le temps à jour qu'au moment où le JSON du match changeait sur le serveur — or
