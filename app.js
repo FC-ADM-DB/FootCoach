@@ -833,15 +833,24 @@ function renderField(){
   benchPlayersRaw.forEach(p=>{p._benchSecs=stintSecs(p.id);});
   const benchPlayers=benchPlayersRaw.sort((a,b)=>b._benchSecs-a._benchSecs);
 
+  // Les N joueurs sur le terrain ayant le plus joué (N = nombre de remplaçants
+  // disponibles) ressortent en bleu : ce sont les candidats prioritaires à faire
+  // sortir, à apparier avec les N remplaçants prêts à entrer.
+  const onFieldIds=Object.values(assignment).filter(Boolean);
+  const mostPlayedFieldIds=new Set(
+    [...onFieldIds].sort((a,b)=>liveSecs(b)-liveSecs(a)).slice(0,benchPlayers.length)
+  );
+
   postes.forEach(n=>{
     const pos=layout[n]||{x:50,y:50};
     const x=W*pos.x/100,y=H*pos.y/100;
     const playerId=assignment[n]||null;
     const p=playerId?players.find(pl=>pl.id===playerId):null;
     const isSel=selected&&selected.type==='field'&&selected.poste===n;
+    const isMostPlayed=p&&mostPlayedFieldIds.has(p.id);
 
     const bubble=document.createElement('div');
-    bubble.className='player-bubble'+(isSel?' selected':'');
+    bubble.className='player-bubble'+(isSel?' selected':'')+(isMostPlayed?' most-played':'');
     bubble.style.cssText=`left:${x}px;top:${y}px;pointer-events:auto`;
     bubble.dataset.poste=n;bubble.dataset.type='field';
     if(p){
@@ -876,15 +885,10 @@ function renderField(){
   const benchArea=document.getElementById('bench-bubbles');
   benchArea.innerHTML='';
   if(!benchPlayers.length){benchArea.innerHTML='<span style="font-size:12px;color:var(--text3)">Aucun remplaçant</span>';}
-  else {
-  // Le remplaçant ayant le plus joué ressort en bleu, pour repérer d'un coup d'œil qui
-  // a le plus tourné parmi ceux sur le banc (utile pour juger l'équité des rotations).
-  const maxBenchPlay=benchPlayers.length>1?Math.max(...benchPlayers.map(p=>liveSecs(p.id))):-1;
-  benchPlayers.forEach(p=>{
+  else benchPlayers.forEach(p=>{
     const isSel=selected&&selected.type==='bench'&&selected.playerId===p.id;
-    const isMostPlayed=liveSecs(p.id)===maxBenchPlay&&maxBenchPlay>0;
     const bubble=document.createElement('div');
-    bubble.className='player-bubble bench'+(isSel?' selected':'')+(isMostPlayed?' most-played':'');
+    bubble.className='player-bubble bench'+(isSel?' selected':'');
     bubble.style.cssText=`position:relative;transform:none`;
     bubble.dataset.playerId=p.id;bubble.dataset.type='bench';
     bubble.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div>
@@ -892,7 +896,6 @@ function renderField(){
     bubble.addEventListener('click',()=>onBenchTap(p.id));
     benchArea.appendChild(bubble);
   });
-  }
   renderLiveSubLog();
 }
 function renderLiveSubLog(){
