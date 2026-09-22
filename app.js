@@ -875,7 +875,8 @@ function renderField(){
     bubble.dataset.poste=n;bubble.dataset.type='field';
     if(p){
       const subCount=MP[p.id]?.subCount||0;
-      bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} fois sur le banc">${subCount}</div>`:''}<div class="bb-out" onclick="benchPlayerFromField(${n},event)" title="Mettre sur le banc">↓</div>
+      const isStarter=MP[p.id]?.starter===true;
+      bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} fois sur le banc">${subCount}</div>`:''}${isStarter?`<div class="bb-starter" title="Titulaire">★</div>`:''}<div class="bb-out" onclick="benchPlayerFromField(${n},event)" title="Mettre sur le banc">↓</div>
         <div style="font-size:13px;font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</div>
         <div class="bb-timers"><span class="bb-since">Depuis ${fmt(stintSecs(p.id))}</span><span class="bb-total">Jeu ${fmt(liveSecs(p.id))}</span></div>`;
     } else {
@@ -908,11 +909,12 @@ function renderField(){
   else benchPlayers.forEach(p=>{
     const isSel=selected&&selected.type==='bench'&&selected.playerId===p.id;
     const subCount=MP[p.id]?.subCount||0;
+    const isStarter=MP[p.id]?.starter===true;
     const bubble=document.createElement('div');
     bubble.className='player-bubble bench'+(isSel?' selected':'');
     bubble.style.cssText=`position:relative;transform:none`;
     bubble.dataset.playerId=p.id;bubble.dataset.type='bench';
-    bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} fois sur le banc">${subCount}</div>`:''}<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div>
+    bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} fois sur le banc">${subCount}</div>`:''}${isStarter?`<div class="bb-starter" title="Titulaire">★</div>`:''}<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div>
       <span class="bench-time">Banc depuis ${fmt(stintSecs(p.id))} · Jeu ${fmt(liveSecs(p.id))}</span>`;
     bubble.addEventListener('click',()=>onBenchTap(p.id));
     benchArea.appendChild(bubble);
@@ -926,6 +928,7 @@ function renderLiveSubLog(){
   if(!subs.length){el.innerHTML='<div style="font-size:11px;color:var(--text3)">Aucun remplacement</div>';return;}
   el.innerHTML=subs.slice().reverse().map(e=>`<div class="sublog-row">
     <span class="sublog-t">${fmt(e.t)}</span>
+    ${e.poste!==undefined?`<span class="pill pb" style="font-size:9px;flex-shrink:0">#${e.poste}</span>`:''}
     <span class="sublog-out">↑ ${e.out}</span>
     <span style="color:var(--text3);flex-shrink:0">→</span>
     <span class="sublog-in">↓ ${e.in}</span>
@@ -988,7 +991,7 @@ function assignBenchToPoste(playerId,poste){
   if(matchStarted){
     const pOut=outId?players.find(p=>p.id===outId):null;
     const pIn=players.find(p=>p.id===playerId);
-    subLog.push({type:'sub',t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:(pIn?.prenom||'?')+' '+(pIn?.nom||'')});
+    subLog.push({type:'sub',t:chronoS,half:halfN,poste,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:(pIn?.prenom||'?')+' '+(pIn?.nom||'')});
     showToast(pOut?`${pIn?.prenom} entre pour ${pOut.prenom}`:`${pIn?.prenom} entre en jeu`,'ok');
     // Ne compte que les fois où le joueur part sur le banc (pas quand il entre en jeu).
     if(outId&&MP[outId])MP[outId].subCount=(MP[outId].subCount||0)+1;
@@ -1016,7 +1019,7 @@ function benchPlayerFromField(poste,e){
   assignment[poste]=null;selected=null;
   if(matchStarted){
     const pOut=players.find(p=>p.id===outId);
-    subLog.push({type:'sub',t:chronoS,half:halfN,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:'banc'});
+    subLog.push({type:'sub',t:chronoS,half:halfN,poste,out:pOut?(pOut.prenom+' '+pOut.nom):'—',in:'banc'});
     showToast(`${pOut?.prenom||'Joueur'} va sur le banc`,'ok');
     if(mpOut)mpOut.subCount=(mpOut.subCount||0)+1;
   }
@@ -1292,23 +1295,33 @@ function renderTimeline(){
   const present=players.filter(p=>MP[p.id]);
   const hS=(halfDuration||HALF_MIN[CT?.format||'8v8'])*60;
   const W=Math.min(380,window.innerWidth-32);
-  const lW=54,rowH=24,padT=18,padB=18;
+  // Colonne des noms dimensionnée sur le prénom le plus long (au lieu d'un tronquage
+  // fixe à 6 caractères qui coupait certains prénoms).
+  const maxNameLen=present.length?Math.max(...present.map(p=>p.prenom.length)):6;
+  const lW=Math.min(92,Math.max(40,20+maxNameLen*5.5));
+  const rowH=26,padT=32,padB=18;
   const tW=W-lW;const svgH=padT+present.length*rowH+padB+10;
   const col=CT?.couleur||'#00d68f';const tc='#8ba4c8';const hX=lW+tW/2;
   const xOf=(s,h)=>lW+(h===2?tW/2:0)+Math.min(s,hS)/hS*(tW/2);
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${svgH}" width="100%">`;
-  svg+=`<text x="${lW+tW/4}" y="14" text-anchor="middle" font-size="9" fill="${tc}" font-family="DM Sans,sans-serif">1ère MT</text>`;
-  svg+=`<text x="${lW+3*tW/4}" y="14" text-anchor="middle" font-size="9" fill="${tc}" font-family="DM Sans,sans-serif">2ème MT</text>`;
-  svg+=`<line x1="${hX}" y1="17" x2="${hX}" y2="${svgH-padB}" stroke="rgba(255,255,255,0.08)" stroke-width="1.5" stroke-dasharray="4,3"/>`;
-  [15,30].forEach(m=>[1,2].forEach(h=>{const x=xOf(m*60,h);svg+=`<line x1="${x}" y1="16" x2="${x}" y2="${svgH-padB}" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>`;svg+=`<text x="${x}" y="${svgH-2}" text-anchor="middle" font-size="8" fill="${tc}">${m}'</text>`;}));
+  // Légende Jeu/Banc, pour lever l'ambiguïté entre les deux couleurs des barres.
+  svg+=`<rect x="0" y="0" width="9" height="9" rx="2" fill="${col}"/><text x="12" y="8" font-size="8" fill="${tc}" font-family="DM Sans,sans-serif">Jeu</text>`;
+  svg+=`<rect x="40" y="0" width="9" height="9" rx="2" fill="rgba(255,255,255,0.14)"/><text x="52" y="8" font-size="8" fill="${tc}" font-family="DM Sans,sans-serif">Banc</text>`;
+  svg+=`<text x="${lW+tW/4}" y="28" text-anchor="middle" font-size="9" fill="${tc}" font-family="DM Sans,sans-serif">1ère MT</text>`;
+  svg+=`<text x="${lW+3*tW/4}" y="28" text-anchor="middle" font-size="9" fill="${tc}" font-family="DM Sans,sans-serif">2ème MT</text>`;
+  svg+=`<line x1="${hX}" y1="31" x2="${hX}" y2="${svgH-padB}" stroke="rgba(255,255,255,0.08)" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  [15,30].forEach(m=>[1,2].forEach(h=>{const x=xOf(m*60,h);svg+=`<line x1="${x}" y1="30" x2="${x}" y2="${svgH-padB}" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>`;svg+=`<text x="${x}" y="${svgH-2}" text-anchor="middle" font-size="8" fill="${tc}">${m}'</text>`;}));
   present.forEach((p,i)=>{
     const y=padT+i*rowH;const cy=y+rowH/2;const mp=MP[p.id];
-    svg+=`<text x="${lW-4}" y="${cy+4}" text-anchor="end" font-size="10" fill="${tc}" font-family="DM Sans,sans-serif">${p.prenom.slice(0,6)}</text>`;
-    svg+=`<rect x="${lW}" y="${y+4}" width="${tW}" height="${rowH-8}" rx="3" fill="rgba(255,255,255,0.02)"/>`;
+    svg+=`<text x="${lW-4}" y="${cy+4}" text-anchor="end" font-size="10" fill="${tc}" font-family="DM Sans,sans-serif">${p.prenom.slice(0,14)}</text>`;
+    // Fond = temps sur le banc par défaut ; les segments de jeu sont dessinés par-dessus,
+    // donc tout ce qui reste visible en gris clair est bien du temps de banc, pas un trou.
+    svg+=`<rect x="${lW}" y="${y+4}" width="${tW}" height="${rowH-8}" rx="3" fill="rgba(255,255,255,0.1)"/>`;
     (mp.segments||[]).forEach(seg=>{const x1=xOf(seg.from,seg.half),x2=xOf(seg.to,seg.half);svg+=`<rect x="${x1}" y="${y+5}" width="${Math.max(x2-x1,2)}" height="${rowH-10}" rx="3" fill="${col}" opacity="0.85"/>`;});
     if(mp.enteredAt!==null&&mp.onField){const x1=xOf(mp.enteredAt,halfN),x2=xOf(chronoS,halfN);svg+=`<rect x="${x1}" y="${y+5}" width="${Math.max(x2-x1,2)}" height="${rowH-10}" rx="3" fill="${col}" opacity="0.4"/>`;}
-    const bench=fmt(getBenchSeconds(p.id));
-    svg+=`<text x="${W-2}" y="${cy+4}" text-anchor="end" font-size="8" fill="${tc}" font-family="DM Mono,monospace">${fmt(liveSecs(p.id))}${bench!=='00:00'?' · '+bench:''}</text>`;
+    const benchS=getBenchSeconds(p.id);
+    svg+=`<text x="${W-2}" y="${cy-2}" text-anchor="end" font-size="7" fill="${col}" font-family="DM Mono,monospace">J ${fmt(liveSecs(p.id))}</text>`;
+    svg+=`<text x="${W-2}" y="${cy+7}" text-anchor="end" font-size="7" fill="${tc}" font-family="DM Mono,monospace">B ${fmt(benchS)}</text>`;
   });
   svg+=`</svg>`;
   document.getElementById('tl-chart').innerHTML=svg;
@@ -1317,6 +1330,7 @@ function renderTimeline(){
   logEl.innerHTML=subLog.map(e=>`<div style="display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">
     <span style="font-size:11px;font-weight:600;color:var(--green);font-family:var(--mono);min-width:28px">${fmt(e.t)}</span>
     <span class="pill pb" style="font-size:10px">MT${e.half}</span>
+    ${e.poste!==undefined?`<span class="pill pgr" style="font-size:10px">#${e.poste}</span>`:''}
     <span style="color:var(--red)">↑ ${e.out}</span>
     <span style="color:var(--text3)">→</span>
     <span style="color:var(--green)">↓ ${e.in}</span>
