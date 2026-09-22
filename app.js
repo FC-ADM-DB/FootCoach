@@ -946,14 +946,14 @@ function renderField(){
     });
   }
 
-  // Repère simple pour cadencer les rotations : étale les remplaçants CONVOQUÉS AU
-  // DÉPART (figé, pas le nombre courant qui varie à chaque remplacement) sur la durée
-  // totale du match. Avant le coup d'envoi, le nombre courant sert d'aperçu.
+  // Repère simple pour cadencer les rotations : durée du match / nombre de joueurs sur
+  // le terrain (fixe pour le format, ex. 8 en 8v8) — donne un rythme de rotation
+  // régulier, pas juste "chaque remplaçant tourne une fois sur tout le match".
   const rotHint=document.getElementById('rotation-hint');
   if(rotHint){
     const totalMin=(halfDuration||HALF_MIN[CT?.format||'8v8'])*2;
-    const rotCount=matchStarted?initialBenchCount:benchPlayers.length;
-    rotHint.textContent=rotCount?`⏱ Rotation conseillée : ~toutes les ${Math.round(totalMin/rotCount)} min (${rotCount} remplaçant${rotCount>1?'s':''} au départ · ${totalMin} min de match)`:'';
+    const fieldCount=postes.length;
+    rotHint.textContent=fieldCount?`⏱ Rotation conseillée : ~toutes les ${Math.round(totalMin/fieldCount)} min (${fieldCount} joueurs sur le terrain · ${totalMin} min de match)`:'';
   }
   const benchArea=document.getElementById('bench-bubbles');
   benchArea.innerHTML='';
