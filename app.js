@@ -13,6 +13,7 @@ let sNous=0,sEux=0,goalAdv=false;
 let isAdmin=false;
 let pendingSync=false;   // true si le dernier saveState() n'a pas (encore) atteint Supabase
 let lastSubSnapshot=null; // permet d'annuler le dernier remplacement (erreur de manipulation)
+let halfTimePending=false; // vrai entre "Mi-temps" et le Start suivant : reset des temps différé
 
 const POSTES_MAP={'8v8':[{n:1,l:'Gardien'},{n:2,l:'Arr. droit'},{n:3,l:'Mil. C'},{n:5,l:'Arr. gauche'},{n:6,l:'Mil. C'},{n:7,l:'Att. droit'},{n:9,l:'Att. central'},{n:11,l:'Att. gauche'}],'5v5':[{n:1,l:'Gardien'},{n:2,l:'Déf. droit'},{n:3,l:'Déf. gauche'},{n:6,l:'Milieu'},{n:9,l:'Attaquant'}]};
 const HALF_MIN={'5v5':25,'8v8':30};
@@ -361,6 +362,7 @@ async function openMatchDetail(id){
     // ensure bench tracking keys exist
     Object.keys(MP).forEach(k=>{MP[k].benchSeconds=MP[k].benchSeconds||0;MP[k].benchSince=(MP[k].benchSince!==undefined?MP[k].benchSince:null)});
     matchStarted=tl.matchStarted||false;
+    halfTimePending=tl.halfTimePending===true;
     loadPosteLayoutFromTimeline(tl);
   } else {
     posteLayout=getStartingPosteLayout();
@@ -713,6 +715,15 @@ function toggleChrono(){
   if(CM?.statut==='termine') return showToast('Ce match est terminé.','err');
   const btn=document.getElementById('btn-chrono');
   if(!chronoOn){
+    if(halfTimePending){
+      // Le vrai reset de mi-temps a lieu ici (pas au clic sur "Mi-temps") : freezeTimes()
+      // clôture proprement les temps de jeu/banc en cours sur la base du chrono de fin
+      // de 1ère mi-temps, puis chronoS repart à 0 pour la 2ème.
+      freezeTimes();
+      chronoS=0;
+      halfTimePending=false;
+      document.getElementById('live-time').textContent='00:00';
+    }
     // Recule le point de départ du temps déjà écoulé (chronoS) : un spectateur calcule
     // le temps via Date.now()-chronoStartedAt, donc sans ce recul, chaque reprise après
     // pause repartait de zéro pour lui (le temps semblait "se réinitialiser").
@@ -761,15 +772,18 @@ function freezeTimes(){
 }
 function switchHalf(){
   if(CM?.statut==='termine') return showToast('Ce match est terminé.','err');
-  if(chronoOn)toggleChrono();freezeTimes();halfN=2;chronoS=0;
-  document.getElementById('live-time').textContent='00:00';
+  if(chronoOn)toggleChrono();
+  // Le vrai reset (chrono à 0, temps de jeu/banc rebasés) n'a lieu qu'au prochain Start
+  // (voir toggleChrono) : entre-temps, tous les temps affichés restent figés sur leurs
+  // valeurs de fin de 1ère mi-temps au lieu de retomber à zéro immédiatement.
+  halfN=2;
+  halfTimePending=true;
   document.getElementById('live-badge').textContent='MT 2';
   document.getElementById('live-badge').style.cssText='background:var(--amber-bg);color:var(--amber)';
-  Object.keys(MP).forEach(id=>{if(MP[id].onField)MP[id].enteredAt=null;});
-  renderField();saveState();showToast('2ème mi-temps !','ok');
+  renderField();saveState();showToast('2ème mi-temps ! Les temps se remettront à jour au prochain Start','ok');
 }
 function liveSecs(id){const mp=MP[id];if(!mp)return 0;return mp.playSeconds+(mp.enteredAt!==null?chronoS-mp.enteredAt:0);}
-function getBenchSeconds(id){const mp=MP[id];if(!mp)return 0;let secs=(mp.benchSeconds||0);if(mp.benchSince!==null&&mp.benchSince!==undefined)secs+=chronoS-mp.benchSince;return secs;}
+function getBenchSeconds(id){const mp=MP[id];if(!mp)return 0;let secs=(mp.benchSeconds||0);if(mp.benchSince!==null&&mp.benchSince!==undefined)secs+=chronoS-mp.benchSince;return Math.max(0,secs);}
 // "Depuis" : durée du passage en cours (remise à zéro à chaque changement terrain/banc), distinct du total ci-dessus.
 function stintSecs(id){const mp=MP[id];if(!mp)return 0;if(mp.onField)return mp.enteredAt!==null?Math.max(0,chronoS-mp.enteredAt):0;return mp.benchSince!==null&&mp.benchSince!==undefined?Math.max(0,chronoS-mp.benchSince):0;}
 function syncCurrentMatchInMemory(){if(!CM)return;const idx=matches.findIndex(m=>m.id===CM.id);if(idx!==-1){matches[idx]={...matches[idx],score_nous:sNous,score_eux:sEux,statut:CM.statut};}}
@@ -1159,7 +1173,7 @@ async function doSaveState(){
   const snapshot={
     score_nous:sNous,
     score_eux:sEux,
-    timeline_json:{chronoS,halfN,halfDuration,chronoOn,chronoStartedAt,subLog,goals,MP,posteLayout,assignment,matchStarted},
+    timeline_json:{chronoS,halfN,halfDuration,chronoOn,chronoStartedAt,subLog,goals,MP,posteLayout,assignment,matchStarted,halfTimePending},
     // Ne force "en_cours" que si le match a vraiment démarré (chrono lancé au moins
     // une fois). validateComposition() appelle aussi saveState() avant le coup d'envoi
     // (pour ne pas perdre la composition) : sans ce garde-fou, le statut passait en
@@ -1243,6 +1257,7 @@ async function refreshActiveMatch(){
     MP=tl.MP||{};
     Object.keys(MP).forEach(k=>{MP[k].benchSeconds=MP[k].benchSeconds||0;MP[k].benchSince=(MP[k].benchSince!==undefined?MP[k].benchSince:null)});
     matchStarted=tl.matchStarted||false;
+    halfTimePending=tl.halfTimePending===true;
     loadPosteLayoutFromTimeline(tl);
     // Un appareil qui ne fait que regarder (n'a jamais appuyé sur Start) ne recevait
     // le temps à jour qu'au moment où le JSON du match changeait sur le serveur — or
