@@ -1378,7 +1378,10 @@ function renderTimeline(){
   const maxNameLen=present.length?Math.max(...present.map(p=>p.prenom.length)):6;
   const lW=Math.min(92,Math.max(40,20+maxNameLen*5.5));
   const rowH=26,padT=32,padB=18;
-  const tW=W-lW;const svgH=padT+present.length*rowH+padB+10;
+  // Colonne dédiée à droite pour les temps J/B, séparée du graphique — avant, ce texte
+  // était dessiné par-dessus la fin des barres de la 2ème MT.
+  const rW=44;
+  const tW=W-lW-rW;const svgH=padT+present.length*rowH+padB+10;
   const col=CT?.couleur||'#00d68f';const tc='#8ba4c8';const hX=lW+tW/2;
   const xOf=(s,h)=>lW+(h===2?tW/2:0)+Math.min(s,hS)/hS*(tW/2);
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${svgH}" width="100%">`;
