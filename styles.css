@@ -35,9 +35,27 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
 /* SHELL */
 .app-hdr{padding:calc(var(--st) + 12px) 14px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0}
-.team-sel{flex:1;display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);padding:8px 11px;cursor:pointer;min-width:0}
+.team-sel{flex:1;display:flex;align-items:center;gap:11px;background:none;border:none;padding:3px 0;cursor:pointer;min-width:0;min-height:44px;text-align:left;font-family:var(--font);color:var(--text)}
+.team-sq{width:38px;height:38px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:500;font-size:13px;color:#0a1628;letter-spacing:-.02em}
+.team-txt{flex:1;min-width:0}
+.team-name{display:flex;align-items:center;gap:6px;min-width:0}
+.team-caret{color:#4d6a94;font-size:13px;flex-shrink:0}
+.team-sub{font-size:12px;font-weight:500;color:var(--text2);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.tname{font-size:13px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tname{font-size:18px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.avatar{width:38px;height:38px;border-radius:50%;flex-shrink:0;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative}
+.avatar::before{content:'';position:absolute;inset:-4px}
+/* MENU COMPTE */
+.umenu-ov{display:none;position:absolute;inset:0;z-index:60}
+.umenu-ov.open{display:block}
+.umenu{position:absolute;top:calc(var(--st) + 60px);right:12px;width:240px;background:var(--bg2);border:1px solid var(--border2);border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.45);padding:6px;display:flex;flex-direction:column}
+.umenu-head{padding:10px 12px 10px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.umenu-name{font-size:14px;font-weight:600}
+.umenu-role{font-size:12px;color:var(--text2);margin-top:2px}
+.umenu-item{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border:none;background:none;border-radius:10px;color:var(--text);font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;text-align:left}
+.umenu-item:active{background:var(--bg3)}
+.umenu-item span:first-child{width:20px;text-align:center}
+.umenu-out{color:var(--red)}
 .mode-btn{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);padding:7px 10px;color:var(--text2);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .mode-btn.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
 .kiosk-screen{position:fixed;inset:0;background:rgba(10,22,40,0.96);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -304,8 +322,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 /* Mobile (iPhone) optimizations */
 @media (max-width:420px){
   .app-hdr{padding:calc(var(--st) + 6px) 8px 6px}
-  .team-sel{padding:6px 8px}
-  .tname{font-size:12px}
+  .tname{font-size:16px}
   .mode-btn{padding:6px 8px;font-size:11px}
 
   .chrono-sticky{padding:6px 8px}

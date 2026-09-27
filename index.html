@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -58,15 +58,21 @@
 <div class="screen" id="screen-app" style="position:relative">
   <div class="md-banner" id="md-banner" style="display:none">⚽ Mode Match Day</div>
   <div class="app-hdr">
-    <div class="team-sel" onclick="openTsw()">
-      <div class="tdot" id="hdr-dot" style="background:#00d68f"></div>
-      <span class="tname" id="hdr-tname">Choisir une équipe</span>
-      <span style="color:var(--text3);font-size:11px;flex-shrink:0">▾</span>
+    <button class="team-sel" onclick="openTsw()">
+      <div class="team-sq js-team-sq" id="hdr-dot" style="background:#00d68f"><span class="js-team-cat"></span></div>
+      <div class="team-txt">
+        <div class="team-name"><span class="tname js-team-name" id="hdr-tname">Choisir une équipe</span><span class="team-caret">▾</span></div>
+        <div class="team-sub js-team-sub"></div>
+      </div>
+    </button>
+    <button class="avatar js-user-ini" onclick="openUserMenu()" aria-label="Mon compte"></button>
+    <!-- Anciens boutons : masqués (menu avatar), gardés dans le DOM car app.js y fait référence -->
+    <div style="display:none">
+      <button class="mode-btn" id="admin-btn" onclick="goAdmin()" style="display:none">Admin</button>
+      <button class="mode-btn" id="kiosk-btn" onclick="toggleKiosk()">📺 Kiosk</button>
+      <button class="mode-btn" id="mode-btn" onclick="toggleMode()">⚽ Match</button>
+      <button class="mode-btn" id="logout-btn" onclick="signOut()">Log off</button>
     </div>
-    <button class="mode-btn" id="admin-btn" onclick="goAdmin()" style="display:none">Admin</button>
-    <button class="mode-btn" id="kiosk-btn" onclick="toggleKiosk()">📺 Kiosk</button>
-    <button class="mode-btn" id="mode-btn" onclick="toggleMode()">⚽ Match</button>
-    <button class="mode-btn" id="logout-btn" onclick="signOut()">Log off</button>
   </div>
 
   <!-- HOME -->
@@ -282,6 +288,17 @@
       </div>
       <div class="kiosk-meta" id="kiosk-meta"></div>
       <div class="kiosk-goals" id="kiosk-goals"></div>
+    </div>
+  </div>
+
+  <!-- MENU COMPTE (avatar) -->
+  <div class="umenu-ov" id="umenu" onclick="closeUserMenu(event)">
+    <div class="umenu">
+      <div class="umenu-head"><div class="umenu-name js-user-name"></div><div class="umenu-role js-user-role"></div></div>
+      <button class="umenu-item" onclick="closeUserMenu();toggleMode()"><span>⚽</span><span id="umenu-md">Mode Match Day</span></button>
+      <button class="umenu-item" onclick="closeUserMenu();toggleKiosk()"><span>📺</span><span>Mode Kiosk</span></button>
+      <button class="umenu-item" id="umenu-admin" onclick="closeUserMenu();goAdmin()" style="display:none"><span>🛠</span><span>Membres &amp; accès</span></button>
+      <button class="umenu-item umenu-out" onclick="closeUserMenu();signOut()"><span>⎋</span><span>Se déconnecter</span></button>
     </div>
   </div>
 

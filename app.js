@@ -112,7 +112,33 @@ async function doResetPassword(){
   }
 }
 async function loadApp(user){U=user;document.getElementById('screen-auth').classList.remove('active');document.getElementById('screen-app').classList.add('active');await loadProfile();await loadTeams();renderHome();}
-async function loadProfile(){const{data}=await sb.from('profiles').select('*').eq('id',U.id).single();if(data){UP=data;document.getElementById('wname').textContent=`Bonjour ${data.prenom} !`;}}
+async function loadProfile(){const{data}=await sb.from('profiles').select('*').eq('id',U.id).single();if(data){UP=data;document.getElementById('wname').textContent=`Bonjour ${data.prenom} !`;}renderNavUser();}
+
+// ============ NAVIGATION (en-tête, barre latérale iPad, menu compte) ============
+// Le bouton équipe et l'avatar existent en deux exemplaires (en-tête iPhone + barre
+// latérale iPad/PC) : on les remplit par classe .js-* pour ne pas dupliquer la logique.
+function fillAll(sel,fn){document.querySelectorAll(sel).forEach(fn);}
+function renderNavTeam(){
+  fillAll('.js-team-sq',el=>el.style.background=CT?.couleur||'#00d68f');
+  fillAll('.js-team-cat',el=>el.textContent=CT?.categorie||'');
+  fillAll('.js-team-name',el=>el.textContent=CT?.nom||'Choisir une équipe');
+  fillAll('.js-team-sub',el=>el.textContent=CT?`${CT.categorie} · ${CT.format}`:'');
+}
+function renderNavUser(){
+  const ini=UP?(((UP.prenom||'')[0]||'')+((UP.nom||'')[0]||'')).toUpperCase():(U?.email?.[0]||'?').toUpperCase();
+  const name=UP?`${UP.prenom||''} ${UP.nom||''}`.trim():(U?.email||'');
+  fillAll('.js-user-ini',el=>el.textContent=ini);
+  fillAll('.js-user-name',el=>el.textContent=name);
+  fillAll('.js-user-role',el=>el.textContent=CT?(isAdmin?'Admin':'Membre'):'');
+  const adm=document.getElementById('umenu-admin');
+  if(adm)adm.style.display=isAdmin?'flex':'none';
+}
+function openUserMenu(){
+  const md=document.getElementById('umenu-md');
+  if(md)md.textContent=mdMode?'Quitter le mode Match Day':'Mode Match Day';
+  document.getElementById('umenu').classList.add('open');
+}
+function closeUserMenu(e){if(!e||e.target===document.getElementById('umenu'))document.getElementById('umenu').classList.remove('open');}
 
 // ============ TEAMS ============
 async function loadTeams(){
@@ -128,6 +154,7 @@ function selTeam(t){
   if(adminBtn)adminBtn.style.display=isAdmin?'inline-flex':'none';
   document.getElementById('hdr-tname').textContent = CT?.nom || 'Choisir une équipe';
   document.getElementById('hdr-dot').style.background = CT?.couleur || '#00d68f';
+  renderNavTeam();renderNavUser();
   renderTsw();
   // refresh team-related data (no await to avoid blocking)
   loadPlayers();
