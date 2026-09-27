@@ -1612,6 +1612,9 @@ function goPage(name){
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+name)?.classList.add('active');
   document.getElementById('nav-'+name)?.classList.add('active');
+  // Mode focus Live : seulement si on revient sur un match ouvert dans l'onglet Live
+  // (sur iPad on peut changer de page depuis la barre latérale réduite).
+  document.getElementById('screen-app').classList.toggle('live-active',name==='match'&&document.getElementById('match-detail-view').style.display!=='none'&&document.getElementById('tab-live').style.display==='block');
   if(matchListInterval){clearInterval(matchListInterval);matchListInterval=null;}
   if(name==='players')loadPlayers();
   if(name==='teams')renderTeamsList();

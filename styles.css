@@ -239,6 +239,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .qbtn-conc{background:var(--red-bg);color:var(--red);border-color:var(--red-border);padding:6px 10px}
 .qbtn-chrono{background:var(--green);color:#0a1628;border:none}
 #screen-app.live-active .app-hdr,#screen-app.live-active .md-banner{display:none}
+/* Nav v2 — Live = focus : la classe live-active (posée par setLiveActive) masque aussi
+   la barre du bas sur iPhone ; sur iPad/PC la barre latérale se réduit (voir ≥900px). */
+@media (max-width:899px){#screen-app.live-active .bnav{display:none}}
 
 /* bench bubble small time */
 .player-bubble.bench{padding:6px 10px;font-size:13px}
