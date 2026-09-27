@@ -389,3 +389,30 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   /* Timeline tweaks */
   .tl-wrap{padding:12px 8px}
 }
+
+/* ============ NAV V2 — barre latérale iPad / PC (≥ 900px) ============ */
+.side-team,.side-user{display:none}
+@media (min-width:900px){
+  #screen-app{padding-left:260px}
+  .app-hdr{display:none}
+  .bnav{position:fixed;top:0;left:0;bottom:0;width:260px;flex-direction:column;gap:4px;border-top:none;border-right:1px solid var(--border);padding:calc(var(--st) + 16px) 14px calc(var(--sb) + 14px)}
+  .ni{flex:0 0 auto;flex-direction:row;gap:12px;min-height:46px;padding:0 12px;border-radius:10px;font-size:15px;font-weight:600;text-align:left}
+  .ni.active{background:var(--bg3)}
+  .ni-icon,.ni.active .ni-icon{width:24px;height:24px;background:none;font-size:18px}
+  .side-team{display:flex;align-items:center;gap:11px;width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:11px;margin-bottom:14px;cursor:pointer;text-align:left;font-family:var(--font);color:var(--text);min-width:0}
+  .side-team .tname{font-size:15px}
+  .side-user{display:flex;align-items:center;gap:10px;margin-top:auto;width:100%;background:none;border:none;border-top:1px solid var(--border);padding:12px 4px 0;cursor:pointer;text-align:left;font-family:var(--font);color:var(--text);min-width:0}
+  .side-user .side-txt{display:flex;flex-direction:column;min-width:0}
+  .side-user-name{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .side-user-role{font-size:12px;color:var(--text2)}
+  .umenu{top:auto;right:auto;left:14px;bottom:calc(var(--sb) + 70px)}
+
+  /* Live = focus : barre réduite aux icônes */
+  #screen-app.live-active{padding-left:68px}
+  #screen-app.live-active .bnav{width:68px;padding-left:10px;padding-right:10px;align-items:center}
+  #screen-app.live-active .ni{width:46px;padding:0;justify-content:center}
+  #screen-app.live-active .ni-lbl,#screen-app.live-active .side-txt{display:none}
+  #screen-app.live-active .side-team{width:auto;padding:0;background:none;border:none}
+  #screen-app.live-active .side-user{width:auto;justify-content:center;padding:12px 0 0}
+  #screen-app.live-active .umenu{left:10px}
+}

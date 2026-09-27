@@ -263,10 +263,23 @@
 
   <!-- BOTTOM NAV -->
   <nav class="bnav">
+    <!-- iPad/PC uniquement (barre latérale) : bouton équipe -->
+    <button class="side-team" onclick="openTsw()">
+      <div class="team-sq js-team-sq"><span class="js-team-cat"></span></div>
+      <div class="team-txt side-txt">
+        <div class="team-name"><span class="tname js-team-name">Choisir une équipe</span><span class="team-caret">▾</span></div>
+        <div class="team-sub js-team-sub"></div>
+      </div>
+    </button>
     <button class="ni active" onclick="goPage('home')" id="nav-home"><span class="ni-icon">🏠</span><span class="ni-lbl">Accueil</span></button>
     <button class="ni" onclick="goPage('match')" id="nav-match"><span class="ni-icon">⚽</span><span class="ni-lbl">Matchs</span></button>
     <button class="ni" onclick="goPage('players')" id="nav-players"><span class="ni-icon">👥</span><span class="ni-lbl">Effectif</span></button>
     <button class="ni" onclick="goPage('stats')" id="nav-stats"><span class="ni-icon">📊</span><span class="ni-lbl">Stats</span></button>
+    <!-- iPad/PC uniquement (pied de barre latérale) : compte -->
+    <button class="side-user" onclick="openUserMenu()">
+      <span class="avatar js-user-ini"></span>
+      <span class="side-txt"><span class="side-user-name js-user-name"></span><span class="side-user-role js-user-role"></span></span>
+    </button>
   </nav>
 
   <!-- KIOSK MODE -->
