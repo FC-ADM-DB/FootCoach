@@ -586,11 +586,24 @@ async function deleteMatch(id,e){
 
 function switchTab(tab){
   ['conv','live','tl','res'].forEach(t=>document.getElementById('tab-'+t).style.display=t===tab?'block':'none');
-  document.querySelectorAll('.mtab').forEach((el,i)=>el.classList.toggle('active',['conv','live','tl','res'][i]===tab));
+  renderMatchSteps(tab);
   setLiveActive(tab==='live');
   if(tab==='live'){ensureComposition();renderField();renderFormationsBar();}
   if(tab==='tl'){renderTimeline();renderGoals();}
   if(tab==='res')renderResume();
+}
+// Nav v2 — fil en 3 étapes (Convocation · Live · Bilan). La Timeline n'est plus un
+// onglet : elle s'ouvre depuis le Bilan, donc 'tl' allume l'étape Bilan.
+// Étape "faite" : avant l'étape affichée, ou déjà franchie selon le statut du match.
+function renderMatchSteps(tab){
+  const order=['conv','live','res'];
+  const cur=order.indexOf(tab==='tl'?'res':tab);
+  const reached=CM?.statut==='termine'?2:CM?.statut==='en_cours'?1:0;
+  document.querySelectorAll('.mtab').forEach(el=>{
+    const i=order.indexOf(el.dataset.step);
+    el.classList.toggle('active',i===cur);
+    el.classList.toggle('done',i!==cur&&(i<cur||i<reached));
+  });
 }
 function setLiveActive(on){
   document.getElementById('screen-app').classList.toggle('live-active',!!on);

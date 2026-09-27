@@ -210,9 +210,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .recent-item .result.pb{color:var(--blue)}
 
 /* MATCH DETAIL */
-.mtabs{display:flex;background:var(--bg3);border-radius:var(--rsm);padding:3px;gap:3px;flex-shrink:0}
-.mtab{flex:1;padding:7px 3px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-align:center;border:none;background:none;font-family:var(--font);color:var(--text3)}
-.mtab.active{background:var(--bg2);color:var(--text)}
+/* Nav v2 : fil en 3 étapes (barre 4px + libellé) */
+.mtabs{display:flex;gap:8px;flex-shrink:0;padding-bottom:4px}
+.mtab{flex:1;display:flex;flex-direction:column;gap:7px;padding:6px 0 4px;min-height:44px;font-size:12px;font-weight:600;cursor:pointer;text-align:left;border:none;background:none;font-family:var(--font);color:var(--text3)}
+.mstep-bar{display:block;height:4px;border-radius:99px;background:var(--bg3)}
+.mtab.active,.mtab.done{color:var(--green)}
+.mtab.active{color:var(--text)}
+.mtab.active .mstep-bar,.mtab.done .mstep-bar{background:var(--green)}
+.tl-link{display:block;width:100%;min-height:44px;margin-bottom:12px;padding:0 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);color:var(--text2);font-family:var(--font);font-size:13px;font-weight:600;text-align:left;cursor:pointer}
 
 /* CONVOC */
 .cv{display:flex;align-items:center;gap:7px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:4px}

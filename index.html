@@ -134,10 +134,9 @@
       </div>
       <div style="padding:9px 13px 0;flex-shrink:0">
         <div class="mtabs" id="match-tabs">
-          <button class="mtab active" onclick="switchTab('conv')">Convocs</button>
-          <button class="mtab" onclick="switchTab('live')">Live</button>
-          <button class="mtab" onclick="switchTab('tl')">Timeline</button>
-          <button class="mtab" onclick="switchTab('res')">Résumé</button>
+          <button class="mtab active" data-step="conv" onclick="switchTab('conv')"><span class="mstep-bar"></span><span class="mstep-lbl">1 · Convocation</span></button>
+          <button class="mtab" data-step="live" onclick="switchTab('live')"><span class="mstep-bar"></span><span class="mstep-lbl">2 · Live</span></button>
+          <button class="mtab" data-step="res" onclick="switchTab('res')"><span class="mstep-bar"></span><span class="mstep-lbl">3 · Bilan</span></button>
         </div>
       </div>
       <div style="flex:1;overflow-y:auto" id="match-tab-content">
@@ -218,6 +217,7 @@
         </div>
         <!-- TIMELINE -->
         <div id="tab-tl" style="display:none" class="tl-wrap">
+          <button class="tl-link" onclick="switchTab('res')">← Retour au bilan</button>
           <div id="tl-chart"></div>
           <div style="margin-top:12px;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px">Buts</div>
           <div id="goals-list"></div>
@@ -226,6 +226,7 @@
         </div>
         <!-- RÉSUMÉ -->
         <div id="tab-res" style="display:none;padding:12px 13px 20px">
+          <button class="tl-link" onclick="switchTab('tl')">📈 Voir la timeline, les buts et les remplacements →</button>
           <div id="resume-content"></div>
         </div>
       </div>
