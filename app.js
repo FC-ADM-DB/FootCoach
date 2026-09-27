@@ -191,14 +191,31 @@ async function deleteTeam(id,e){
 function renderTsw(){
   const box=document.getElementById('tsw-box');
   if(!teams.length){box.innerHTML=`<div style="padding:13px;text-align:center;color:var(--text2);font-size:13px">Aucune équipe</div>`;return;}
-  box.innerHTML=teams.map(t=>`<div class="topt ${CT?.id===t.id?'active':''}" onclick="switchTeam('${t.id}')">
-    <div class="tdot" style="background:${t.couleur}"></div>
-    <div style="font-size:13px;font-weight:500;flex:1">${t.nom}</div>
-    <div style="font-size:11px;color:var(--text2)">${t.categorie} · ${t.format}</div>
-  </div>`).join('');
+  box.innerHTML=teams.map(t=>{
+    const on=CT?.id===t.id;
+    const n=on?players.length:teamPlayerCounts[t.id];
+    const cnt=n===undefined?'':` · ${n} joueur${n>1?'s':''}`;
+    return `<div class="topt ${on?'active':''}" style="${on?`border-color:${t.couleur}`:''}" onclick="switchTeam('${t.id}')">
+    <div class="team-sq" style="background:${t.couleur}">${t.categorie||''}</div>
+    <div style="flex:1;min-width:0"><div class="topt-name">${t.nom}</div><div class="topt-sub">${t.categorie}${cnt}</div></div>
+    ${on?'<span class="topt-check">✓</span>':''}
+  </div>`;}).join('');
+}
+// Nombre de joueurs par équipe pour la feuille "Mes équipes". Requête séparée et
+// tolérante aux erreurs : elle ne doit jamais empêcher le chargement des équipes.
+let teamPlayerCounts={};
+async function loadTeamPlayerCounts(){
+  if(!teams.length)return;
+  try{
+    const{data,error}=await sb.from('players').select('team_id').in('team_id',teams.map(t=>t.id)).eq('actif',true);
+    if(error||!data)return;
+    teamPlayerCounts={};teams.forEach(t=>teamPlayerCounts[t.id]=0);
+    data.forEach(r=>{teamPlayerCounts[r.team_id]=(teamPlayerCounts[r.team_id]||0)+1;});
+    renderTsw();
+  }catch(e){}
 }
 function switchTeam(id){const t=teams.find(t=>t.id===id);if(t){selTeam(t);closeTsw();}}
-function openTsw(){renderTsw();document.getElementById('tsw').classList.add('open');}
+function openTsw(){renderTsw();loadTeamPlayerCounts();document.getElementById('tsw').classList.add('open');}
 function closeTsw(e){if(!e||e.target===document.getElementById('tsw'))document.getElementById('tsw').classList.remove('open');}
 function openTeamModal(){selColor_='#00d68f';document.getElementById('t-nom').value='';document.querySelectorAll('.copt').forEach(el=>el.classList.toggle('on',el.dataset.c===selColor_));openModal('modal-team');}
 function selColor(el){selColor_=el.dataset.c;document.querySelectorAll('.copt').forEach(o=>o.classList.remove('on'));el.classList.add('on');}

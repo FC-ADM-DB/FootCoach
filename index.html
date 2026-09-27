@@ -304,7 +304,15 @@
 
   <!-- TEAM SWITCHER -->
   <div class="tsw" id="tsw" onclick="closeTsw(event)">
-    <div class="tsw-box" id="tsw-box"></div>
+    <div class="tsw-sheet">
+      <div class="tsw-handle"></div>
+      <div class="tsw-title">Mes équipes</div>
+      <div class="tsw-box" id="tsw-box"></div>
+      <div class="tsw-foot">
+        <button class="tsw-add" onclick="closeTsw();openTeamModal()">+ Nouvelle équipe</button>
+        <button class="tsw-manage" onclick="closeTsw();goPage('teams')">Gérer</button>
+      </div>
+    </div>
   </div>
 
   <!-- MODAL TEAM -->
