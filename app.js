@@ -253,6 +253,7 @@ function setTeamModalMode(t){
   document.getElementById('t-fmt-note').style.display='none';
   document.querySelectorAll('.copt').forEach(el=>el.classList.toggle('on',el.dataset.c===selColor_));
   selLogo_=safeLogo(t);logoChanged=false;renderLogoPreview();
+  document.getElementById('t-public').checked=!!t?.scores_publics;
 }
 // Logo choisi dans la fenêtre équipe. logoChanged : on n'envoie la colonne "logo" à
 // Supabase que si l'utilisateur l'a modifiée (l'app marche même sans cette colonne).
@@ -298,7 +299,7 @@ async function editTeam(id,e){
 }
 function selColor(el){selColor_=el.dataset.c;document.querySelectorAll('.copt').forEach(o=>o.classList.remove('on'));el.classList.add('on');}
 // Colonne teams.logo absente (migration Supabase pas encore faite) : message explicite.
-function isMissingLogoCol(err){return !!err&&/logo/i.test((err.message||'')+(err.details||''))&&(err.code==='PGRST204'||err.code==='42703'||/column/i.test(err.message||''));}
+function isMissingLogoCol(err){return !!err&&/logo|scores_publics/i.test((err.message||'')+(err.details||''))&&(err.code==='PGRST204'||err.code==='42703'||/column/i.test(err.message||''));}
 async function saveTeam(){
   const nom=document.getElementById('t-nom').value.trim(),cat=document.getElementById('t-cat').value,fmt=document.getElementById('t-fmt').value;
   if(!nom)return showToast('Donne un nom','err');
@@ -306,10 +307,13 @@ async function saveTeam(){
     const upd={nom,categorie:cat,couleur:selColor_};
     if(!document.getElementById('t-fmt').disabled)upd.format=fmt;
     if(logoChanged)upd.logo=selLogo_;
+    // N'envoie scores_publics que s'il change (l'app marche sans la colonne).
+    const pub=document.getElementById('t-public').checked;
+    if(pub!==!!teams.find(t=>t.id===editTid)?.scores_publics)upd.scores_publics=pub;
     // .select() : avec les règles de sécurité Supabase, une modification refusée ne
     // renvoie pas d'erreur mais 0 ligne — on le détecte pour ne pas afficher "OK" à tort.
     const{data,error}=await sb.from('teams').update(upd).eq('id',editTid).select();
-    if(isMissingLogoCol(error))return showToast('Logo : la colonne "logo" manque dans Supabase (table teams)','err');
+    if(isMissingLogoCol(error))return showToast('Une colonne manque dans Supabase : exécute le dernier script SQL (dossier supabase/)','err');
     if(error||!data?.length)return showToast('Modification refusée par la base (droits Supabase)','err');
     closeModal('modal-team');showToast('Équipe modifiée !','ok');
     await loadTeams();renderNavTeam();
@@ -318,8 +322,9 @@ async function saveTeam(){
   const{data:sd}=await sb.from('seasons').select('id').order('debut',{ascending:false}).limit(1).single();
   const row={nom,categorie:cat,format:fmt,couleur:selColor_,saison_id:sd?.id};
   if(logoChanged&&selLogo_)row.logo=selLogo_;
+  if(document.getElementById('t-public').checked)row.scores_publics=true;
   const{data:t,error}=await sb.from('teams').insert(row).select().single();
-  if(isMissingLogoCol(error))return showToast('Logo : la colonne "logo" manque dans Supabase (table teams)','err');
+  if(isMissingLogoCol(error))return showToast('Une colonne manque dans Supabase : exécute le dernier script SQL (dossier supabase/)','err');
   if(error)return showToast('Erreur création','err');
   await sb.from('team_members').insert({team_id:t.id,profile_id:U.id,role:'admin'});
   closeModal('modal-team');showToast('Équipe créée !','ok');await loadTeams();selTeam(t);goPage('teams');

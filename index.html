@@ -314,6 +314,7 @@
       <div class="umenu-head"><div class="umenu-name js-user-name"></div><div class="umenu-role js-user-role"></div></div>
       <button class="umenu-item" onclick="closeUserMenu();toggleMode()"><span>⚽</span><span id="umenu-md">Mode Match Day</span></button>
       <button class="umenu-item" onclick="closeUserMenu();toggleKiosk()"><span>📺</span><span>Mode Kiosk</span></button>
+      <a class="umenu-item" href="scores.html" target="_blank" rel="noopener" onclick="closeUserMenu()" style="text-decoration:none"><span>🏆</span><span>Page publique des scores</span></a>
       <button class="umenu-item" id="umenu-admin" onclick="closeUserMenu();goAdmin()" style="display:none"><span>🛠</span><span>Membres &amp; accès</span></button>
       <button class="umenu-item umenu-out" onclick="closeUserMenu();signOut()"><span>⎋</span><span>Se déconnecter</span></button>
     </div>
@@ -362,6 +363,7 @@
           <button type="button" class="bsec logo-btn" id="t-logo-del" onclick="setTeamLogo(null)">Retirer</button>
         </div>
       </div>
+      <label class="tm-new-toggle"><input type="checkbox" id="t-public"> Scores publics : afficher les matchs de cette équipe sur la page des scores (sans connexion)</label>
       <div class="mfoot">
         <button class="bcan" onclick="closeModal('modal-team')">Annuler</button>
         <button class="bp" id="t-save" onclick="saveTeam()">Créer</button>
