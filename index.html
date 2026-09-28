@@ -481,7 +481,17 @@
       <div class="mh"></div>
       <div class="mt">Ajouter une personne</div>
       <div class="fg"><label class="fl">Email</label><input class="fi" id="tm-email" type="email" placeholder="membre@club.be"></div>
-      <div style="font-size:11px;color:var(--text2);margin:-6px 0 12px">La personne doit déjà avoir créé son compte FootCoach avec cet email.</div>
+      <label class="tm-new-toggle"><input type="checkbox" id="tm-new-on" onchange="toggleNewAccount()"> La personne n'a pas encore de compte : le créer</label>
+      <div id="tm-new" style="display:none">
+        <div class="frow">
+          <div class="fg"><label class="fl">Prénom</label><input class="fi" id="tm-prenom" type="text"></div>
+          <div class="fg"><label class="fl">Nom</label><input class="fi" id="tm-nom" type="text"></div>
+        </div>
+        <div class="fg"><label class="fl">Mot de passe</label>
+          <div style="display:flex;gap:8px"><input class="fi" id="tm-pwd" type="text" autocomplete="off" style="font-family:var(--mono)"><button type="button" class="bsec logo-btn" onclick="genTmPassword()">↻</button></div>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px">Compte actif tout de suite, sans email de vérification. Communique ce mot de passe à la personne (elle pourra le changer avec « Mot de passe oublié »).</div>
+        </div>
+      </div>
       <div class="fg"><label class="fl">Équipe</label><select class="sel" id="tm-team"></select></div>
       <div class="fg"><label class="fl">Rôle</label><select class="sel" id="tm-role"><option value="member">Membre</option><option value="admin">Admin</option></select></div>
       <div class="mfoot">

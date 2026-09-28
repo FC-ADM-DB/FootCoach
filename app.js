@@ -1724,13 +1724,45 @@ async function openTeamMemberModal(){
   const sel=document.getElementById('tm-team');
   sel.innerHTML=aTeams.map(t=>`<option value="${t.id}">${esc(t.nom)}</option>`).join('');
   if(CT&&aTeams.some(t=>t.id===CT.id))sel.value=CT.id;
+  document.getElementById('tm-new-on').checked=false;toggleNewAccount();
+  ['tm-prenom','tm-nom'].forEach(id=>document.getElementById(id).value='');
   openModal('modal-member');
+}
+function toggleNewAccount(){
+  const on=document.getElementById('tm-new-on').checked;
+  document.getElementById('tm-new').style.display=on?'block':'none';
+  if(on&&!document.getElementById('tm-pwd').value)genTmPassword();
+}
+// Mot de passe provisoire lisible (sans 0/O/1/l/I pour éviter les confusions à la dictée).
+function genTmPassword(){
+  const c='abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const a=new Uint32Array(10);crypto.getRandomValues(a);
+  document.getElementById('tm-pwd').value=[...a].map(n=>c[n%c.length]).join('');
+}
+// Création d'un compte confirmé via l'Edge Function "create-user" (clé secrète côté serveur).
+async function createMemberAccount(email,teamId,role){
+  const prenom=document.getElementById('tm-prenom').value.trim(),nom=document.getElementById('tm-nom').value.trim();
+  const password=document.getElementById('tm-pwd').value;
+  if(!prenom||!nom)return showToast('Prénom et nom requis','err');
+  if(password.length<8)return showToast('Mot de passe : 8 caractères minimum','err');
+  const {data,error}=await sb.functions.invoke('create-user',{body:{email,password,prenom,nom,team_id:teamId,role}});
+  if(error){
+    let msg='';
+    try{msg=(await error.context.json()).error;}catch(e){}
+    if(!msg&&/404|not found|Failed to send/i.test(error.message||''))msg='La fonction create-user n\'est pas encore installée dans Supabase';
+    return showToast(msg||'Création du compte impossible','err');
+  }
+  closeModal('modal-member');
+  await renderAdminPage();
+  // Fenêtre qui reste affichée (un toast disparaît avant qu'on ait noté le mot de passe).
+  await askConfirm(`✅ Compte créé pour ${data?.prenom||prenom}.\n\nEmail : ${email}\nMot de passe : ${password}\n\nNote-le et communique-le à la personne.`);
 }
 async function saveTeamMember(){
   const email=document.getElementById('tm-email').value.trim().toLowerCase();
   const role=document.getElementById('tm-role').value;
   const teamId=document.getElementById('tm-team').value;
   if(!email)return showToast('Email requis','err');
+  if(document.getElementById('tm-new-on').checked)return createMemberAccount(email,teamId,role);
   // find_profile_by_email : fonction Supabase réservée aux admins (les profils des autres
   // ne sont pas lisibles directement). Repli sur l'ancienne requête si elle n'existe pas.
   let profile=null;
@@ -1739,7 +1771,10 @@ async function saveTeamMember(){
     const {data}=await sb.from('profiles').select('id,prenom,nom,email').eq('email',email).maybeSingle();
     profile=data;
   } else profile=Array.isArray(r.data)?r.data[0]:r.data;
-  if(!profile)return showToast('Aucun compte avec cet email : la personne doit d\'abord créer son compte FootCoach','err');
+  if(!profile){
+    document.getElementById('tm-new-on').checked=true;toggleNewAccount();
+    return showToast('Aucun compte avec cet email : complète prénom, nom et mot de passe pour le créer','err');
+  }
   const {data,error}=await sb.from('team_members').upsert({team_id:teamId,profile_id:profile.id,role},{onConflict:'team_id,profile_id'}).select();
   if(error||!data?.length)return showToast('Impossible d\'ajouter (droits Supabase)','err');
   closeModal('modal-member');
