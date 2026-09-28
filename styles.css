@@ -449,9 +449,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 /* Lien "but détaillé (avec passeur)" jugé inutile : masqué (le bouton ⚽ But suffit). */
 .goal-detail-link{display:none!important}
 #btn-chrono-top{display:none}
+/* Repère de rotation (sorti de la zone banc) */
+.rotation-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 14px}
+.rotation-row #rotation-hint{font-size:11px;color:var(--text2)}
+.rotation-row label{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);cursor:pointer;flex-shrink:0;white-space:nowrap;min-height:32px}
+.rotation-row input{width:16px;height:16px;accent-color:var(--green)}
 @media (max-width:759px) and (orientation:portrait){
-  /* Zone banc fixée : pas besoin du repère de rotation ni de la case gardien */
-  #screen-app.live-active .live-body:not(.landscape) .bench-area>div:nth-child(2){display:none!important}
+  /* Banc fixé en bas : le repère de rotation (.rotation-row) s'affiche sous le terrain */
+  #screen-app.live-active .live-body:not(.landscape) .rotation-row{padding:10px 8px;border-top:1px solid var(--border)}
   /* Start/Pause remonté dans l'en-tête du match (à la place de Supprimer et du statut) */
   #screen-app.live-active #det-status,#screen-app.live-active #btn-chrono{display:none}
   #screen-app.live-active #btn-chrono-top{display:inline-flex;align-items:center;flex-shrink:0;min-height:36px;padding:0 14px;font-size:14px;border-radius:10px}
