@@ -326,6 +326,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .tl-wrap #tl-chart{overflow-x:auto;}
 .tl-wrap svg{width:100%;height:auto;display:block;}
 .tl-wrap text{font-family:'DM Sans',sans-serif;}
+.tl-filter{width:100%;min-height:44px;margin-bottom:12px}
+.tl-sub{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.tl-sub:last-child{border-bottom:none}
+.tl-sub-head{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.tl-sub-t{font-size:12px;font-weight:600;color:var(--green);font-family:var(--mono);min-width:40px}
+.tl-sub-line{padding:2px 0 2px 47px;font-weight:500}
 .tl-wrap .timeline-note{font-size:12px;color:var(--text2);margin-top:8px;}
 
 /* READONLY MATCH */

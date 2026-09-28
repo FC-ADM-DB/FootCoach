@@ -1281,8 +1281,10 @@ function quickGoal(playerId){
 }
 function renderGoals(){
   const el=document.getElementById('goals-list');
-  if(!goals.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:4px 0">Aucun but enregistré</div>';return;}
-  el.innerHTML=goals.map(g=>{const time=g.t!==undefined?fmt(g.t):g.min!==undefined?`${g.min}'`:'--';return `<div class="but-row">
+  const fp=tlPlayer();
+  const list=fp?goals.filter(g=>!g.adv&&(tlMatchesName(g.scorer,fp)||tlMatchesName(g.assist,fp))):goals;
+  if(!list.length){el.innerHTML=`<div style="font-size:12px;color:var(--text3);padding:4px 0">${fp?'Aucun but pour '+fp.prenom:'Aucun but enregistré'}</div>`;return;}
+  el.innerHTML=list.map(g=>{const time=g.t!==undefined?fmt(g.t):g.min!==undefined?`${g.min}'`:'--';return `<div class="but-row">
     <span class="but-min">${time}</span>
     <span>${g.adv?'🔴':'⚽'}</span>
     <div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div>
@@ -1458,8 +1460,22 @@ async function refreshActiveMatch(){
   }
 }
 
+// Filtre "un seul joueur" de la timeline (null = tous). Filtre le graphique, les buts
+// et les remplacements ; remis à "tous" si le joueur n'est pas dans le match affiché.
+let tlFilter=null;
+function setTlFilter(id){tlFilter=id||null;renderTimeline();renderGoals();}
+function tlPlayer(){return tlFilter?players.find(p=>p.id===tlFilter&&MP[p.id])||null:null;}
+function tlMatchesName(txt,p){return !!txt&&txt.includes(`${p.prenom} ${p.nom}`);}
 function renderTimeline(){
-  const present=players.filter(p=>MP[p.id]);
+  const allPresent=players.filter(p=>MP[p.id]);
+  if(tlFilter&&!tlPlayer())tlFilter=null;
+  const sel=document.getElementById('tl-filter');
+  if(sel){
+    sel.innerHTML=`<option value="">👥 Tous les joueurs</option>`+allPresent.map(p=>`<option value="${p.id}">${p.prenom} ${p.nom}</option>`).join('');
+    sel.value=tlFilter||'';
+  }
+  const fp=tlPlayer();
+  const present=fp?[fp]:allPresent;
   const hS=(halfDuration||HALF_MIN[CT?.format||'8v8'])*60;
   const W=Math.min(380,window.innerWidth-32);
   // Colonne des noms dimensionnée sur le prénom le plus long (au lieu d'un tronquage
@@ -1496,14 +1512,20 @@ function renderTimeline(){
   svg+=`</svg>`;
   document.getElementById('tl-chart').innerHTML=svg;
   const logEl=document.getElementById('sub-log');
-  if(!subLog.length){logEl.innerHTML='<div style="font-size:12px;color:var(--text3)">Aucun remplacement</div>';return;}
-  logEl.innerHTML=subLog.map(e=>`<div style="display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">
-    <span style="font-size:11px;font-weight:600;color:var(--green);font-family:var(--mono);min-width:28px">${fmt(e.t)}</span>
-    <span class="pill pb" style="font-size:10px">MT${e.half}</span>
-    ${e.poste!==undefined?`<span class="pill pgr" style="font-size:10px">#${e.poste}</span>`:''}
-    <span style="color:var(--red)">↑ ${e.out}</span>
-    <span style="color:var(--text3)">→</span>
-    <span style="color:var(--green)">↓ ${e.in}</span>
+  // Un changement = un bloc : en-tête (heure, MT, poste) puis une ligne par joueur
+  // (qui sort / qui entre), au lieu de tout sur une ligne qui s'entassait sur iPhone.
+  const log=fp?subLog.filter(e=>tlMatchesName(e.out,fp)||tlMatchesName(e.in,fp)||(e.type==='swap'&&(e.in||'').includes(fp.prenom))):subLog;
+  if(!log.length){logEl.innerHTML=`<div style="font-size:12px;color:var(--text3)">${fp?'Aucun changement pour '+fp.prenom:'Aucun remplacement'}</div>`;return;}
+  logEl.innerHTML=log.map(e=>`<div class="tl-sub">
+    <div class="tl-sub-head">
+      <span class="tl-sub-t">${fmt(e.t)}</span>
+      <span class="pill pb" style="font-size:10px">MT${e.half}</span>
+      ${e.poste!==undefined&&e.poste!==null?`<span class="pill pgr" style="font-size:10px">Poste ${e.poste}</span>`:''}
+    </div>
+    ${e.type==='swap'
+      ?`<div class="tl-sub-line" style="color:var(--blue)">⇄ ${(e.in||'').replace(/^Positions échangées\s*:?\s*/,'')||'Positions échangées'}</div>`
+      :`<div class="tl-sub-line" style="color:var(--red)">↑ Sort : ${e.out}</div>
+        <div class="tl-sub-line" style="color:var(--green)">↓ ${e.in==='banc'?'Aucun remplaçant (joueur mis sur le banc)':'Entre : '+e.in}</div>`}
   </div>`).join('');
 }
 

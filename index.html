@@ -222,6 +222,7 @@
         <!-- TIMELINE -->
         <div id="tab-tl" style="display:none" class="tl-wrap">
           <button class="tl-link" onclick="switchTab('res')">← Retour au bilan</button>
+          <select class="sel tl-filter" id="tl-filter" onchange="setTlFilter(this.value)"></select>
           <div id="tl-chart"></div>
           <div style="margin-top:12px;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px">Buts</div>
           <div id="goals-list"></div>
