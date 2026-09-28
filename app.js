@@ -1480,8 +1480,10 @@ function renderTimeline(){
   const W=Math.min(380,window.innerWidth-32);
   // Colonne des noms dimensionnée sur le prénom le plus long (au lieu d'un tronquage
   // fixe à 6 caractères qui coupait certains prénoms).
-  const maxNameLen=present.length?Math.max(...present.map(p=>p.prenom.length)):6;
-  const lW=Math.min(92,Math.max(40,20+maxNameLen*5.5));
+  // Prénom + initiale du nom (comme sur le terrain) : deux "Jules" étaient indiscernables.
+  const tlName=p=>`${p.prenom.slice(0,12)} ${(p.nom||'').charAt(0)}.`;
+  const maxNameLen=present.length?Math.max(...present.map(p=>tlName(p).length)):6;
+  const lW=Math.min(100,Math.max(40,20+maxNameLen*5.5));
   const rowH=26,padT=32,padB=18;
   // Colonne dédiée à droite pour les temps J/B, séparée du graphique — avant, ce texte
   // était dessiné par-dessus la fin des barres de la 2ème MT.
@@ -1499,7 +1501,7 @@ function renderTimeline(){
   [15,30].forEach(m=>[1,2].forEach(h=>{const x=xOf(m*60,h);svg+=`<line x1="${x}" y1="30" x2="${x}" y2="${svgH-padB}" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>`;svg+=`<text x="${x}" y="${svgH-2}" text-anchor="middle" font-size="8" fill="${tc}">${m}'</text>`;}));
   present.forEach((p,i)=>{
     const y=padT+i*rowH;const cy=y+rowH/2;const mp=MP[p.id];
-    svg+=`<text x="${lW-4}" y="${cy+4}" text-anchor="end" font-size="10" fill="${tc}" font-family="DM Sans,sans-serif">${p.prenom.slice(0,14)}</text>`;
+    svg+=`<text x="${lW-4}" y="${cy+4}" text-anchor="end" font-size="10" fill="${tc}" font-family="DM Sans,sans-serif">${tlName(p)}</text>`;
     // Fond = temps sur le banc par défaut ; les segments de jeu sont dessinés par-dessus,
     // donc tout ce qui reste visible en gris clair est bien du temps de banc, pas un trou.
     svg+=`<rect x="${lW}" y="${y+4}" width="${tW}" height="${rowH-8}" rx="3" fill="rgba(255,255,255,0.1)"/>`;
