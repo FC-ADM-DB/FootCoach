@@ -170,6 +170,7 @@ function renderTeamsList(){
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
         <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${t.couleur}22;color:${t.couleur}">${t.nom.slice(0,2).toUpperCase()}</div>
         <div style="flex:1"><div style="font-size:14px;font-weight:600">${t.nom}</div><div style="font-size:12px;color:var(--text2)">${t.categorie} · ${t.format}</div></div>
+        ${role==='admin'?`<button onclick="editTeam('${t.id}',event)" class="bsec" style="font-size:12px;padding:5px 9px">Modifier</button>`:''}
         <button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>
       </div>
       <div style="display:flex;gap:5px"><span class="pill pg">${t.categorie}</span><span class="pill pb">${t.format}</span><span class="pill pgr">${role}</span></div>
@@ -228,11 +229,50 @@ function switchTeam(id){
 }
 function openTsw(){renderTsw();loadTeamPlayerCounts();document.getElementById('tsw').classList.add('open');}
 function closeTsw(e){if(!e||e.target===document.getElementById('tsw'))document.getElementById('tsw').classList.remove('open');}
-function openTeamModal(){selColor_='#00d68f';document.getElementById('t-nom').value='';document.querySelectorAll('.copt').forEach(el=>el.classList.toggle('on',el.dataset.c===selColor_));openModal('modal-team');}
+// La même fenêtre sert à créer (editTid=null) et à modifier une équipe.
+let editTid=null;
+function setTeamModalMode(t){
+  editTid=t?t.id:null;
+  document.getElementById('mt-title').textContent=t?'Modifier l\'équipe':'Nouvelle équipe';
+  document.getElementById('t-save').textContent=t?'Enregistrer':'Créer';
+  selColor_=t?.couleur||'#00d68f';
+  document.getElementById('t-nom').value=t?.nom||'';
+  document.getElementById('t-cat').value=t?.categorie||'U10';
+  const f=document.getElementById('t-fmt');f.value=t?.format||'8v8';f.disabled=false;
+  document.getElementById('t-fmt-note').style.display='none';
+  document.querySelectorAll('.copt').forEach(el=>el.classList.toggle('on',el.dataset.c===selColor_));
+}
+function openTeamModal(){setTeamModalMode(null);openModal('modal-team');}
+async function editTeam(id,e){
+  if(e&&e.stopPropagation)e.stopPropagation();
+  const t=teams.find(t=>t.id===id);if(!t)return;
+  if(!t.team_members?.some(m=>m.profile_id===U.id&&m.role==='admin'))return showToast('Accès admin requis','err');
+  setTeamModalMode(t);openModal('modal-team');
+  // Format verrouillé dès qu'il existe des matchs : leurs postes enregistrés (1,2,3,6,9
+  // en 5v5 / 1,2,3,5,6,7,9,11 en 8v8) ne correspondraient plus au nouveau format.
+  const{count}=await sb.from('matches').select('id',{count:'exact',head:true}).eq('team_id',id);
+  if(editTid===id&&count>0){
+    document.getElementById('t-fmt').disabled=true;
+    const note=document.getElementById('t-fmt-note');
+    note.textContent=`Format verrouillé : l'équipe a déjà ${count} match${count>1?'s':''} (leurs postes dépendent du format).`;
+    note.style.display='block';
+  }
+}
 function selColor(el){selColor_=el.dataset.c;document.querySelectorAll('.copt').forEach(o=>o.classList.remove('on'));el.classList.add('on');}
 async function saveTeam(){
   const nom=document.getElementById('t-nom').value.trim(),cat=document.getElementById('t-cat').value,fmt=document.getElementById('t-fmt').value;
   if(!nom)return showToast('Donne un nom','err');
+  if(editTid){
+    const upd={nom,categorie:cat,couleur:selColor_};
+    if(!document.getElementById('t-fmt').disabled)upd.format=fmt;
+    // .select() : avec les règles de sécurité Supabase, une modification refusée ne
+    // renvoie pas d'erreur mais 0 ligne — on le détecte pour ne pas afficher "OK" à tort.
+    const{data,error}=await sb.from('teams').update(upd).eq('id',editTid).select();
+    if(error||!data?.length)return showToast('Modification refusée par la base (droits Supabase)','err');
+    closeModal('modal-team');showToast('Équipe modifiée !','ok');
+    await loadTeams();renderNavTeam();
+    return;
+  }
   const{data:sd}=await sb.from('seasons').select('id').order('debut',{ascending:false}).limit(1).single();
   const{data:t,error}=await sb.from('teams').insert({nom,categorie:cat,format:fmt,couleur:selColor_,saison_id:sd?.id}).select().single();
   if(error)return showToast('Erreur création','err');

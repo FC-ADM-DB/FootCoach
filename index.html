@@ -343,6 +343,7 @@
       </div>
       <div class="fg"><label class="fl">Format</label>
         <select class="sel" id="t-fmt"><option value="5v5">5v5 — U8/U9 (2×25 min)</option><option value="8v8" selected>8v8 — U10/U13 (2×30 min)</option></select>
+        <div id="t-fmt-note" style="display:none;font-size:11px;color:var(--amber);margin-top:6px"></div>
       </div>
       <div class="fg"><label class="fl">Couleur</label>
         <div class="crow" id="color-picker">
@@ -356,7 +357,7 @@
       </div>
       <div class="mfoot">
         <button class="bcan" onclick="closeModal('modal-team')">Annuler</button>
-        <button class="bp" onclick="saveTeam()">Créer</button>
+        <button class="bp" id="t-save" onclick="saveTeam()">Créer</button>
       </div>
     </div>
   </div>
