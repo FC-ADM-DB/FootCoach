@@ -214,7 +214,18 @@ async function loadTeamPlayerCounts(){
     renderTsw();
   }catch(e){}
 }
-function switchTeam(id){const t=teams.find(t=>t.id===id);if(t){selTeam(t);closeTsw();}}
+// Changer d'équipe ramène à l'accueil de la nouvelle équipe : sinon la page affichée
+// (ex. un match U10 ouvert) restait celle de l'ancienne équipe. Le match ouvert est
+// fermé comme avec "← Retour" (son état est déjà sauvegardé côté serveur).
+function switchTeam(id){
+  const t=teams.find(t=>t.id===id);if(!t)return;
+  const changed=CT?.id!==t.id;
+  selTeam(t);closeTsw();
+  if(!changed)return;
+  if(kioskMode)toggleKiosk();
+  if(CM)closeMatchDetail();
+  goPage('home');renderHome();
+}
 function openTsw(){renderTsw();loadTeamPlayerCounts();document.getElementById('tsw').classList.add('open');}
 function closeTsw(e){if(!e||e.target===document.getElementById('tsw'))document.getElementById('tsw').classList.remove('open');}
 function openTeamModal(){selColor_='#00d68f';document.getElementById('t-nom').value='';document.querySelectorAll('.copt').forEach(el=>el.classList.toggle('on',el.dataset.c===selColor_));openModal('modal-team');}
