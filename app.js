@@ -1682,6 +1682,7 @@ async function renderAdminPage(){
     const p=people[m.profile_id]||(people[m.profile_id]={id:m.profile_id,profile:m.profiles||{},roles:{}});
     p.roles[m.team_id]=m.role;
   });
+  accPeople=people;
   const list=Object.values(people).sort((a,b)=>(b.id===U.id)-(a.id===U.id)||`${a.profile.prenom||''}`.localeCompare(`${b.profile.prenom||''}`));
   const opts=[['none','Aucun'],['member','Membre'],['admin','Admin']];
   panel.innerHTML=`<div class="acc-help">Choisis pour chaque personne à quelles équipes elle a accès. <b>Membre</b> : voit et gère les matchs de l'équipe. <b>Admin</b> : peut aussi modifier l'équipe et ses accès.</div>`+
@@ -1690,7 +1691,8 @@ async function renderAdminPage(){
     const name=p.profile.prenom?`${p.profile.prenom} ${p.profile.nom||''}`:'Profil inconnu';
     return `<div class="acc-card">
       <div class="acc-head"><div class="avatar">${esc(((p.profile.prenom||'?')[0]+((p.profile.nom||'')[0]||'')).toUpperCase())}</div>
-        <div style="min-width:0"><div class="admin-name">${esc(name)}${me?' <span class="pill pgr" style="font-size:10px">Vous</span>':''}</div><div class="admin-role">${esc(p.profile.email||'—')}</div></div></div>
+        <div style="min-width:0;flex:1"><div class="admin-name">${esc(name)}${me?' <span class="pill pgr" style="font-size:10px">Vous</span>':''}</div><div class="admin-role">${esc(p.profile.email||'—')}</div></div>
+        ${me?'':`<button class="bsec acc-pwd" onclick="resetMemberPassword('${p.id}')">🔑 Mot de passe</button>`}</div>
       ${aTeams.map(t=>{
         const cur=p.roles[t.id]||'none';
         return `<div class="acc-row">
@@ -1700,6 +1702,24 @@ async function renderAdminPage(){
         </div>`;}).join('')}
     </div>`;
   }).join('');
+}
+let accPeople={};
+// Nouveau mot de passe fixé par un admin (Edge Function create-user, action reset_password).
+// Le serveur vérifie que l'appelant a le droit de le faire pour cette personne.
+async function resetMemberPassword(profileId){
+  const p=accPeople[profileId];if(!p)return;
+  const name=p.profile.prenom?`${p.profile.prenom} ${p.profile.nom||''}`.trim():'cette personne';
+  const c='abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const a=new Uint32Array(10);crypto.getRandomValues(a);
+  const password=[...a].map(n=>c[n%c.length]).join('');
+  if(!await askConfirm(`Réinitialiser le mot de passe de ${name} ?\n\nNouveau mot de passe : ${password}\n\nL'ancien ne fonctionnera plus.`))return;
+  const {error}=await sb.functions.invoke('create-user',{body:{action:'reset_password',profile_id:profileId,password}});
+  if(error){
+    let msg='';
+    try{msg=(await error.context.json()).error;}catch(e){}
+    return showToast(msg||'Réinitialisation impossible','err');
+  }
+  await askConfirm(`✅ Mot de passe de ${name} réinitialisé.\n\nEmail : ${p.profile.email||'—'}\nNouveau mot de passe : ${password}\n\nNote-le et communique-le à la personne.`);
 }
 async function setAccess(profileId,teamId,role){
   if(profileId===U.id)return;
