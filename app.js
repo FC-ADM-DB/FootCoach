@@ -118,9 +118,14 @@ async function loadProfile(){const{data}=await sb.from('profiles').select('*').e
 // Le bouton équipe et l'avatar existent en deux exemplaires (en-tête iPhone + barre
 // latérale iPad/PC) : on les remplit par classe .js-* pour ne pas dupliquer la logique.
 function fillAll(sel,fn){document.querySelectorAll(sel).forEach(fn);}
+// Logo d'équipe : image réduite stockée en data URL dans teams.logo. N'accepte que des
+// data URL d'image base64 (injectées dans du HTML, donc rien d'autre ne doit passer).
+function safeLogo(t){const l=t?.logo;return typeof l==='string'&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l)?l:null;}
+// Contenu du carré d'équipe : le logo s'il existe, sinon la catégorie sur la couleur.
+function teamSqInner(t){const l=safeLogo(t);return l?`<img class="team-logo" src="${l}" alt="">`:`<span class="js-team-cat">${t?.categorie||''}</span>`;}
+function teamSqBg(t){return safeLogo(t)?'transparent':(t?.couleur||'#00d68f');}
 function renderNavTeam(){
-  fillAll('.js-team-sq',el=>el.style.background=CT?.couleur||'#00d68f');
-  fillAll('.js-team-cat',el=>el.textContent=CT?.categorie||'');
+  fillAll('.js-team-sq',el=>{el.style.background=teamSqBg(CT);el.innerHTML=teamSqInner(CT);});
   fillAll('.js-team-name',el=>el.textContent=CT?.nom||'Choisir une équipe');
   fillAll('.js-team-sub',el=>el.textContent=CT?`${CT.categorie} · ${CT.format}`:'');
 }
@@ -168,7 +173,7 @@ function renderTeamsList(){
     const role=t.team_members?.find(m=>m.profile_id===U.id)?.role||'membre';
     return `<div class="card" onclick="switchTeam('${t.id}');goPage('home')">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-        <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${t.couleur}22;color:${t.couleur}">${t.nom.slice(0,2).toUpperCase()}</div>
+        <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${safeLogo(t)?'transparent':t.couleur+'22'};color:${t.couleur}">${safeLogo(t)?`<img class="team-logo" src="${safeLogo(t)}" alt="">`:t.nom.slice(0,2).toUpperCase()}</div>
         <div style="flex:1"><div style="font-size:14px;font-weight:600">${t.nom}</div><div style="font-size:12px;color:var(--text2)">${t.categorie} · ${t.format}</div></div>
         ${role==='admin'?`<button onclick="editTeam('${t.id}',event)" class="bsec" style="font-size:12px;padding:5px 9px">Modifier</button>`:''}
         <button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>
@@ -197,7 +202,7 @@ function renderTsw(){
     const n=on?players.length:teamPlayerCounts[t.id];
     const cnt=n===undefined?'':` · ${n} joueur${n>1?'s':''}`;
     return `<div class="topt ${on?'active':''}" style="${on?`border-color:${t.couleur}`:''}" onclick="switchTeam('${t.id}')">
-    <div class="team-sq" style="background:${t.couleur}">${t.categorie||''}</div>
+    <div class="team-sq" style="background:${teamSqBg(t)}">${teamSqInner(t)}</div>
     <div style="flex:1;min-width:0"><div class="topt-name">${t.nom}</div><div class="topt-sub">${t.categorie}${cnt}</div></div>
     ${on?'<span class="topt-check">✓</span>':''}
   </div>`;}).join('');
@@ -241,6 +246,33 @@ function setTeamModalMode(t){
   const f=document.getElementById('t-fmt');f.value=t?.format||'8v8';f.disabled=false;
   document.getElementById('t-fmt-note').style.display='none';
   document.querySelectorAll('.copt').forEach(el=>el.classList.toggle('on',el.dataset.c===selColor_));
+  selLogo_=safeLogo(t);logoChanged=false;renderLogoPreview();
+}
+// Logo choisi dans la fenêtre équipe. logoChanged : on n'envoie la colonne "logo" à
+// Supabase que si l'utilisateur l'a modifiée (l'app marche même sans cette colonne).
+let selLogo_=null,logoChanged=false;
+function renderLogoPreview(){
+  const p=document.getElementById('t-logo-prev');
+  p.innerHTML=selLogo_?`<img class="team-logo" src="${selLogo_}" alt="">`:'<span>Aucun</span>';
+  document.getElementById('t-logo-del').style.display=selLogo_?'inline-flex':'none';
+}
+function setTeamLogo(dataUrl){selLogo_=dataUrl;logoChanged=true;renderLogoPreview();}
+// Réduit l'image à 160px max (PNG, garde la transparence) : ~10-40 Ko au lieu de
+// plusieurs Mo, pour rester léger en base et à l'affichage.
+function pickTeamLogo(input){
+  const file=input.files&&input.files[0];input.value='';
+  if(!file)return;
+  if(!file.type.startsWith('image/'))return showToast('Choisis une image','err');
+  const url=URL.createObjectURL(file);const img=new Image();
+  img.onload=()=>{
+    const max=160,r=Math.min(1,max/Math.max(img.width,img.height));
+    const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*r));c.height=Math.max(1,Math.round(img.height*r));
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    URL.revokeObjectURL(url);
+    setTeamLogo(c.toDataURL('image/png'));
+  };
+  img.onerror=()=>{URL.revokeObjectURL(url);showToast('Image illisible','err');};
+  img.src=url;
 }
 function openTeamModal(){setTeamModalMode(null);openModal('modal-team');}
 async function editTeam(id,e){
@@ -259,22 +291,29 @@ async function editTeam(id,e){
   }
 }
 function selColor(el){selColor_=el.dataset.c;document.querySelectorAll('.copt').forEach(o=>o.classList.remove('on'));el.classList.add('on');}
+// Colonne teams.logo absente (migration Supabase pas encore faite) : message explicite.
+function isMissingLogoCol(err){return !!err&&/logo/i.test((err.message||'')+(err.details||''))&&(err.code==='PGRST204'||err.code==='42703'||/column/i.test(err.message||''));}
 async function saveTeam(){
   const nom=document.getElementById('t-nom').value.trim(),cat=document.getElementById('t-cat').value,fmt=document.getElementById('t-fmt').value;
   if(!nom)return showToast('Donne un nom','err');
   if(editTid){
     const upd={nom,categorie:cat,couleur:selColor_};
     if(!document.getElementById('t-fmt').disabled)upd.format=fmt;
+    if(logoChanged)upd.logo=selLogo_;
     // .select() : avec les règles de sécurité Supabase, une modification refusée ne
     // renvoie pas d'erreur mais 0 ligne — on le détecte pour ne pas afficher "OK" à tort.
     const{data,error}=await sb.from('teams').update(upd).eq('id',editTid).select();
+    if(isMissingLogoCol(error))return showToast('Logo : la colonne "logo" manque dans Supabase (table teams)','err');
     if(error||!data?.length)return showToast('Modification refusée par la base (droits Supabase)','err');
     closeModal('modal-team');showToast('Équipe modifiée !','ok');
     await loadTeams();renderNavTeam();
     return;
   }
   const{data:sd}=await sb.from('seasons').select('id').order('debut',{ascending:false}).limit(1).single();
-  const{data:t,error}=await sb.from('teams').insert({nom,categorie:cat,format:fmt,couleur:selColor_,saison_id:sd?.id}).select().single();
+  const row={nom,categorie:cat,format:fmt,couleur:selColor_,saison_id:sd?.id};
+  if(logoChanged&&selLogo_)row.logo=selLogo_;
+  const{data:t,error}=await sb.from('teams').insert(row).select().single();
+  if(isMissingLogoCol(error))return showToast('Logo : la colonne "logo" manque dans Supabase (table teams)','err');
   if(error)return showToast('Erreur création','err');
   await sb.from('team_members').insert({team_id:t.id,profile_id:U.id,role:'admin'});
   closeModal('modal-team');showToast('Équipe créée !','ok');await loadTeams();selTeam(t);goPage('teams');

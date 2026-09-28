@@ -326,6 +326,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .tl-wrap #tl-chart{overflow-x:auto;}
 .tl-wrap svg{width:100%;height:auto;display:block;}
 .tl-wrap text{font-family:'DM Sans',sans-serif;}
+/* Logo d'équipe (remplace le carré coloré quand il existe) */
+.team-logo{width:100%;height:100%;object-fit:contain;display:block}
+.logo-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.logo-prev{width:56px;height:56px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3);padding:4px;flex-shrink:0}
+.logo-btn{display:inline-flex;align-items:center;min-height:40px;padding:0 12px;cursor:pointer;font-size:13px}
 .tl-filter{width:100%;min-height:44px;margin-bottom:12px}
 .tl-sub{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
 .tl-sub:last-child{border-bottom:none}

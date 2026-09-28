@@ -355,6 +355,13 @@
           <div class="copt" style="background:#fb923c" data-c="#fb923c" onclick="selColor(this)"></div>
         </div>
       </div>
+      <div class="fg"><label class="fl">Logo (facultatif)</label>
+        <div class="logo-row">
+          <div class="logo-prev" id="t-logo-prev"></div>
+          <label class="bsec logo-btn">Choisir une image<input type="file" accept="image/*" id="t-logo-file" onchange="pickTeamLogo(this)" hidden></label>
+          <button type="button" class="bsec logo-btn" id="t-logo-del" onclick="setTeamLogo(null)">Retirer</button>
+        </div>
+      </div>
       <div class="mfoot">
         <button class="bcan" onclick="closeModal('modal-team')">Annuler</button>
         <button class="bp" id="t-save" onclick="saveTeam()">Créer</button>
