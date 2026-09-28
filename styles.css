@@ -104,6 +104,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .admin-role{font-size:11px;color:var(--text2);margin-top:4px}
 .admin-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap}
 .admin-actions button{font-size:11px;padding:6px 9px}
+/* Membres & accès : une fiche par personne, un choix Aucun/Membre/Admin par équipe */
+.acc-help{font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.45}
+.acc-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:10px}
+.acc-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.acc-head .avatar{cursor:default}
+.acc-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)}
+.acc-sq{width:30px;height:30px;border-radius:8px;font-size:10px}
+.acc-team{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-seg{display:flex;background:var(--bg3);border-radius:10px;padding:3px;gap:2px;flex-shrink:0}
+.acc-seg button{min-height:34px;padding:0 10px;border:none;background:none;border-radius:8px;font-family:var(--font);font-size:12px;font-weight:600;color:var(--text3);cursor:pointer}
+.acc-seg button.on{background:var(--bg2);color:var(--text)}
+.acc-seg button.on-member{color:var(--blue)}
+.acc-seg button.on-admin{color:var(--green)}
+.acc-seg button:disabled{cursor:default;opacity:.7}
 .pill{font-size:10px;font-weight:600;padding:3px 8px;border-radius:99px}
 .pg{background:var(--green-bg);color:var(--green)}
 .pa{background:var(--amber-bg);color:var(--amber)}

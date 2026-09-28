@@ -254,7 +254,7 @@
   <!-- ADMIN -->
   <div class="page" id="page-admin">
     <div class="pc">
-      <div class="sh"><span class="st">Administration</span><button class="badd" onclick="openTeamMemberModal()">+ Membre</button></div>
+      <div class="sh"><span class="st">Membres &amp; accès</span><button class="badd" onclick="openTeamMemberModal()">+ Personne</button></div>
       <div id="admin-team-members"><div class="spin"></div></div>
     </div>
   </div>
@@ -479,12 +479,14 @@
   <div class="mo" id="modal-member">
     <div class="modal">
       <div class="mh"></div>
-      <div class="mt">Inviter un membre</div>
+      <div class="mt">Ajouter une personne</div>
       <div class="fg"><label class="fl">Email</label><input class="fi" id="tm-email" type="email" placeholder="membre@club.be"></div>
+      <div style="font-size:11px;color:var(--text2);margin:-6px 0 12px">La personne doit déjà avoir créé son compte FootCoach avec cet email.</div>
+      <div class="fg"><label class="fl">Équipe</label><select class="sel" id="tm-team"></select></div>
       <div class="fg"><label class="fl">Rôle</label><select class="sel" id="tm-role"><option value="member">Membre</option><option value="admin">Admin</option></select></div>
       <div class="mfoot">
         <button class="bcan" onclick="closeModal('modal-member')">Annuler</button>
-        <button class="bp" onclick="saveTeamMember()">Inviter</button>
+        <button class="bp" onclick="saveTeamMember()">Ajouter</button>
       </div>
     </div>
   </div>

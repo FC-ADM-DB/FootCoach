@@ -136,7 +136,7 @@ function renderNavUser(){
   fillAll('.js-user-name',el=>el.textContent=name);
   fillAll('.js-user-role',el=>el.textContent=CT?(isAdmin?'Admin':'Membre'):'');
   const adm=document.getElementById('umenu-admin');
-  if(adm)adm.style.display=isAdmin?'flex':'none';
+  if(adm)adm.style.display=(isAdmin||(U&&myAdminTeams().length))?'flex':'none';
 }
 function openUserMenu(){
   const md=document.getElementById('umenu-md');
@@ -1658,43 +1658,77 @@ async function updateStats(){
   document.getElementById('sm').textContent=matches.length;
   document.getElementById('sv').textContent=matches.filter(m=>m.score_nous!==null&&m.score_nous>m.score_eux).length;
 }
+// ============ MEMBRES & ACCÈS ============
+// Une fiche par personne, avec pour chaque équipe dont JE suis admin : Aucun / Membre / Admin.
+// Ses propres accès ne sont pas modifiables ici (évite de se retirer ses droits par erreur).
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function myAdminTeams(){return teams.filter(t=>t.team_members?.some(m=>m.profile_id===U.id&&m.role==='admin'));}
 async function renderAdminPage(){
   const panel=document.getElementById('admin-team-members');
-  if(!CT){panel.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Sélectionne d'abord une équipe</div></div>`;return;}
-  if(!isAdmin){panel.innerHTML=`<div class="empty"><div class="empty-i">🔒</div><div class="empty-t">Accès administration réservé aux admins</div></div>`;return;}
-  const {data,error}=await sb.from('team_members').select('id,role,profile_id,profiles(id,prenom,nom,email)').eq('team_id',CT.id);
+  const aTeams=myAdminTeams();
+  if(!aTeams.length){panel.innerHTML=`<div class="empty"><div class="empty-i">🔒</div><div class="empty-t">Accès administration réservé aux admins</div><div class="empty-s">Tu n'es admin d'aucune équipe</div></div>`;return;}
+  const {data,error}=await sb.from('team_members').select('id,team_id,role,profile_id,profiles(id,prenom,nom,email)').in('team_id',aTeams.map(t=>t.id));
   if(error){panel.innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Impossible de charger les membres</div></div>`;return;}
-  if(!data.length){panel.innerHTML=`<div class="empty"><div class="empty-i">👥</div><div class="empty-t">Aucun membre</div><div class="empty-s">Ajoute un membre pour commencer</div></div>`;return;}
-  panel.innerHTML=data.map(m=>{
-    const profile=m.profiles||{};
-    const name=profile.prenom?`${profile.prenom} ${profile.nom}`:'Profil inconnu';
-    const email=profile.email||'—';
-    return `<div class="admin-row">
-      <div class="admin-info"><div class="admin-name">${name}</div><div class="admin-role">${email} · ${m.role==='admin'?'Admin':'Membre'}</div></div>
-      <div class="admin-actions">
-        ${m.role==='admin'?`<button class="bsec" onclick="changeMemberRole('${m.id}','member')">Rendre membre</button>`:`<button class="bsec" onclick="changeMemberRole('${m.id}','admin')">Promouvoir</button>`}
-        <button class="bred" onclick="removeTeamMember('${m.id}')">Retirer</button>
-      </div>
+  const people={};
+  data.forEach(m=>{
+    const p=people[m.profile_id]||(people[m.profile_id]={id:m.profile_id,profile:m.profiles||{},roles:{}});
+    p.roles[m.team_id]=m.role;
+  });
+  const list=Object.values(people).sort((a,b)=>(b.id===U.id)-(a.id===U.id)||`${a.profile.prenom||''}`.localeCompare(`${b.profile.prenom||''}`));
+  const opts=[['none','Aucun'],['member','Membre'],['admin','Admin']];
+  panel.innerHTML=`<div class="acc-help">Choisis pour chaque personne à quelles équipes elle a accès. <b>Membre</b> : voit et gère les matchs de l'équipe. <b>Admin</b> : peut aussi modifier l'équipe et ses accès.</div>`+
+  list.map(p=>{
+    const me=p.id===U.id;
+    const name=p.profile.prenom?`${p.profile.prenom} ${p.profile.nom||''}`:'Profil inconnu';
+    return `<div class="acc-card">
+      <div class="acc-head"><div class="avatar">${esc(((p.profile.prenom||'?')[0]+((p.profile.nom||'')[0]||'')).toUpperCase())}</div>
+        <div style="min-width:0"><div class="admin-name">${esc(name)}${me?' <span class="pill pgr" style="font-size:10px">Vous</span>':''}</div><div class="admin-role">${esc(p.profile.email||'—')}</div></div></div>
+      ${aTeams.map(t=>{
+        const cur=p.roles[t.id]||'none';
+        return `<div class="acc-row">
+          <div class="team-sq acc-sq" style="background:${teamSqBg(t)}">${teamSqInner(t)}</div>
+          <div class="acc-team">${esc(t.nom)}</div>
+          <div class="acc-seg">${opts.map(([v,l])=>`<button class="${cur===v?'on on-'+v:''}" ${me?'disabled':''} onclick="setAccess('${p.id}','${t.id}','${v}')">${l}</button>`).join('')}</div>
+        </div>`;}).join('')}
     </div>`;
   }).join('');
 }
+async function setAccess(profileId,teamId,role){
+  if(profileId===U.id)return;
+  const t=teams.find(t=>t.id===teamId);
+  let res;
+  if(role==='none'){
+    if(!await askConfirm(`Retirer l'accès à l'équipe « ${t?.nom||''} » ?`))return;
+    res=await sb.from('team_members').delete().eq('team_id',teamId).eq('profile_id',profileId).select();
+  } else {
+    res=await sb.from('team_members').upsert({team_id:teamId,profile_id:profileId,role},{onConflict:'team_id,profile_id'}).select();
+  }
+  // Refus des règles Supabase = pas d'erreur mais 0 ligne touchée : on le signale.
+  if(res.error||!res.data?.length)showToast('Modification refusée par la base (droits Supabase)','err');
+  else showToast('Accès mis à jour','ok');
+  await renderAdminPage();
+}
 async function openTeamMemberModal(){
-  if(!CT)return showToast('Sélectionne une équipe','err');
-  if(!isAdmin)return showToast('Accès admin requis','err');
+  const aTeams=myAdminTeams();
+  if(!aTeams.length)return showToast('Accès admin requis','err');
   document.getElementById('tm-email').value='';
   document.getElementById('tm-role').value='member';
+  const sel=document.getElementById('tm-team');
+  sel.innerHTML=aTeams.map(t=>`<option value="${t.id}">${esc(t.nom)}</option>`).join('');
+  if(CT&&aTeams.some(t=>t.id===CT.id))sel.value=CT.id;
   openModal('modal-member');
 }
 async function saveTeamMember(){
   const email=document.getElementById('tm-email').value.trim().toLowerCase();
   const role=document.getElementById('tm-role').value;
+  const teamId=document.getElementById('tm-team').value;
   if(!email)return showToast('Email requis','err');
-  const {data:profile,error:pErr}=await sb.from('profiles').select('id,prenom,nom,email').eq('email',email).single();
-  if(pErr||!profile)return showToast('Profil introuvable','err');
-  const {error}=await sb.from('team_members').upsert({team_id:CT.id,profile_id:profile.id,role},{onConflict:'team_id,profile_id'});
-  if(error)return showToast('Impossible d\'inviter','err');
+  const {data:profile,error:pErr}=await sb.from('profiles').select('id,prenom,nom,email').eq('email',email).maybeSingle();
+  if(pErr||!profile)return showToast('Aucun compte avec cet email : la personne doit d\'abord créer son compte FootCoach','err');
+  const {data,error}=await sb.from('team_members').upsert({team_id:teamId,profile_id:profile.id,role},{onConflict:'team_id,profile_id'}).select();
+  if(error||!data?.length)return showToast('Impossible d\'ajouter (droits Supabase)','err');
   closeModal('modal-member');
-  showToast('Membre invité','ok');
+  showToast(`${profile.prenom||'Membre'} ajouté(e)`,'ok');
   await renderAdminPage();
 }
 async function changeMemberRole(memberId,newRole){
