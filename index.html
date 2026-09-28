@@ -131,6 +131,9 @@
         </div>
         <button id="match-delete-btn" onclick="deleteMatch(CM.id)" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:6px 10px;font-family:var(--font);font-size:12px;cursor:pointer">🗑 Supprimer</button>
         <span class="pill" id="det-status"></span>
+        <!-- Copie du bouton Start/Pause du chrono, affichée seulement en Live sur iPhone portrait
+             (le vrai #btn-chrono est alors masqué ; texte et couleur recopiés par app.js) -->
+        <button id="btn-chrono-top" class="qbtn qbtn-chrono" onclick="toggleChrono()">▶ Start</button>
       </div>
       <div class="det-steps" style="padding:9px 13px 0;flex-shrink:0">
         <div class="mtabs" id="match-tabs">

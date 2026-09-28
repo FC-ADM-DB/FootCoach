@@ -616,6 +616,18 @@ function renderMatchSteps(tab){
     el.classList.toggle('done',i!==cur&&(i<cur||i<reached));
   });
 }
+// Le bouton Start de l'en-tête (iPhone) recopie le vrai #btn-chrono : toggleChrono() et
+// l'ouverture d'un match ne modifient que ce dernier (texte ▶ Start / ⏸ Pause et couleur).
+function syncTopChronoBtn(){
+  const src=document.getElementById('btn-chrono'),dst=document.getElementById('btn-chrono-top');
+  if(!src||!dst)return;
+  dst.textContent=src.textContent;dst.style.background=src.style.background;dst.disabled=src.disabled;
+}
+(function(){
+  const src=document.getElementById('btn-chrono');
+  if(src&&window.MutationObserver)new MutationObserver(syncTopChronoBtn).observe(src,{childList:true,characterData:true,subtree:true,attributes:true,attributeFilter:['style','disabled']});
+  syncTopChronoBtn();
+})();
 function setLiveActive(on){
   document.getElementById('screen-app').classList.toggle('live-active',!!on);
   if(on)watchOrientation(); else stopWatchOrientation();
