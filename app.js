@@ -1047,8 +1047,10 @@ function renderField(){
     bubble.className='player-bubble bench'+(isSel?' selected':'');
     bubble.style.cssText=`position:relative;transform:none`;
     bubble.dataset.playerId=p.id;bubble.dataset.type='bench';
-    bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} fois sur le banc">${subCount}</div>`:''}${isStarter?`<div class="bb-starter" title="Titulaire">★</div>`:''}<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</span><span style=\"font-size:10px;color:var(--text2)\">#${p.numero_poste||'?'}</span></div>
-      <span class="bench-time">Banc depuis ${fmt(stintSecs(p.id))} · Jeu ${fmt(liveSecs(p.id))}</span>`;
+    // Même bulle que sur le terrain (nom, puis "Banc" à la place de "Depuis", puis Jeu).
+    bubble.innerHTML=`${subCount?`<div class="bb-subcount" title="${subCount} fois sur le banc">${subCount}</div>`:''}${isStarter?`<div class="bb-starter" title="Titulaire">★</div>`:''}
+      <div style="font-size:13px;font-weight:600">${p.prenom} ${p.nom.charAt(0)}.</div>
+      <div class="bb-timers"><span class="bb-since bb-bench">Banc ${fmt(stintSecs(p.id))}</span><span class="bb-total">Jeu ${fmt(liveSecs(p.id))}</span></div>`;
     bubble.addEventListener('click',()=>onBenchTap(p.id));
     benchArea.appendChild(bubble);
   });
