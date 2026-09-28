@@ -22,10 +22,15 @@ Deno.serve(async (req) => {
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     // 1. Qui appelle ? (avec le jeton de l'utilisateur connecté)
+    // getUser() doit recevoir le jeton explicitement : côté serveur il n'y a pas de
+    // session enregistrée, et sans argument il répondait toujours « pas connecté ».
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.replace(/^Bearer\s+/i, "");
     const caller = createClient(url, anon, {
-      global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: { user } } = await caller.auth.getUser();
+    const { data: { user } } = await caller.auth.getUser(token);
     if (!user) return json({ error: "Non connecté" }, 401);
 
     const body = await req.json();
