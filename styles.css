@@ -454,6 +454,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   /* Start/Pause remonté dans l'en-tête du match (à la place de Supprimer et du statut) */
   #screen-app.live-active #det-status,#screen-app.live-active #btn-chrono{display:none}
   #screen-app.live-active #btn-chrono-top{display:inline-flex;align-items:center;flex-shrink:0;min-height:36px;padding:0 14px;font-size:14px;border-radius:10px}
-  /* Sur le banc, on affiche aussi le temps de jeu total (masqué pour les bulles terrain < 420px) */
-  #screen-app.live-active .player-bubble.bench .bb-total{display:block}
+  /* Temps de jeu total affiché sur toutes les bulles (terrain et banc), masqué avant par la règle < 420px */
+  #screen-app.live-active .player-bubble .bb-total{display:block}
 }
