@@ -421,3 +421,26 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   #screen-app.live-active .side-user{width:auto;justify-content:center;padding:12px 0 0}
   #screen-app.live-active .umenu{left:10px}
 }
+
+/* ============ LIVE iPhone portrait : banc toujours visible + en-tête compact ============
+   Le terrain prenait toute la hauteur de l'écran et le banc passait sous le pli (il fallait
+   défiler pour faire un remplacement). En portrait téléphone pendant le Live :
+   - le banc est fixé en bas de l'écran (une ligne, défilement horizontal),
+   - l'en-tête du match tient sur une ligne (date et Supprimer masqués),
+   - le terrain est dimensionné sur la hauteur restante. */
+:root{--bench-h:124px}
+@media (max-width:759px) and (orientation:portrait){
+  #screen-app.live-active .det-hdr{padding:calc(var(--st) + 6px) 10px 6px}
+  #screen-app.live-active #det-sub,#screen-app.live-active #match-delete-btn{display:none!important}
+  #screen-app.live-active .det-steps{padding:4px 12px 0}
+  #screen-app.live-active .mtab{min-height:36px;gap:5px;padding:4px 0 2px;font-size:11px}
+
+  #screen-app.live-active .live-body:not(.landscape){padding-bottom:calc(var(--bench-h) + var(--sb))}
+  #screen-app.live-active .live-body:not(.landscape) .terrain-wrap{width:auto;max-width:100%;height:clamp(400px,calc(100dvh - var(--st) - var(--sb) - var(--bench-h) - 190px),calc(min(90vw,380px) * 1.4))}
+  #screen-app.live-active .live-body:not(.landscape) .live-hint{display:none}
+  #screen-app.live-active .live-body:not(.landscape) .bench-area{position:fixed;left:0;right:0;bottom:0;z-index:30;height:calc(var(--bench-h) + var(--sb));padding:7px 10px calc(var(--sb) + 8px);background:var(--bg2);border-top:1px solid var(--border2);box-shadow:0 -8px 24px rgba(0,0,0,.35);overflow:hidden}
+  #screen-app.live-active .live-body:not(.landscape) .bench-title{margin-bottom:2px}
+  #screen-app.live-active .live-body:not(.landscape) .bench-row{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:8px;padding:8px 2px 6px;-webkit-overflow-scrolling:touch}
+  #screen-app.live-active .live-body:not(.landscape) .bench-row>*{flex:0 0 auto}
+  #screen-app.live-active .live-body:not(.landscape) .live-sidebar{max-height:none;overflow:visible}
+}

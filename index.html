@@ -123,7 +123,7 @@
       </div>
     </div>
     <div id="match-detail-view" style="display:none;height:100%;flex-direction:column;overflow:hidden">
-      <div style="padding:9px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;flex-shrink:0">
+      <div class="det-hdr" style="padding:9px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;flex-shrink:0">
         <button onclick="closeMatchDetail()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--rsm);padding:5px 10px;color:var(--text2);font-family:var(--font);font-size:12px;cursor:pointer">← Retour</button>
         <div style="flex:1;min-width:0">
           <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="det-title">Match</div>
@@ -132,7 +132,7 @@
         <button id="match-delete-btn" onclick="deleteMatch(CM.id)" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:6px 10px;font-family:var(--font);font-size:12px;cursor:pointer">🗑 Supprimer</button>
         <span class="pill" id="det-status"></span>
       </div>
-      <div style="padding:9px 13px 0;flex-shrink:0">
+      <div class="det-steps" style="padding:9px 13px 0;flex-shrink:0">
         <div class="mtabs" id="match-tabs">
           <button class="mtab active" data-step="conv" onclick="switchTab('conv')"><span class="mstep-bar"></span><span class="mstep-lbl">1 · Convocation</span></button>
           <button class="mtab" data-step="live" onclick="switchTab('live')"><span class="mstep-bar"></span><span class="mstep-lbl">2 · Live</span></button>
