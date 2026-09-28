@@ -851,7 +851,7 @@ async function resetTimers(){
   chronoS=0;halfN=1;subLog=[];goals=[];matchStarted=false;
   Object.keys(MP).forEach(id=>{
     const mp=MP[id];
-    mp.playSeconds=0;mp.segments=[];mp.benchSeconds=0;
+    mp.playSeconds=0;mp.segments=[];mp.benchSeconds=0;mp.stintCarry=0;
     mp.enteredAt=mp.onField?0:null;
     mp.benchSince=mp.onField?null:0;
   });
@@ -869,6 +869,7 @@ function freezeTimes(){
   Object.keys(MP).forEach(id=>{
     const mp=MP[id];
     if(mp.enteredAt!==null&&mp.onField){mp.segments.push({from:mp.enteredAt,to:chronoS,half:halfN,poste:currentPosteOf(id)});mp.playSeconds+=chronoS-mp.enteredAt;mp.enteredAt=null;}
+    mp.stintCarry=0;
     if(mp && !mp.onField && mp.benchSince!==null){mp.benchSeconds=(mp.benchSeconds||0)+(chronoS-mp.benchSince);mp.benchSince=null}
   });
 }
@@ -887,7 +888,10 @@ function switchHalf(){
 function liveSecs(id){const mp=MP[id];if(!mp)return 0;return Math.max(0,mp.playSeconds+(mp.enteredAt!==null?chronoS-mp.enteredAt:0));}
 function getBenchSeconds(id){const mp=MP[id];if(!mp)return 0;let secs=(mp.benchSeconds||0);if(mp.benchSince!==null&&mp.benchSince!==undefined)secs+=chronoS-mp.benchSince;return Math.max(0,secs);}
 // "Depuis" : durée du passage en cours (remise à zéro à chaque changement terrain/banc), distinct du total ci-dessus.
-function stintSecs(id){const mp=MP[id];if(!mp)return 0;if(mp.onField)return mp.enteredAt!==null?Math.max(0,chronoS-mp.enteredAt):0;return mp.benchSince!==null&&mp.benchSince!==undefined?Math.max(0,chronoS-mp.benchSince):0;}
+// stintCarry = temps déjà passé sur le terrain dans ce passage AVANT un changement de
+// poste (swapPostes rouvre un segment, donc enteredAt repart de chronoS) : sans lui,
+// "Depuis" retombait à 0 dès qu'on changeait un joueur de place sur le terrain.
+function stintSecs(id){const mp=MP[id];if(!mp)return 0;if(mp.onField)return mp.enteredAt!==null?Math.max(0,(mp.stintCarry||0)+chronoS-mp.enteredAt):(mp.stintCarry||0);return mp.benchSince!==null&&mp.benchSince!==undefined?Math.max(0,chronoS-mp.benchSince):0;}
 // Temps de jeu cumulé par poste occupé (segments passés + le passage en cours), trié
 // du plus joué au moins joué. Les segments d'avant l'ajout du suivi par poste n'ont
 // pas de champ "poste" et sont ignorés plutôt que faussement regroupés.
@@ -1110,9 +1114,9 @@ function assignBenchToPoste(playerId,poste){
   if(outId){
     const mpOut=MP[outId];
     if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN,poste});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
-    if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS;}
+    if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS;mpOut.stintCarry=0;}
   }
-  mpIn.onField=true;
+  mpIn.onField=true;mpIn.stintCarry=0;
   if(mpIn.benchSince!==null&&mpIn.benchSince!==undefined){mpIn.benchSeconds=(mpIn.benchSeconds||0)+(chronoS-mpIn.benchSince);mpIn.benchSince=null;}
   mpIn.enteredAt=chronoS;
   assignment[poste]=playerId;
@@ -1135,11 +1139,13 @@ function swapPostes(posteA,posteB){
     if(idA&&MP[idA]&&MP[idA].enteredAt!==null){
       const mp=MP[idA];
       mp.segments.push({from:mp.enteredAt,to:chronoS,half:halfN,poste:posteA});
+      mp.stintCarry=(mp.stintCarry||0)+chronoS-mp.enteredAt;
       mp.playSeconds+=chronoS-mp.enteredAt;mp.enteredAt=chronoS;
     }
     if(idB&&MP[idB]&&MP[idB].enteredAt!==null){
       const mp=MP[idB];
       mp.segments.push({from:mp.enteredAt,to:chronoS,half:halfN,poste:posteB});
+      mp.stintCarry=(mp.stintCarry||0)+chronoS-mp.enteredAt;
       mp.playSeconds+=chronoS-mp.enteredAt;mp.enteredAt=chronoS;
     }
   }
@@ -1159,7 +1165,7 @@ function benchPlayerFromField(poste,e){
   snapshotForUndo();
   const mpOut=MP[outId];
   if(mpOut&&mpOut.enteredAt!==null){mpOut.segments.push({from:mpOut.enteredAt,to:chronoS,half:halfN,poste});mpOut.playSeconds+=chronoS-mpOut.enteredAt;mpOut.enteredAt=null;}
-  if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS;}
+  if(mpOut){mpOut.onField=false;mpOut.benchSince=chronoS;mpOut.stintCarry=0;}
   assignment[poste]=null;selected=null;
   if(matchStarted){
     const pOut=players.find(p=>p.id===outId);
