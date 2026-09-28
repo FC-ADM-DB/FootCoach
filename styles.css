@@ -246,7 +246,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 #screen-app.live-active .app-hdr,#screen-app.live-active .md-banner{display:none}
 /* Nav v2 — Live = focus : la classe live-active (posée par setLiveActive) masque aussi
    la barre du bas sur iPhone ; sur iPad/PC la barre latérale se réduit (voir ≥900px). */
-@media (max-width:899px){#screen-app.live-active .bnav{display:none}}
+@media (max-width:899px),(max-height:500px){#screen-app.live-active .bnav{display:none}}
 
 /* bench bubble small time */
 /* bulle banc = même forme que sur le terrain (voir .player-bubble) */
@@ -404,7 +404,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
 /* ============ NAV V2 — barre latérale iPad / PC (≥ 900px) ============ */
 .side-team,.side-user{display:none}
-@media (min-width:900px){
+@media (min-width:900px) and (min-height:501px){
   #screen-app{padding-left:260px}
   .app-hdr{display:none}
   .bnav{position:fixed;top:0;left:0;bottom:0;width:260px;flex-direction:column;gap:4px;border-top:none;border-right:1px solid var(--border);padding:calc(var(--st) + 16px) 14px calc(var(--sb) + 14px)}
@@ -468,4 +468,30 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   #screen-app.live-active #btn-chrono-top{display:inline-flex;align-items:center;flex-shrink:0;min-height:36px;padding:0 14px;font-size:14px;border-radius:10px}
   /* Temps de jeu total affiché sur toutes les bulles (terrain et banc), masqué avant par la règle < 420px */
   #screen-app.live-active .player-bubble .bb-total{display:block}
+}
+
+/* ============ LIVE iPhone paysage (hauteur ≤ 500px) ============
+   L'en-tête du match + les étapes + le chrono prenaient la moitié des ~390px de haut :
+   le terrain débordait. En-tête compact (Start dedans, comme en portrait), étapes
+   masquées (Bilan via le portrait ou ← Retour), terrain sur la hauteur restante. */
+@media (orientation:landscape) and (max-height:500px){
+  #screen-app.live-active .det-hdr{padding:4px 12px}
+  #screen-app.live-active #det-sub,#screen-app.live-active #match-delete-btn,#screen-app.live-active #det-status,#screen-app.live-active #btn-chrono{display:none!important}
+  #screen-app.live-active #btn-chrono-top{display:inline-flex;align-items:center;flex-shrink:0;min-height:34px;padding:0 14px;font-size:14px;border-radius:10px}
+  #screen-app.live-active .det-steps{display:none}
+  #screen-app.live-active .chrono-sticky{padding:4px 12px}
+  #screen-app.live-active .live-body.landscape{margin:0 12px 8px;gap:10px}
+  #screen-app.live-active .terrain-wrap.landscape{height:calc(100dvh - var(--st) - var(--sb) - 96px);margin:4px 0}
+  #screen-app.live-active .live-body.landscape .live-sidebar{max-height:calc(100dvh - var(--st) - var(--sb) - 96px)}
+  #screen-app.live-active .live-hint{display:none}
+  /* bulles compactes (mêmes réglages que sur iPhone portrait < 420px) */
+  #screen-app.live-active .player-bubble{font-size:10px;padding:3px 6px;min-width:48px;border-width:1.5px;border-radius:9px}
+  #screen-app.live-active .player-bubble>div[style*="font-size:13px"]{font-size:11px!important}
+  #screen-app.live-active .player-bubble .bb-since{font-size:10px}
+  #screen-app.live-active .player-bubble .bb-total{font-size:8.5px}
+  #screen-app.live-active .player-bubble .bb-out,#screen-app.live-active .player-bubble .bb-subcount,#screen-app.live-active .player-bubble .bb-starter{width:16px;height:16px;font-size:9px}
+  #screen-app.live-active .player-bubble .bb-out{top:-7px;right:-7px}
+  #screen-app.live-active .player-bubble .bb-subcount{top:-7px;left:-7px}
+  #screen-app.live-active .player-bubble .bb-starter{bottom:-7px;right:-7px}
+  #screen-app.live-active .poste-marker{width:19px;height:19px;font-size:10px;border-radius:5px;transform:translate(-50%,calc(-50% - 22px))}
 }
