@@ -176,7 +176,7 @@ function renderTeamsList(){
         <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${safeLogo(t)?'transparent':t.couleur+'22'};color:${t.couleur}">${safeLogo(t)?`<img class="team-logo" src="${safeLogo(t)}" alt="">`:t.nom.slice(0,2).toUpperCase()}</div>
         <div style="flex:1"><div style="font-size:14px;font-weight:600">${t.nom}</div><div style="font-size:12px;color:var(--text2)">${t.categorie} · ${t.format}</div></div>
         ${role==='admin'?`<button onclick="editTeam('${t.id}',event)" class="bsec" style="font-size:12px;padding:5px 9px">Modifier</button>`:''}
-        <button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>
+        ${role==='admin'?`<button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>`:''}
       </div>
       <div style="display:flex;gap:5px"><span class="pill pg">${t.categorie}</span><span class="pill pb">${t.format}</span><span class="pill pgr">${role}</span></div>
     </div>`;
@@ -184,12 +184,18 @@ function renderTeamsList(){
 }
 async function deleteTeam(id,e){
   if(e && e.stopPropagation) e.stopPropagation();
-  if(!isAdmin) return showToast('Accès admin requis','err');
   const team = teams.find(t=>t.id===id);
   if(!team) return;
+  // Droit admin sur l'équipe visée (avant : sur l'équipe sélectionnée, pas forcément la même).
+  if(!myAdminTeams().some(t=>t.id===id)) return showToast('Accès admin requis','err');
   if(!await askConfirm(`Supprimer l'équipe "${team?.nom}" ? Cette action est irréversible.`)) return;
-  await sb.from('team_members').delete().eq('team_id',id);
-  await sb.from('teams').delete().eq('id',id);
+  // Fonction Supabase delete_team (vérifie le rôle admin côté base). Avec la sécurité
+  // RLS, supprimer d'abord ses propres accès ferait perdre le droit de supprimer l'équipe.
+  const r=await sb.rpc('delete_team',{t:id});
+  if(r.error&&isMissingFn(r.error)){
+    await sb.from('team_members').delete().eq('team_id',id);
+    await sb.from('teams').delete().eq('id',id);
+  } else if(r.error) return showToast('Suppression refusée par la base','err');
   if(CT?.id===id) CT=null;
   showToast('Équipe supprimée','ok');
   await loadTeams();
@@ -1662,6 +1668,8 @@ async function updateStats(){
 // Une fiche par personne, avec pour chaque équipe dont JE suis admin : Aucun / Membre / Admin.
 // Ses propres accès ne sont pas modifiables ici (évite de se retirer ses droits par erreur).
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Fonction SQL absente (script de sécurité Supabase pas encore exécuté).
+function isMissingFn(err){return !!err&&(err.code==='PGRST202'||err.code==='42883'||/could not find the function/i.test(err.message||''));}
 function myAdminTeams(){return teams.filter(t=>t.team_members?.some(m=>m.profile_id===U.id&&m.role==='admin'));}
 async function renderAdminPage(){
   const panel=document.getElementById('admin-team-members');
@@ -1723,8 +1731,15 @@ async function saveTeamMember(){
   const role=document.getElementById('tm-role').value;
   const teamId=document.getElementById('tm-team').value;
   if(!email)return showToast('Email requis','err');
-  const {data:profile,error:pErr}=await sb.from('profiles').select('id,prenom,nom,email').eq('email',email).maybeSingle();
-  if(pErr||!profile)return showToast('Aucun compte avec cet email : la personne doit d\'abord créer son compte FootCoach','err');
+  // find_profile_by_email : fonction Supabase réservée aux admins (les profils des autres
+  // ne sont pas lisibles directement). Repli sur l'ancienne requête si elle n'existe pas.
+  let profile=null;
+  const r=await sb.rpc('find_profile_by_email',{e:email});
+  if(r.error&&isMissingFn(r.error)){
+    const {data}=await sb.from('profiles').select('id,prenom,nom,email').eq('email',email).maybeSingle();
+    profile=data;
+  } else profile=Array.isArray(r.data)?r.data[0]:r.data;
+  if(!profile)return showToast('Aucun compte avec cet email : la personne doit d\'abord créer son compte FootCoach','err');
   const {data,error}=await sb.from('team_members').upsert({team_id:teamId,profile_id:profile.id,role},{onConflict:'team_id,profile_id'}).select();
   if(error||!data?.length)return showToast('Impossible d\'ajouter (droits Supabase)','err');
   closeModal('modal-member');
