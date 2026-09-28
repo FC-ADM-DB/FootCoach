@@ -986,7 +986,8 @@ function renderField(){
   // disponibles) ressortent en bleu : ce sont les candidats prioritaires à faire
   // sortir, à apparier avec les N remplaçants prêts à entrer. Si d'autres joueurs sont
   // à ±30s du Nème (quasi ex æquo), ils ressortent aussi, même au-delà de N.
-  const onFieldIds=Object.values(assignment).filter(Boolean);
+  // Gardien (poste 1) hors rotation (case "Gardien inclus" décochée) : jamais proposé.
+  const onFieldIds=Object.entries(assignment).filter(([n,id])=>id&&(gkInRotation||Number(n)!==1)).map(([,id])=>id);
   const mostPlayedFieldIds=new Set();
   if(benchPlayers.length>0 && onFieldIds.length){
     const sortedByPlay=[...onFieldIds].sort((a,b)=>liveSecs(b)-liveSecs(a));
