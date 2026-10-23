@@ -199,6 +199,9 @@ function renderNavUser(){
 function openUserMenu(){
   const md=document.getElementById('umenu-md');
   if(md)md.textContent=mdMode?'Quitter le mode Match Day':'Mode Match Day';
+  // Page publique des scores : celle du club de l'équipe courante (à ses couleurs)
+  const sc=document.getElementById('umenu-scores');
+  if(sc)sc.href='scores.html'+(CT?.clubs?.slug?'?club='+encodeURIComponent(CT.clubs.slug):'');
   document.getElementById('umenu').classList.add('open');
 }
 function closeUserMenu(e){if(!e||e.target===document.getElementById('umenu'))document.getElementById('umenu').classList.remove('open');}

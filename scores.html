@@ -4,16 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#b0212f">
-<title>Scores — REH Braives</title>
+<meta name="theme-color" content="#0a1628">
+<title>Scores des matchs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
-/* Page publique des scores — thème REH Braives (jaune / rouge). Aucune connexion :
-   données via la fonction Supabase public_scores (équipes « Scores publics » seulement). */
+/* Page publique des scores. Aucune connexion : données via les fonctions Supabase
+   public_scores / public_club (équipes « Scores publics » seulement).
+   ?club=reh-braives : page du club, à ses couleurs (couleur 2 = bandeau, couleur 1 =
+   accent) ; sans paramètre : tous les clubs, thème FootCoach neutre.
+   (Les noms --red / --yellow viennent du premier thème REH Braives : bandeau / accent.) */
 :root{
-  --red:#b0212f;--red-dark:#8a1824;--yellow:#fdea2e;--yellow-soft:#fff8cc;
+  --red:#0a1628;--red-dark:#0a1628;--yellow:#00d68f;--yellow-soft:#f2f5fa;
   --ink:#1c1a17;--ink2:#5d5646;--line:#eadf9e;--card:#ffffff;
   --live:#d0172b;--done:#6b665a;--plan:#8a7a00;
   --font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',ui-monospace,monospace;
@@ -63,11 +66,8 @@ footer{text-align:center;font-size:11px;color:var(--ink2);padding:0 16px 24px}
 <body>
 <header>
   <div class="brand">
-    <div class="crest" id="crest">
-      <!-- Écusson de repli (jaune, croix rouge) si aucune équipe n'a de logo -->
-      <svg viewBox="0 0 52 60" width="46" height="54" aria-hidden="true"><path d="M26 2 C38 2 48 6 50 8 V30 C50 46 38 54 26 58 C14 54 2 46 2 30 V8 C4 6 14 2 26 2Z" fill="#fdea2e" stroke="#1c1a17" stroke-width="2.5"/><rect x="21" y="6" width="10" height="48" fill="#b0212f"/><rect x="6" y="22" width="40" height="10" fill="#b0212f"/></svg>
-    </div>
-    <div><h1>REH BRAIVES</h1><p>Scores des matchs</p></div>
+    <div class="crest" id="crest"><span style="font-size:38px">⚽</span></div>
+    <div><h1 id="club-nom">FootCoach</h1><p>Scores des matchs</p></div>
   </div>
 </header>
 <nav class="days">
@@ -84,6 +84,25 @@ footer{text-align:center;font-size:11px;color:var(--ink2);padding:0 16px 24px}
 const SB_URL='https://oejcfjthamzgnudofcwi.supabase.co';
 const SB_KEY='sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
 let day=null,rows=[],refreshIv=null;
+// Club demandé dans l'adresse (identifiant court, ex. reh-braives) ; null = tous les clubs
+const CLUB=(new URLSearchParams(location.search).get('club')||'').toLowerCase().replace(/[^a-z0-9-]/g,'')||null;
+const rpc=(fn,body)=>fetch(`${SB_URL}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+const okColor=c=>/^#[0-9a-fA-F]{6}$/.test(c||'')?c:null;
+// Habillage aux couleurs du club (nom, logo, bandeau, accent)
+async function loadClub(){
+  if(!CLUB)return;
+  try{
+    const r=await rpc('public_club',{p_slug:CLUB});const c=(await r.json())[0];
+    if(!c)return;
+    document.getElementById('club-nom').textContent=c.nom.toUpperCase();
+    document.title='Scores — '+c.nom;
+    const l=safeLogo(c.logo);if(l)document.getElementById('crest').innerHTML=`<img src="${l}" alt="">`;
+    const c1=okColor(c.couleur1),c2=okColor(c.couleur2)||c1;
+    const root=document.documentElement.style;
+    if(c2){root.setProperty('--red',c2);root.setProperty('--red-dark',c2);document.querySelector('meta[name=theme-color]').content=c2;}
+    if(c1){root.setProperty('--yellow',c1);root.setProperty('--yellow-soft',`color-mix(in srgb, ${c1} 16%, white)`);}
+  }catch(e){}
+}
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeLogo=l=>typeof l==='string'&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l)?l:null;
@@ -110,7 +129,7 @@ function shiftDay(n){const d=parseDay(day);d.setDate(d.getDate()+n);setDay(`${d.
 async function load(){
   const asked=day;
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/rpc/public_scores`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({d:asked})});
+    const r=await rpc('public_scores',CLUB?{d:asked,p_club:CLUB}:{d:asked});
     if(!r.ok)throw new Error(r.status);
     const data=await r.json();
     if(asked!==day)return; // l'utilisateur a changé de jour entre-temps
@@ -127,8 +146,6 @@ function goalMinute(g,m){const dur=m.duree_mt||30;return (g.mt===2?dur:0)+Math.f
 
 function render(){
   const el=document.getElementById('list');
-  const logo=rows.map(m=>safeLogo(m.logo)).find(Boolean);
-  if(logo)document.getElementById('crest').innerHTML=`<img src="${logo}" alt="">`;
   if(!rows.length){el.innerHTML=`<div class="empty"><div class="big">📅</div><b>Aucun match ce jour-là</b>Utilise ◀ ▶ ou le calendrier pour changer de jour.</div>`;return;}
   el.innerHTML=rows.map(m=>{
     const l=safeLogo(m.logo);
@@ -151,12 +168,13 @@ function render(){
       meta='';
     }
     meta+=`<span>${m.lieu==='exterieur'?'✈️ Extérieur':'🏠 Domicile'}</span>`;
-    const buts=(m.buts||[]).filter(g=>!g.adv&&g.buteur);
-    const goals=buts.length?`<div class="goals">⚽ ${buts.map(g=>`<span>${goalMinute(g,m)}' ${esc(g.buteur)}</span>`).join(' · ')}</div>`:'';
+    // Nos buts : « 12' Prénom N. » si la publication est autorisée, sinon « 12' » seul.
+    const buts=(m.buts||[]).filter(g=>!g.adv);
+    const goals=buts.length?`<div class="goals">⚽ ${buts.map(g=>`<span>${goalMinute(g,m)}'${g.buteur?' '+esc(g.buteur):''}</span>`).join(' · ')}</div>`:'';
     return `<article class="card">
       <div class="card-top">
         <div class="tlogo" style="background:${l?'transparent':esc(m.couleur||'#b0212f')}">${l?`<img src="${l}" alt="">`:esc(m.categorie||'')}</div>
-        <div class="cat">${esc(m.categorie||'')}</div>${pill}
+        <div class="cat">${esc(CLUB||!m.club_nom?(m.categorie||''):m.club_nom+' · '+(m.categorie||''))}</div>${pill}
       </div>
       <div class="match">${home?us:them}<div class="score${m.statut==='prevu'?' plan':''}">${score}</div>${home?them:us}</div>
       <div class="meta">${meta}</div>${goals}
@@ -166,6 +184,7 @@ function render(){
 // Chrono des matchs en direct : avance chaque seconde entre deux rafraîchissements.
 setInterval(()=>{document.querySelectorAll('[data-live]').forEach(b=>{const m=rows.find(r=>r.match_id===b.dataset.live);if(m&&m.chrono_on)b.textContent=fmt(liveSecs(m));});},1000);
 
+loadClub();
 setDay(new URLSearchParams(location.search).get('date'));
 </script>
 </body>

@@ -152,6 +152,11 @@ insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[A1] voit des clubs', '0', pg_temp.essai($q$select 1 from clubs$q$)),
  ('Visiteur', '[A1] voit les formats', '0', pg_temp.essai($q$select 1 from formats$q$)),
  ('Visiteur', '[A1] crée un club', 'refusé', pg_temp.essai($q$select create_club('TEST pirate')$q$)),
+ ('Visiteur', '[B2] scores du club A (1 match public)', '1', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date, 'test-club-a')$q$)),
+ ('Visiteur', '[B2] scores du club B (aucune équipe publique)', '0', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date, 'test-club-b')$q$)),
+ ('Visiteur', '[B2] le match indique son club', '1', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date) where club_nom = 'TEST Club A'$q$)),
+ ('Visiteur', '[B2] identité visuelle du club A', '1', pg_temp.essai($q$select 1 from public_club('test-club-a')$q$)),
+ ('Visiteur', '[B2] club inconnu', '0', pg_temp.essai($q$select 1 from public_club('pas-un-club')$q$)),
  ('Visiteur', '[A1] appelle une fonction interne', 'refusé', pg_temp.essai($q$select is_platform_admin()$q$)),
  ('Visiteur', '[A1] appelle une fonction de trigger', 'refusé', pg_temp.essai($q$select guard_last_cq()$q$));
 reset role;
