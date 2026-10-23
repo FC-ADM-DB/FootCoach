@@ -2039,12 +2039,15 @@ async function createClub(){
   const mat=document.getElementById('cc-mat').value.trim()||null;
   const adr=document.getElementById('cc-adr').value.trim();
   if(!adr)return showToast('Adresse du terrain obligatoire','err');
+  // La position (distances) ne bloque jamais : si OpenStreetMap ne trouve pas
+  // l'adresse ou ne répond pas, le club est créé et la position pourra être
+  // recalculée plus tard en corrigeant l'adresse dans la fiche du club.
   const pos=await geocodeAdresse(adr);
-  if(!pos)return showToast('Adresse introuvable : vérifie la rue, le code postal et la commune','err');
   const{data,error}=await sb.rpc('create_club',{p_nom:nom,p_province_id:prov,p_matricule:mat,p_adresse:adr});
   if(error)return showToast(/matricule|unique|duplicate/i.test(error.message)?'Ce matricule est déjà utilisé par un autre club':'Création impossible : '+error.message,'err');
-  await sb.from('clubs').update({lat:pos.lat,lng:pos.lng}).eq('id',data);
-  clubPageId=data;showToast('Club créé — tu en es le CQ (📍 '+pos.label+')','ok');
+  if(pos)await sb.from('clubs').update({lat:pos.lat,lng:pos.lng}).eq('id',data);
+  clubPageId=data;
+  showToast(pos?'Club créé — tu en es le CQ (📍 '+pos.label+')':'Club créé — position de l\'adresse non trouvée : corrige-la dans la fiche du club pour les distances',pos?'ok':'err');
   await loadMyClubs();await loadTeams();renderClubPage();
 }
 function pickClubLogo(input){
@@ -2073,13 +2076,14 @@ async function saveClub(){
   let pos=null;
   if(upd.adresse!==(cur.adresse||'')||cur.lat==null){
     pos=await geocodeAdresse(upd.adresse);
-    if(!pos)return showToast('Adresse introuvable : vérifie la rue, le code postal et la commune','err');
-    upd.lat=pos.lat;upd.lng=pos.lng;
+    // Adresse changée mais introuvable : on efface l'ancienne position (elle serait fausse)
+    if(pos){upd.lat=pos.lat;upd.lng=pos.lng;}else if(upd.adresse!==(cur.adresse||'')){upd.lat=null;upd.lng=null;}
   }
   const{data,error}=await sb.from('clubs').update(upd).eq('id',clubPageId).select();
   if(error)return showToast(/matricule|unique|duplicate/i.test(error.message)?'Ce matricule est déjà utilisé par un autre club':'Enregistrement refusé','err');
   if(!data?.length)return showToast('Enregistrement refusé (réservé au CQ)','err');
-  showToast('Club enregistré'+(pos?' (📍 '+pos.label+')':''),'ok');
+  const geoKo=upd.lat===null||(cur.lat==null&&!pos);
+  showToast(geoKo?'Club enregistré — position de l\'adresse non trouvée : vérifie la rue, le code postal et la commune':'Club enregistré'+(pos?' (📍 '+pos.label+')':''),geoKo?'err':'ok');
   await loadMyClubs();await loadTeams();renderClubPage();
 }
 // Position du terrain à partir de l'adresse (OpenStreetMap / Nominatim, gratuit) :
