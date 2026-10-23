@@ -17,12 +17,24 @@ end $$;
 create or replace function pg_temp.essai(q text) returns text language plpgsql as $$
 declare n bigint;
 begin
-  if q ~* '^\s*select' then execute 'select count(*) from (' || q || ') s' into n;
+  -- row_to_json force le calcul de chaque colonne : avec un simple count(*),
+  -- PostgreSQL n'appelait pas les fonctions du SELECT (droits jamais vérifiés).
+  if q ~* '^\s*select' then execute 'select count(*) from (select row_to_json(s) j from (' || q || ') s) t where j is not null' into n;
   else execute q; get diagnostics n = row_count; end if;
   raise exception 'RES:%', n;
 exception when others then
   if sqlerrm like 'RES:%' then return substr(sqlerrm, 5); end if;
   return 'refusé';
+end $$;
+
+-- Crée un club puis compte, dans une requête SUIVANTE, si l'appelant en est CQ
+-- (dans une même requête, la ligne tout juste créée n'est pas encore visible).
+create or replace function pg_temp.creer_club_et_verifier_cq() returns int language plpgsql as $$
+declare v uuid; n int;
+begin
+  v := create_club('TEST Nouveau club');
+  select count(*) into n from club_members where club_id = v and role = 'cq' and profile_id = auth.uid();
+  return n;
 end $$;
 
 drop table if exists pg_temp.r;
@@ -42,7 +54,7 @@ insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', 'voit des notes joueurs', '0', pg_temp.essai($q$select 1 from player_notes$q$)),
  ('Visiteur', 'crée une saison', 'refusé', pg_temp.essai($q$insert into seasons(label) values ('pirate')$q$)),
  ('Visiteur', 'crée une équipe', 'refusé', pg_temp.essai($q$insert into teams(nom,categorie) values ('TEST pirate','U8')$q$)),
- ('Visiteur', 'cherche un profil par email', '0', pg_temp.essai($q$select * from find_profile_by_email('coach.a@test.footcoach')$q$)),
+ ('Visiteur', 'cherche un profil par email', 'refusé', pg_temp.essai($q$select * from find_profile_by_email('coach.a@test.footcoach')$q$)),
  -- page publique : seule l'équipe A est cochée « Scores publics » (1 match aujourd'hui)
  ('Visiteur', 'scores publics : seulement l''équipe publiée', '1', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date)$q$)),
  ('Visiteur', 'scores publics : jamais l''équipe B', '0', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date) where equipe like '%Club B'$q$)),
@@ -106,6 +118,81 @@ insert into r (qui, test, attendu, obtenu) values
  ('Coach B', 'voit les notes du joueur A', '0', pg_temp.essai($q$select 1 from player_notes$q$)),
  ('Coach B', 'modifie un joueur A', '0', pg_temp.essai($q$update players set prenom = prenom where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
  ('Coach B', 'supprime un match A', '0', pg_temp.essai($q$delete from matches where team_id = '10000000-0000-4000-a000-0000000000a1'$q$));
+reset role;
+
+-- ============================================================= PHASE A1 : CLUBS & RÉFÉRENTIELS
+-- Club A : CQ = Coach A, coordinateur = Fanny (Coord A). Club B : CQ = Coach B.
+-- Admin plateforme = Eric. L'équipe A appartient au club A, l'équipe B au club B.
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[A1] voit des clubs', '0', pg_temp.essai($q$select 1 from clubs$q$)),
+ ('Visiteur', '[A1] voit les formats', '0', pg_temp.essai($q$select 1 from formats$q$)),
+ ('Visiteur', '[A1] crée un club', 'refusé', pg_temp.essai($q$select create_club('TEST pirate')$q$)),
+ ('Visiteur', '[A1] appelle une fonction interne', 'refusé', pg_temp.essai($q$select is_platform_admin()$q$)),
+ ('Visiteur', '[A1] appelle une fonction de trigger', 'refusé', pg_temp.essai($q$select guard_last_cq()$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000004","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Externe', '[A1] voit des clubs', '0', pg_temp.essai($q$select 1 from clubs$q$)),
+ ('Externe', '[A1] lit les formats (4)', '4', pg_temp.essai($q$select 1 from formats$q$)),
+ ('Externe', '[A1] crée son club (devient CQ)', '1', pg_temp.essai($q$select 1 from generate_series(1, pg_temp.creer_club_et_verifier_cq())$q$)),
+ ('Externe', '[A1] s''ajoute CQ du club A', 'refusé', pg_temp.essai($q$insert into club_members(club_id,profile_id,role) values ('50000000-0000-4000-a000-0000000000a1', auth.uid(), 'cq')$q$)),
+ ('Externe', '[A1] ajoute un niveau', 'refusé', pg_temp.essai($q$insert into niveaux(libelle,cree_par) values ('Pirate', auth.uid())$q$)),
+ ('Externe', '[A1] s''inscrit admin plateforme', 'refusé', pg_temp.essai($q$insert into platform_admins(profile_id) values (auth.uid())$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Membre A', '[A1] voit le club A (son équipe)', '1', pg_temp.essai($q$select 1 from clubs where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Membre A', '[A1] voit le club B', '0', pg_temp.essai($q$select 1 from clubs where id = '50000000-0000-4000-a000-0000000000b1'$q$)),
+ ('Membre A', '[A1] modifie le club A', '0', pg_temp.essai($q$update clubs set nom = nom where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Membre A', '[A1] voit les CQ/coordinateurs du club A', '0', pg_temp.essai($q$select 1 from club_members$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ A', '[A1] modifie le club A', '1', pg_temp.essai($q$update clubs set adresse = 'Rue du Stade 1' where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('CQ A', '[A1] modifie le club B', '0', pg_temp.essai($q$update clubs set nom = nom where id = '50000000-0000-4000-a000-0000000000b1'$q$)),
+ ('CQ A', '[A1] se donne le badge « vérifié »', 'refusé', pg_temp.essai($q$update clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('CQ A', '[A1] voit les membres du club A (2)', '2', pg_temp.essai($q$select 1 from club_members where club_id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('CQ A', '[A1] voit les membres du club B', '0', pg_temp.essai($q$select 1 from club_members where club_id = '50000000-0000-4000-a000-0000000000b1'$q$)),
+ ('CQ A', '[A1] nomme l''externe coordinateur', '1', pg_temp.essai($q$insert into club_members(club_id,profile_id,role) values ('50000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','coordinateur')$q$)),
+ ('CQ A', '[A1] retire le dernier CQ (lui-même)', 'refusé', pg_temp.essai($q$delete from club_members where profile_id = auth.uid() and role = 'cq'$q$)),
+ ('CQ A', '[A1] ajoute un niveau', '1', pg_temp.essai($q$insert into niveaux(libelle,cree_par) values ('TEST IP', auth.uid())$q$)),
+ ('CQ A', '[A1] supprime le club A', '0', pg_temp.essai($q$delete from clubs where id = '50000000-0000-4000-a000-0000000000a1'$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000006","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coord A', '[A1] voit le club A', '1', pg_temp.essai($q$select 1 from clubs where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Coord A', '[A1] modifie le club A', '0', pg_temp.essai($q$update clubs set nom = nom where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Coord A', '[A1] se nomme CQ', 'refusé', pg_temp.essai($q$insert into club_members(club_id,profile_id,role) values ('50000000-0000-4000-a000-0000000000a1', auth.uid(), 'cq')$q$)),
+ ('Coord A', '[A1] ajoute un niveau', '1', pg_temp.essai($q$insert into niveaux(libelle,cree_par) values ('TEST Régional', auth.uid())$q$)),
+ ('Coord A', '[A1] modifie un format', '0', pg_temp.essai($q$update formats set duree_mt = 20 where code = '5v5'$q$)),
+ ('Coord A', '[A1] quitte son rôle de coordinateur', '1', pg_temp.essai($q$delete from club_members where profile_id = auth.uid()$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ B', '[A1] voit le club A', '0', pg_temp.essai($q$select 1 from clubs where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('CQ B', '[A1] retire le CQ du club A', '0', pg_temp.essai($q$delete from club_members where club_id = '50000000-0000-4000-a000-0000000000a1'$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000005","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Admin', '[A1] voit tous les clubs (2)', '2', pg_temp.essai($q$select 1 from clubs$q$)),
+ ('Admin', '[A1] vérifie le club A', '1', pg_temp.essai($q$update clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Admin', '[A1] modifie un format', '1', pg_temp.essai($q$update formats set duree_mt = 25 where code = '5v5'$q$)),
+ ('Admin', '[A1] supprime un niveau', '1', pg_temp.essai($q$delete from niveaux where libelle = 'Niveau 4'$q$)),
+ ('Admin', '[A1] ne voit pas les joueurs (pas membre)', '0', pg_temp.essai($q$select 1 from players$q$));
 reset role;
 select set_config('request.jwt.claims', '', false);
 

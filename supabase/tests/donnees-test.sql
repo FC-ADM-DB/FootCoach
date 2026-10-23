@@ -11,6 +11,12 @@ do $$ begin
 end $$;
 
 -- Nettoyage des données de test précédentes (cascade vers profils, membres, joueurs…)
+-- Les clubs d'abord (le garde-fou « dernier CQ » bloquerait la suppression des comptes).
+do $$ begin
+  if to_regclass('public.clubs') is not null then
+    execute $d$delete from public.clubs where nom like 'TEST %'$d$;
+  end if;
+end $$;
 delete from public.teams where nom like 'TEST %';
 delete from auth.users where email like '%@test.footcoach';
 delete from public.seasons where label like 'TEST %';
@@ -28,7 +34,9 @@ from (values
   ('00000000-0000-4000-a000-000000000001', 'coach.a@test.footcoach',  'Alice',  'CoachA'),
   ('00000000-0000-4000-a000-000000000002', 'membre.a@test.footcoach', 'Bruno',  'MembreA'),
   ('00000000-0000-4000-a000-000000000003', 'coach.b@test.footcoach',  'Chloé',  'CoachB'),
-  ('00000000-0000-4000-a000-000000000004', 'externe@test.footcoach',  'Damien', 'Externe')
+  ('00000000-0000-4000-a000-000000000004', 'externe@test.footcoach',  'Damien', 'Externe'),
+  ('00000000-0000-4000-a000-000000000005', 'admin@test.footcoach',    'Eric',   'AdminPlateforme'),
+  ('00000000-0000-4000-a000-000000000006', 'coord.a@test.footcoach',  'Fanny',  'CoordA')
 ) as u(id, email, prenom, nom);
 
 -- Équipes : A (club A) et B (club B)
@@ -68,6 +76,25 @@ insert into public.convocations (match_id, player_id, statut) values
 do $$ begin
   if exists (select 1 from information_schema.columns where table_schema='public' and table_name='teams' and column_name='scores_publics') then
     execute $u$update public.teams set scores_publics = true where id = '10000000-0000-4000-a000-0000000000a1'$u$;
+  end if;
+end $$;
+
+-- Phase A1 (si déjà en place) : Club A (CQ = coach A, coordinateur = Fanny),
+-- Club B (CQ = coach B), équipes rattachées, admin plateforme = Eric.
+do $$ begin
+  if to_regclass('public.clubs') is not null then
+    execute $c$
+      insert into public.platform_admins (profile_id) values ('00000000-0000-4000-a000-000000000005');
+      insert into public.clubs (id, nom, slug, cree_par) values
+        ('50000000-0000-4000-a000-0000000000a1', 'TEST Club A', 'test-club-a', '00000000-0000-4000-a000-000000000001'),
+        ('50000000-0000-4000-a000-0000000000b1', 'TEST Club B', 'test-club-b', '00000000-0000-4000-a000-000000000003');
+      insert into public.club_members (club_id, profile_id, role) values
+        ('50000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000001', 'cq'),
+        ('50000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000006', 'coordinateur'),
+        ('50000000-0000-4000-a000-0000000000b1', '00000000-0000-4000-a000-000000000003', 'cq');
+      update public.teams set club_id = '50000000-0000-4000-a000-0000000000a1' where id = '10000000-0000-4000-a000-0000000000a1';
+      update public.teams set club_id = '50000000-0000-4000-a000-0000000000b1' where id = '10000000-0000-4000-a000-0000000000b1';
+    $c$;
   end if;
 end $$;
 
