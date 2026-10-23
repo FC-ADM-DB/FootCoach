@@ -37,7 +37,8 @@ from (values
   ('00000000-0000-4000-a000-000000000004', 'externe@test.footcoach',  'Damien', 'Externe'),
   ('00000000-0000-4000-a000-000000000005', 'admin@test.footcoach',    'Eric',   'AdminPlateforme'),
   ('00000000-0000-4000-a000-000000000006', 'coord.a@test.footcoach',  'Fanny',  'CoordA'),
-  ('00000000-0000-4000-a000-000000000007', 'parent.a@test.footcoach', 'Gaëlle', 'ParentA')
+  ('00000000-0000-4000-a000-000000000007', 'parent.a@test.footcoach', 'Gaëlle', 'ParentA'),
+  ('00000000-0000-4000-a000-000000000008', 'cq.c@test.footcoach',     'Hugo',   'CqC')
 ) as u(id, email, prenom, nom);
 
 -- Équipes : A (club A) et B (club B)
@@ -45,14 +46,16 @@ insert into public.teams (id, nom, categorie, format, saison_id, created_by) val
   ('10000000-0000-4000-a000-0000000000a1', 'TEST U10 Club A', 'U10', '8v8', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000001'),
   ('10000000-0000-4000-a000-0000000000b1', 'TEST U9 Club B',  'U9',  '5v5', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000003'),
   -- équipe « historique » sans club, comme en production avant A2 (admin = l'admin plateforme)
-  ('10000000-0000-4000-a000-0000000000c1', 'TEST U8 Historique', 'U8', '5v5', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000005');
+  ('10000000-0000-4000-a000-0000000000c1', 'TEST U8 Historique', 'U8', '5v5', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000005'),
+  ('10000000-0000-4000-a000-0000000000d1', 'TEST U10 Club C', 'U10', '8v8', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000008');
 
 insert into public.team_members (team_id, profile_id, role) values
   ('10000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000001', 'admin'),
   ('10000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000002', 'member'),
   ('10000000-0000-4000-a000-0000000000b1', '00000000-0000-4000-a000-000000000003', 'admin'),
   ('10000000-0000-4000-a000-0000000000c1', '00000000-0000-4000-a000-000000000005', 'admin'),
-  ('10000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000007', 'parent');
+  ('10000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000007', 'parent'),
+  ('10000000-0000-4000-a000-0000000000d1', '00000000-0000-4000-a000-000000000008', 'admin');
 
 insert into public.players (id, team_id, prenom, nom, date_naissance) values
   ('30000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000a1', 'Léo', 'Alpha', '2016-03-14'),
@@ -99,6 +102,36 @@ do $$ begin
         ('50000000-0000-4000-a000-0000000000b1', '00000000-0000-4000-a000-000000000003', 'cq');
       update public.teams set club_id = '50000000-0000-4000-a000-0000000000a1' where id = '10000000-0000-4000-a000-0000000000a1';
       update public.teams set club_id = '50000000-0000-4000-a000-0000000000b1' where id = '10000000-0000-4000-a000-0000000000b1';
+      update public.clubs set verifie = true, lat = 50.6326, lng = 5.5797,
+        province_id = (select id from public.provinces where nom = 'Liège') where id = '50000000-0000-4000-a000-0000000000a1';
+      update public.clubs set verifie = true, lat = 50.4669, lng = 4.8675,
+        province_id = (select id from public.provinces where nom = 'Namur') where id = '50000000-0000-4000-a000-0000000000b1';
+      insert into public.clubs (id, nom, slug, cree_par, lat, lng) values
+        ('50000000-0000-4000-a000-0000000000c1', 'TEST Club C', 'test-club-c', '00000000-0000-4000-a000-000000000008', 50.6, 5.5);
+      insert into public.club_members (club_id, profile_id, role) values
+        ('50000000-0000-4000-a000-0000000000c1', '00000000-0000-4000-a000-000000000008', 'cq');
+      update public.teams set club_id = '50000000-0000-4000-a000-0000000000c1' where id = '10000000-0000-4000-a000-0000000000d1';
+    $c$;
+  end if;
+end $$;
+
+-- Phase C1 (si déjà en place) : annonces de l'équipe A (club A, Liège)
+--  AN1 Belgique (publiée) · AN2 province (publiée) · AN3 80 km (publiée) · AN4 30 km (publiée)
+--  AN5 à valider (préparée par le délégué A) · AN6 équipes choisies = équipe B (publiée)
+do $$ begin
+  if to_regclass('public.annonces') is not null then
+    execute $c$
+      insert into public.annonces (id, team_id, type, zone, distance_km, categories, statut, cree_par) values
+        ('60000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000a1', 'amical', 'belgique', null, '{U10}', 'publiee', '00000000-0000-4000-a000-000000000001'),
+        ('60000000-0000-4000-a000-000000000002', '10000000-0000-4000-a000-0000000000a1', 'amical', 'province', null, '{U10}', 'publiee', '00000000-0000-4000-a000-000000000001'),
+        ('60000000-0000-4000-a000-000000000003', '10000000-0000-4000-a000-0000000000a1', 'amical', 'distance', 80,   '{U10}', 'publiee', '00000000-0000-4000-a000-000000000001'),
+        ('60000000-0000-4000-a000-000000000004', '10000000-0000-4000-a000-0000000000a1', 'amical', 'distance', 30,   '{U10}', 'publiee', '00000000-0000-4000-a000-000000000001'),
+        ('60000000-0000-4000-a000-000000000005', '10000000-0000-4000-a000-0000000000a1', 'tournoi', 'belgique', null, '{U10}', 'a_valider', '00000000-0000-4000-a000-000000000002'),
+        ('60000000-0000-4000-a000-000000000006', '10000000-0000-4000-a000-0000000000a1', 'amical', 'equipes', null, '{U10}', 'publiee', '00000000-0000-4000-a000-000000000001');
+      insert into public.annonce_cibles (annonce_id, team_id) values
+        ('60000000-0000-4000-a000-000000000006', '10000000-0000-4000-a000-0000000000b1');
+      insert into public.annonce_creneaux (annonce_id, jour, heure_debut, heure_fin) values
+        ('60000000-0000-4000-a000-000000000001', current_date + 7, '10:00', '12:00');
     $c$;
   end if;
 end $$;

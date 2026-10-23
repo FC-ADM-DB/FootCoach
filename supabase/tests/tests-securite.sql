@@ -186,7 +186,7 @@ set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('CQ A', '[A1] modifie le club A', '1', pg_temp.essai($q$update clubs set adresse = 'Rue du Stade 1' where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
  ('CQ A', '[A1] modifie le club B', '0', pg_temp.essai($q$update clubs set nom = nom where id = '50000000-0000-4000-a000-0000000000b1'$q$)),
- ('CQ A', '[A1] se donne le badge « vérifié »', 'refusé', pg_temp.essai($q$update clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('CQ A', '[A1] change lui-même le badge « vérifié »', 'refusé', pg_temp.essai($q$update clubs set verifie = not verifie where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
  ('CQ A', '[A1] voit les membres du club A (2)', '2', pg_temp.essai($q$select 1 from club_members where club_id = '50000000-0000-4000-a000-0000000000a1'$q$)),
  ('CQ A', '[A1] voit les membres du club B', '0', pg_temp.essai($q$select 1 from club_members where club_id = '50000000-0000-4000-a000-0000000000b1'$q$)),
  ('CQ A', '[A1] nomme l''externe coordinateur', '1', pg_temp.essai($q$insert into club_members(club_id,profile_id,role) values ('50000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','coordinateur')$q$)),
@@ -216,7 +216,7 @@ reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000005","role":"authenticated"}', false);
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
- ('Admin', '[A1] voit tous les clubs (A, B, REH Braives)', '3', pg_temp.essai($q$select 1 from clubs$q$)),
+ ('Admin', '[A1] voit tous les clubs (A, B, C, REH Braives)', '4', pg_temp.essai($q$select 1 from clubs$q$)),
  ('Admin', '[A1] vérifie le club A', '1', pg_temp.essai($q$update clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
  ('Admin', '[A1] modifie un format', '1', pg_temp.essai($q$update formats set duree_mt = 25 where code = '5v5'$q$)),
  ('Admin', '[A1] supprime un niveau', '1', pg_temp.essai($q$delete from niveaux where libelle = 'Niveau 4'$q$)),
@@ -270,6 +270,76 @@ insert into r (qui, test, attendu, obtenu) values
  ('Coach A', '[A2] rôle « member » écrit → « delegue »', '1', pg_temp.essai($q$select 1 where pg_temp.ajout_role_ancien('member') = 'delegue'$q$)),
  ('Coach A', '[A2] rôle inconnu refusé', 'refusé', pg_temp.essai($q$insert into team_members(team_id,profile_id,role) values ('10000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','pirate')$q$)),
  ('Coach A', '[A2] déplace l''équipe A vers le club B', 'refusé', pg_temp.essai($q$update teams set club_id = '50000000-0000-4000-a000-0000000000b1' where id = '10000000-0000-4000-a000-0000000000a1'$q$));
+reset role;
+
+-- ============================================================= PHASE C1 : ANNONCES « TROUVER UN MATCH »
+-- Club A (Liège) et club B (Namur) vérifiés, ~53 km ; club C NON vérifié.
+-- Annonces de l'équipe A : AN1 Belgique, AN2 province, AN3 80 km, AN4 30 km,
+-- AN5 à valider (préparée par le délégué A), AN6 équipes choisies = équipe B.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ B', '[C1] voit AN1 (toute la Belgique)', '1', pg_temp.essai($q$select 1 from annonces where id = '60000000-0000-4000-a000-000000000001'$q$)),
+ ('CQ B', '[C1] voit AN2 (province de Liège)', '0', pg_temp.essai($q$select 1 from annonces where id = '60000000-0000-4000-a000-000000000002'$q$)),
+ ('CQ B', '[C1] voit AN3 (80 km, il est à ~53)', '1', pg_temp.essai($q$select 1 from annonces where id = '60000000-0000-4000-a000-000000000003'$q$)),
+ ('CQ B', '[C1] voit AN4 (30 km, il est à ~53)', '0', pg_temp.essai($q$select 1 from annonces where id = '60000000-0000-4000-a000-000000000004'$q$)),
+ ('CQ B', '[C1] voit AN5 (à valider, pas publiée)', '0', pg_temp.essai($q$select 1 from annonces where id = '60000000-0000-4000-a000-000000000005'$q$)),
+ ('CQ B', '[C1] voit AN6 (son équipe est ciblée)', '1', pg_temp.essai($q$select 1 from annonces where id = '60000000-0000-4000-a000-000000000006'$q$)),
+ ('CQ B', '[C1] recherche : 3 annonces visibles', '3', pg_temp.essai($q$select 1 from annonces_reseau('10000000-0000-4000-a000-0000000000b1')$q$)),
+ ('CQ B', '[C1] recherche : distance calculée (~53 km)', '3', pg_temp.essai($q$select 1 from annonces_reseau('10000000-0000-4000-a000-0000000000b1') where distance_club between 45 and 60$q$)),
+ ('CQ B', '[C1] voit le créneau de AN1', '1', pg_temp.essai($q$select 1 from annonce_creneaux where annonce_id = '60000000-0000-4000-a000-000000000001'$q$)),
+ ('CQ B', '[C1] voit que son équipe est ciblée (AN6)', '1', pg_temp.essai($q$select 1 from annonce_cibles where annonce_id = '60000000-0000-4000-a000-000000000006'$q$)),
+ ('CQ B', '[C1] modifie AN1 (club A)', '0', pg_temp.essai($q$update annonces set message = 'pirate' where id = '60000000-0000-4000-a000-000000000001'$q$)),
+ ('CQ B', '[C1] ajoute un créneau à AN1', 'refusé', pg_temp.essai($q$insert into annonce_creneaux(annonce_id, jour) values ('60000000-0000-4000-a000-000000000001', current_date)$q$)),
+ ('CQ B', '[C1] crée une annonce pour l''équipe A', 'refusé', pg_temp.essai($q$insert into annonces(team_id, zone, statut, cree_par) values ('10000000-0000-4000-a000-0000000000a1', 'belgique', 'brouillon', auth.uid())$q$)),
+ ('CQ B', '[C1] publie une annonce pour son équipe', '1', pg_temp.essai($q$insert into annonces(team_id, zone, statut, cree_par) values ('10000000-0000-4000-a000-0000000000b1', 'belgique', 'publiee', auth.uid())$q$)),
+ ('CQ B', '[C1] équipes du réseau (clubs vérifiés : 3)', '3', pg_temp.essai($q$select 1 from equipes_reseau()$q$)),
+ ('CQ B', '[C1] le réseau n''expose aucun joueur', '0', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000a1'$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Délégué A', '[C1] prépare une annonce « à valider »', '1', pg_temp.essai($q$insert into annonces(team_id, zone, statut, cree_par) values ('10000000-0000-4000-a000-0000000000a1', 'belgique', 'a_valider', auth.uid())$q$)),
+ ('Délégué A', '[C1] publie directement', 'refusé', pg_temp.essai($q$insert into annonces(team_id, zone, statut, cree_par) values ('10000000-0000-4000-a000-0000000000a1', 'belgique', 'publiee', auth.uid())$q$)),
+ ('Délégué A', '[C1] publie AN5 lui-même', 'refusé', pg_temp.essai($q$update annonces set statut = 'publiee' where id = '60000000-0000-4000-a000-000000000005'$q$)),
+ ('Délégué A', '[C1] modifie AN1 (déjà publiée)', 'refusé', pg_temp.essai($q$update annonces set message = 'x' where id = '60000000-0000-4000-a000-000000000001'$q$)),
+ ('Délégué A', '[C1] voit AN5 (son équipe)', '1', pg_temp.essai($q$select 1 from annonces where id = '60000000-0000-4000-a000-000000000005'$q$)),
+ ('Délégué A', '[C1] ajoute un créneau à AN5 (non publiée)', '1', pg_temp.essai($q$insert into annonce_creneaux(annonce_id, jour) values ('60000000-0000-4000-a000-000000000005', current_date + 3)$q$)),
+ ('Délégué A', '[C1] supprime AN5 (à valider)', '1', pg_temp.essai($q$delete from annonces where id = '60000000-0000-4000-a000-000000000005'$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000006","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coord A', '[C1] voit AN5 (à valider)', '1', pg_temp.essai($q$select 1 from annonces where id = '60000000-0000-4000-a000-000000000005'$q$)),
+ ('Coord A', '[C1] publie AN5', '1', pg_temp.essai($q$update annonces set statut = 'publiee' where id = '60000000-0000-4000-a000-000000000005'$q$)),
+ ('Coord A', '[C1] refuse AN5 avec un commentaire', '1', pg_temp.essai($q$update annonces set statut = 'refusee', commentaire_validation = 'Dates déjà prises' where id = '60000000-0000-4000-a000-000000000005'$q$)),
+ ('Coord A', '[C1] clôture AN1', '1', pg_temp.essai($q$update annonces set statut = 'cloturee' where id = '60000000-0000-4000-a000-000000000001'$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000008","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ C (non vérifié)', '[C1] voit AN1', '0', pg_temp.essai($q$select 1 from annonces where id = '60000000-0000-4000-a000-000000000001'$q$)),
+ ('CQ C (non vérifié)', '[C1] recherche', '0', pg_temp.essai($q$select 1 from annonces_reseau(null)$q$)),
+ ('CQ C (non vérifié)', '[C1] équipes du réseau', '0', pg_temp.essai($q$select 1 from equipes_reseau()$q$)),
+ ('CQ C (non vérifié)', '[C1] publie une annonce', 'refusé', pg_temp.essai($q$insert into annonces(team_id, zone, statut, cree_par) values ('10000000-0000-4000-a000-0000000000d1', 'belgique', 'publiee', auth.uid())$q$)),
+ ('CQ C (non vérifié)', '[C1] prépare un brouillon', '1', pg_temp.essai($q$insert into annonces(team_id, zone, statut, cree_par) values ('10000000-0000-4000-a000-0000000000d1', 'belgique', 'brouillon', auth.uid())$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[C1] voit des annonces', '0', pg_temp.essai($q$select 1 from annonces$q$)),
+ ('Parent A', '[C1] crée une annonce', 'refusé', pg_temp.essai($q$insert into annonces(team_id, zone, statut, cree_par) values ('10000000-0000-4000-a000-0000000000a1', 'belgique', 'brouillon', auth.uid())$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[C1] voit des annonces', '0', pg_temp.essai($q$select 1 from annonces$q$)),
+ ('Visiteur', '[C1] appelle la recherche', 'refusé', pg_temp.essai($q$select 1 from annonces_reseau(null)$q$));
 reset role;
 select set_config('request.jwt.claims', '', false);
 

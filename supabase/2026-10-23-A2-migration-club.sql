@@ -39,6 +39,8 @@ where club_id is null;
 update public.team_members set role = 'entraineur' where role = 'admin';
 update public.team_members set role = 'delegue' where role not in ('entraineur', 'delegue', 'parent');
 alter table public.team_members alter column role set default 'delegue';
+-- (rejouable : contrainte et triggers recréés s'ils existent déjà)
+alter table public.team_members drop constraint if exists team_members_role_check;
 alter table public.team_members add constraint team_members_role_check
   check (role in ('entraineur', 'delegue', 'parent'));
 
@@ -52,6 +54,7 @@ $$ begin
   end if;
   return new;
 end $$;
+drop trigger if exists team_members_normalize_role on public.team_members;
 create trigger team_members_normalize_role before insert or update of role on public.team_members
   for each row execute function public.normalize_team_role();
 
@@ -65,6 +68,7 @@ $$ begin
   end if;
   return new;
 end $$;
+drop trigger if exists teams_default_club on public.teams;
 create trigger teams_default_club before insert on public.teams
   for each row execute function public.default_team_club();
 
@@ -137,12 +141,16 @@ drop policy if exists "Teams select" on public.teams;
 drop policy if exists "Teams insert" on public.teams;
 drop policy if exists "Teams update" on public.teams;
 drop policy if exists "Teams delete" on public.teams;
+drop policy if exists "Teams select" on public.teams;
 create policy "Teams select" on public.teams for select to authenticated
   using (is_team_member(id) or created_by = auth.uid());
+drop policy if exists "Teams insert" on public.teams;
 create policy "Teams insert" on public.teams for insert to authenticated
   with check (created_by = auth.uid() and (club_id is null or is_club_member(club_id)));
+drop policy if exists "Teams update" on public.teams;
 create policy "Teams update" on public.teams for update to authenticated
   using (is_team_staff(id)) with check (is_team_staff(id) and (club_id is null or is_club_member(club_id) or club_id = (select t2.club_id from teams t2 where t2.id = teams.id)));
+drop policy if exists "Teams delete" on public.teams;
 create policy "Teams delete" on public.teams for delete to authenticated
   using (can_delete_team(id));
 
@@ -151,50 +159,66 @@ drop policy if exists "Members select" on public.team_members;
 drop policy if exists "Members insert" on public.team_members;
 drop policy if exists "Members update" on public.team_members;
 drop policy if exists "Members delete" on public.team_members;
+drop policy if exists "Members select" on public.team_members;
 create policy "Members select" on public.team_members for select to authenticated
   using (profile_id = auth.uid() or is_team_member(team_id));
+drop policy if exists "Members insert" on public.team_members;
 create policy "Members insert" on public.team_members for insert to authenticated
   with check (is_team_staff(team_id) or (profile_id = auth.uid() and is_team_creator(team_id)));
+drop policy if exists "Members update" on public.team_members;
 create policy "Members update" on public.team_members for update to authenticated
   using (is_team_staff(team_id)) with check (is_team_staff(team_id));
+drop policy if exists "Members delete" on public.team_members;
 create policy "Members delete" on public.team_members for delete to authenticated
   using (is_team_staff(team_id) or profile_id = auth.uid());
 
 -- Joueurs, notes, stats : encadrement seulement (pas les parents, en attendant A3)
 drop policy if exists "Joueurs de mes équipes" on public.players;
+drop policy if exists "Joueurs encadrement" on public.players;
 create policy "Joueurs encadrement" on public.players for all to authenticated
   using (is_team_staff(team_id)) with check (is_team_staff(team_id));
 
 drop policy if exists "Notes accessibles" on public.player_notes;
+drop policy if exists "Notes encadrement" on public.player_notes;
 create policy "Notes encadrement" on public.player_notes for all to authenticated
   using (exists (select 1 from players p where p.id = player_notes.player_id and is_team_staff(p.team_id)))
   with check (exists (select 1 from players p where p.id = player_notes.player_id and is_team_staff(p.team_id)));
 
 drop policy if exists "Stats match accessibles" on public.match_players;
+drop policy if exists "Stats match encadrement" on public.match_players;
 create policy "Stats match encadrement" on public.match_players for all to authenticated
   using (exists (select 1 from matches m where m.id = match_players.match_id and is_team_staff(m.team_id)))
   with check (exists (select 1 from matches m where m.id = match_players.match_id and is_team_staff(m.team_id)));
 
 -- Matchs et convocations : lecture pour toute l'équipe (parents compris), écriture encadrement
 drop policy if exists "Matchs de mes équipes" on public.matches;
+drop policy if exists "Matchs lecture" on public.matches;
 create policy "Matchs lecture" on public.matches for select to authenticated using (is_team_member(team_id));
+drop policy if exists "Matchs ajout" on public.matches;
 create policy "Matchs ajout" on public.matches for insert to authenticated with check (is_team_staff(team_id));
+drop policy if exists "Matchs modif" on public.matches;
 create policy "Matchs modif" on public.matches for update to authenticated using (is_team_staff(team_id)) with check (is_team_staff(team_id));
+drop policy if exists "Matchs suppr" on public.matches;
 create policy "Matchs suppr" on public.matches for delete to authenticated using (is_team_staff(team_id));
 
 drop policy if exists "Convocations accessibles" on public.convocations;
+drop policy if exists "Convocations lecture" on public.convocations;
 create policy "Convocations lecture" on public.convocations for select to authenticated
   using (exists (select 1 from matches m where m.id = convocations.match_id and is_team_member(m.team_id)));
+drop policy if exists "Convocations encadrement" on public.convocations;
 create policy "Convocations encadrement" on public.convocations for all to authenticated
   using (exists (select 1 from matches m where m.id = convocations.match_id and is_team_staff(m.team_id)))
   with check (exists (select 1 from matches m where m.id = convocations.match_id and is_team_staff(m.team_id)));
 
 -- Entraînements (pas encore utilisés par l'app) : même logique
 drop policy if exists "Séances accessibles" on public.trainings;
+drop policy if exists "Séances lecture" on public.trainings;
 create policy "Séances lecture" on public.trainings for select to authenticated using (is_team_member(team_id));
+drop policy if exists "Séances encadrement" on public.trainings;
 create policy "Séances encadrement" on public.trainings for all to authenticated
   using (is_team_staff(team_id)) with check (is_team_staff(team_id));
 drop policy if exists "Présences accessibles" on public.training_attendance;
+drop policy if exists "Présences encadrement" on public.training_attendance;
 create policy "Présences encadrement" on public.training_attendance for all to authenticated
   using (exists (select 1 from trainings t where t.id = training_attendance.training_id and is_team_staff(t.team_id)))
   with check (exists (select 1 from trainings t where t.id = training_attendance.training_id and is_team_staff(t.team_id)));
