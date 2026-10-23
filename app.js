@@ -299,7 +299,7 @@ async function editTeam(id,e){
 }
 function selColor(el){selColor_=el.dataset.c;document.querySelectorAll('.copt').forEach(o=>o.classList.remove('on'));el.classList.add('on');}
 // Colonne teams.logo absente (migration Supabase pas encore faite) : message explicite.
-function isMissingLogoCol(err){return !!err&&/logo|scores_publics/i.test((err.message||'')+(err.details||''))&&(err.code==='PGRST204'||err.code==='42703'||/column/i.test(err.message||''));}
+function isMissingLogoCol(err){return !!err&&/logo|scores_publics|publication_ok/i.test((err.message||'')+(err.details||''))&&(err.code==='PGRST204'||err.code==='42703'||/column/i.test(err.message||''));}
 async function saveTeam(){
   const nom=document.getElementById('t-nom').value.trim(),cat=document.getElementById('t-cat').value,fmt=document.getElementById('t-fmt').value;
   if(!nom)return showToast('Donne un nom','err');
@@ -359,12 +359,14 @@ function openPlayerModal(){
   if(!CT)return showToast('Sélectionne une équipe','err');
   editPid=null;document.getElementById('mp-title').textContent='Nouveau joueur';document.getElementById('btn-sp').textContent='Ajouter';
   ['p-pn','p-nn','p-dob'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('p-pub').checked=false;
   selPoste=null;renderPM();openModal('modal-player');
 }
 function editPlayer(id,e){
   e.stopPropagation();const p=players.find(pl=>pl.id===id);if(!p)return;
   editPid=id;document.getElementById('mp-title').textContent='Modifier';document.getElementById('btn-sp').textContent='Enregistrer';
   document.getElementById('p-pn').value=p.prenom;document.getElementById('p-nn').value=p.nom;document.getElementById('p-dob').value=p.date_naissance||'';
+  document.getElementById('p-pub').checked=!!p.publication_ok;
   selPoste=p.numero_poste||null;renderPM();openModal('modal-player');
 }
 function clearPoste(){selPoste=null;renderPM();}
@@ -377,12 +379,20 @@ function selP(n){selPoste=n;renderPM();}
 async function savePlayer(){
   const pn=document.getElementById('p-pn').value.trim(),nn=document.getElementById('p-nn').value.trim(),dob=document.getElementById('p-dob').value;
   if(!pn||!nn)return showToast('Prénom et nom obligatoires','err');
+  // publication_ok n'est envoyé que s'il change (l'app marche sans la colonne).
+  const pub=document.getElementById('p-pub').checked;
   if(editPid){
-    const{error}=await sb.from('players').update({prenom:pn,nom:nn,numero_poste:selPoste||null,date_naissance:dob||null}).eq('id',editPid);
+    const upd={prenom:pn,nom:nn,numero_poste:selPoste||null,date_naissance:dob||null};
+    if(pub!==!!players.find(p=>p.id===editPid)?.publication_ok)upd.publication_ok=pub;
+    const{error}=await sb.from('players').update(upd).eq('id',editPid);
+    if(isMissingLogoCol(error))return showToast('Une colonne manque dans Supabase : exécute le dernier script SQL (dossier supabase/)','err');
     if(error)return showToast('Erreur','err');
     closeModal('modal-player');showToast(`${pn} modifié !`,'ok');
   } else {
-    const{error}=await sb.from('players').insert({team_id:CT.id,prenom:pn,nom:nn,numero_poste:selPoste||null,date_naissance:dob||null});
+    const row={team_id:CT.id,prenom:pn,nom:nn,numero_poste:selPoste||null,date_naissance:dob||null};
+    if(pub)row.publication_ok=true;
+    const{error}=await sb.from('players').insert(row);
+    if(isMissingLogoCol(error))return showToast('Une colonne manque dans Supabase : exécute le dernier script SQL (dossier supabase/)','err');
     if(error)return showToast('Erreur','err');
     closeModal('modal-player');showToast(`${pn} ajouté !`,'ok');
   }
@@ -1349,7 +1359,9 @@ async function saveGoal(){
 function recordGoal(adv,scorer,assist,scorerId){
   const t=chronoS,min=Math.floor(t/60);
   const poste=scorerId?currentPosteOf(scorerId):null;
-  goals.push({t,min,scorer,assist:assist||null,adv,half:halfN,poste});
+  // pid : identifiant du buteur, utilisé par la page publique pour vérifier son
+  // autorisation de publication du prénom (players.publication_ok).
+  goals.push({t,min,scorer,assist:assist||null,adv,half:halfN,poste,pid:adv?null:(scorerId||null)});
   if(adv){sEux++;document.getElementById('sc-eux').textContent=sEux;} else {sNous++;document.getElementById('sc-nous').textContent=sNous;}
   renderGoals();syncCurrentMatchInMemory();saveState();showToast('But enregistré !','ok');
 }

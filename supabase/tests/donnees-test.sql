@@ -43,11 +43,22 @@ insert into public.team_members (team_id, profile_id, role) values
 
 insert into public.players (id, team_id, prenom, nom, date_naissance) values
   ('30000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000a1', 'Léo', 'Alpha', '2016-03-14'),
-  ('30000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000b1', 'Tom', 'Bravo', '2017-09-02');
+  ('30000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000b1', 'Tom', 'Bravo', '2017-09-02'),
+  ('30000000-0000-4000-a000-0000000000a2', '10000000-0000-4000-a000-0000000000a1', 'Zoé', 'Charlie', '2016-05-20');
 
-insert into public.matches (id, team_id, date, adversaire, lieu, statut) values
-  ('40000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000a1', now(), 'Adversaire A', 'domicile', 'prevu'),
-  ('40000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000b1', now(), 'Adversaire B', 'exterieur', 'prevu');
+-- Match A : 3 buts — Léo (ancien but, sans pid, PAS d'autorisation), Zoé (pid,
+-- autorisée), et un but adverse. Seul « Zoé C. » doit apparaître publiquement.
+insert into public.matches (id, team_id, date, adversaire, lieu, statut, score_nous, score_eux, timeline_json) values
+  ('40000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000a1', now(), 'Adversaire A', 'domicile', 'termine', 2, 1,
+   '{"halfDuration":30,"goals":[{"t":300,"half":1,"adv":false,"scorer":"Léo Alpha"},{"t":600,"half":1,"adv":false,"scorer":"Zoé Charlie","pid":"30000000-0000-4000-a000-0000000000a2"},{"t":900,"half":2,"adv":true,"scorer":"Adversaire A"}]}'),
+  ('40000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000b1', now(), 'Adversaire B', 'exterieur', 'prevu', null, null, null);
+
+-- Autorisation de publication du prénom : seulement Zoé (si la colonne existe déjà)
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='players' and column_name='publication_ok') then
+    execute $u$update public.players set publication_ok = true where id = '30000000-0000-4000-a000-0000000000a2'$u$;
+  end if;
+end $$;
 
 insert into public.convocations (match_id, player_id, statut) values
   ('40000000-0000-4000-a000-0000000000a1', '30000000-0000-4000-a000-0000000000a1', 'present'),

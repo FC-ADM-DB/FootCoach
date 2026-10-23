@@ -45,7 +45,12 @@ insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', 'cherche un profil par email', '0', pg_temp.essai($q$select * from find_profile_by_email('coach.a@test.footcoach')$q$)),
  -- page publique : seule l'équipe A est cochée « Scores publics » (1 match aujourd'hui)
  ('Visiteur', 'scores publics : seulement l''équipe publiée', '1', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date)$q$)),
- ('Visiteur', 'scores publics : jamais l''équipe B', '0', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date) where equipe like '%Club B'$q$));
+ ('Visiteur', 'scores publics : jamais l''équipe B', '0', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date) where equipe like '%Club B'$q$)),
+ -- consentement : 3 buts dans le match A, un seul prénom publiable (Zoé, autorisée)
+ ('Visiteur', 'scores publics : les 3 buts sont listés', '3', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date) s, jsonb_array_elements(s.buts) g$q$)),
+ ('Visiteur', 'scores publics : 1 seul prénom (autorisé)', '1', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date) s, jsonb_array_elements(s.buts) g where g->>'buteur' is not null$q$)),
+ ('Visiteur', 'scores publics : « Zoé C. » (autorisée)', '1', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date) s, jsonb_array_elements(s.buts) g where g->>'buteur' = 'Zoé C.'$q$)),
+ ('Visiteur', 'scores publics : jamais de nom complet', '0', pg_temp.essai($q$select 1 from public_scores((now() at time zone 'Europe/Brussels')::date) s where s.buts::text ~ '(Alpha|Charlie)'$q$));
 reset role;
 
 -- ------------------------------------------------------------- EXTERNE (connecté, sans équipe)
@@ -68,7 +73,7 @@ set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('Membre A', 'voit l''équipe A', '1', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
  ('Membre A', 'voit l''équipe B', '0', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000b1'$q$)),
- ('Membre A', 'voit les joueurs A', '1', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Membre A', 'voit les joueurs A (2)', '2', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
  ('Membre A', 'voit les joueurs B', '0', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000b1'$q$)),
  ('Membre A', 'voit les matchs B', '0', pg_temp.essai($q$select 1 from matches where team_id = '10000000-0000-4000-a000-0000000000b1'$q$)),
  ('Membre A', 'voit le profil du coach A', '1', pg_temp.essai($q$select 1 from profiles where id = '00000000-0000-4000-a000-000000000001'$q$)),
