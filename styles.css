@@ -344,6 +344,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .tl-wrap #tl-chart{overflow-x:auto;}
 .tl-wrap svg{width:100%;height:auto;display:block;}
 .tl-wrap text{font-family:'DM Sans',sans-serif;}
+/* Sélecteur d'équipes : en-tête de club */
+.tsw-club{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;padding:8px 2px 2px}
+.tsw-club img,.tsw-club span:first-child{width:20px;height:20px;object-fit:contain;display:inline-flex;align-items:center;justify-content:center}
+/* Page Mon club */
+.club-head{display:flex;align-items:center;gap:14px}
+.club-logo{width:60px;height:60px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:26px;overflow:hidden}
+.club-sec{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.club-mem{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)}
+.club-del{font-size:12px;padding:6px 10px;min-height:34px}
+.club-add{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.club-add .fi{flex:1;min-width:160px}
+.club-add .sel{width:auto}
+.club-team{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border);cursor:pointer}
+.club-color{height:44px;padding:4px}
+.club-chooser{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto}
+.club-chooser button{flex-shrink:0;min-height:36px;padding:0 12px;border-radius:99px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer}
+.club-chooser button.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
+#club-content .card+.card{margin-top:10px}
 /* Logo d'équipe (remplace le carré coloré quand il existe) */
 .team-logo{width:100%;height:100%;object-fit:contain;display:block}
 .logo-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}

@@ -17,13 +17,15 @@ let halfTimePending=false; // vrai entre "Mi-temps" et le Start suivant : reset 
 let initialBenchCount=0; // nb de remplaçants au coup d'envoi, figé (pas le nb courant qui varie)
 let gkInRotation=false; // le gardien compte-t-il dans le calcul de cadence de rotation ?
 
-const POSTES_MAP={'8v8':[{n:1,l:'Gardien'},{n:2,l:'Arr. droit'},{n:3,l:'Mil. C'},{n:5,l:'Arr. gauche'},{n:6,l:'Mil. C'},{n:7,l:'Att. droit'},{n:9,l:'Att. central'},{n:11,l:'Att. gauche'}],'5v5':[{n:1,l:'Gardien'},{n:2,l:'Déf. droit'},{n:3,l:'Déf. gauche'},{n:6,l:'Milieu'},{n:9,l:'Attaquant'}]};
-const HALF_MIN={'5v5':25,'8v8':30};
+const POSTES_MAP={'8v8':[{n:1,l:'Gardien'},{n:2,l:'Arr. droit'},{n:3,l:'Mil. C'},{n:5,l:'Arr. gauche'},{n:6,l:'Mil. C'},{n:7,l:'Att. droit'},{n:9,l:'Att. central'},{n:11,l:'Att. gauche'}],'5v5':[{n:1,l:'Gardien'},{n:2,l:'Déf. droit'},{n:3,l:'Déf. gauche'},{n:6,l:'Milieu'},{n:9,l:'Attaquant'}],
+  '11v11':[{n:1,l:'Gardien'},{n:2,l:'Arr. droit'},{n:3,l:'Arr. gauche'},{n:4,l:'Déf. central'},{n:5,l:'Déf. central'},{n:6,l:'Milieu déf.'},{n:7,l:'Ailier droit'},{n:8,l:'Milieu'},{n:9,l:'Avant-centre'},{n:10,l:'Meneur'},{n:11,l:'Ailier gauche'}]};
+// Durées par défaut ; écrasées par la table « formats » de la base quand elle est chargée (loadRefs).
+const HALF_MIN={'5v5':25,'8v8':30,'11v11':35};
 const COLORS=['#00d68f','#4d9fff','#ffb830','#c084fc','#fb923c','#ff5c7c'];
 const pCol=p=>COLORS[(p.prenom.charCodeAt(0)||0)%COLORS.length];
 const pInit=p=>((p.prenom[0]||'')+(p.nom[0]||'')).toUpperCase();
 const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-const plabel=(n,f)=>(POSTES_MAP[f||CT?.format||'8v8'].find(p=>p.n===n)?.l)||`#${n}`;
+const plabel=(n,f)=>((POSTES_MAP[f||CT?.format||'8v8']||[]).find(p=>p.n===n)?.l)||`#${n}`;
 
 // Poste layout: percent x,y on terrain (0-100), per orientation. Portrait: bottom=notre but, haut=adversaire.
 // Landscape: droite=notre but, gauche=adversaire.
@@ -35,10 +37,15 @@ const POSTE_LAYOUT_DEFAULTS={
   '5v5':{
     portrait:{1:{x:50,y:88},2:{x:75,y:68},3:{x:25,y:68},6:{x:50,y:48},9:{x:50,y:25}},
     landscape:{1:{x:90,y:50},2:{x:70,y:22},3:{x:70,y:78},6:{x:48,y:50},9:{x:18,y:50}}
+  },
+  '11v11':{
+    portrait:{1:{x:50,y:90},2:{x:85,y:72},4:{x:62,y:76},5:{x:38,y:76},3:{x:15,y:72},6:{x:50,y:58},8:{x:72,y:46},10:{x:28,y:46},7:{x:84,y:26},9:{x:50,y:18},11:{x:16,y:26}},
+    landscape:{1:{x:92,y:50},2:{x:76,y:14},4:{x:78,y:38},5:{x:78,y:62},3:{x:76,y:86},6:{x:62,y:50},8:{x:50,y:28},10:{x:50,y:72},7:{x:26,y:14},9:{x:16,y:50},11:{x:26,y:86}}
   }
 };
 function clonePosteLayout(fmt){const d=POSTE_LAYOUT_DEFAULTS[fmt]||POSTE_LAYOUT_DEFAULTS['8v8'];return{portrait:{...d.portrait},landscape:{...d.landscape}};}
-function getPostes(fmt){return (POSTES_MAP[fmt||CT?.format||'8v8']).map(p=>p.n);}
+// Format sans postes (Festifoot) : liste vide, le Live n'est alors pas proposé (formatHasLive).
+function getPostes(fmt){return (POSTES_MAP[fmt||CT?.format||'8v8']||[]).map(p=>p.n);}
 function currentOrientation(){return landscapeMode?'landscape':'portrait';}
 
 // Current match live state (modifiable per match)
@@ -111,7 +118,50 @@ async function doResetPassword(){
     btn.disabled=false;btn.textContent='Réinitialiser le mot de passe';
   }
 }
-async function loadApp(user){U=user;document.getElementById('screen-auth').classList.remove('active');document.getElementById('screen-app').classList.add('active');await loadProfile();await loadTeams();renderHome();}
+async function loadApp(user){U=user;document.getElementById('screen-auth').classList.remove('active');document.getElementById('screen-app').classList.add('active');await loadProfile();await Promise.all([loadRefs(),loadMyClubs()]);await loadTeams();renderHome();}
+
+// ============ RÉFÉRENTIELS & CLUBS (modèle multi-clubs, phases A1/A2) ============
+// Catégories, formats, niveaux, provinces : lus en base (configurables). Si la lecture
+// échoue, l'app garde ses valeurs intégrées (POSTES_MAP, HALF_MIN, liste U8–U13).
+let refs={categories:[],formats:[],niveaux:[],provinces:[]};
+async function loadRefs(){
+  try{
+    const [c,f,n,p]=await Promise.all([
+      sb.from('categories').select('*').order('ordre'),
+      sb.from('formats').select('*').order('ordre'),
+      sb.from('niveaux').select('*').order('ordre').order('libelle'),
+      sb.from('provinces').select('id,nom').order('nom')]);
+    refs={categories:c.data||[],formats:f.data||[],niveaux:n.data||[],provinces:p.data||[]};
+    refs.formats.forEach(x=>{if(x.duree_mt)HALF_MIN[x.code]=x.duree_mt;});
+  }catch(e){}
+}
+const formatInfo=code=>refs.formats.find(f=>f.code===code);
+const formatLabel=code=>formatInfo(code)?.libelle||code||'';
+// Festifoot : pas de Live (calendrier + présences seulement). Inconnu = Live (historique).
+const formatHasLive=code=>{const f=formatInfo(code);return f?f.live!==false:!!POSTES_MAP[code];};
+const formatPlayers=code=>formatInfo(code)?.nb_joueurs||(code==='5v5'?5:code==='11v11'?11:8);
+
+// Clubs dont je suis CQ ou coordinateur : [{club_id, role, clubs:{…}}]
+let myClubs=[];
+async function loadMyClubs(){
+  if(!U)return;
+  try{
+    const{data,error}=await sb.from('club_members').select('role,club_id,clubs(*)').eq('profile_id',U.id);
+    myClubs=error?[]:(data||[]);
+  }catch(e){myClubs=[];}
+}
+const isClubStaff=cid=>!!cid&&myClubs.some(c=>c.club_id===cid);
+const isClubCQ=cid=>!!cid&&myClubs.some(c=>c.club_id===cid&&c.role==='cq');
+const myTeamRole=t=>t?.team_members?.find(m=>m.profile_id===U?.id)?.role||'';
+// Encadrement d'une équipe : entraîneur/délégué de l'équipe OU CQ/coordinateur de son club
+const isTeamStaff=t=>!!t&&(isStaffRole(myTeamRole(t))||isClubStaff(t.club_id));
+// Libellé de mon rôle pour une équipe (rôle d'équipe, sinon rôle de club)
+function myRoleLabel(t){
+  const r=myTeamRole(t);if(r)return ROLE_LABEL[r]||r;
+  const c=myClubs.find(x=>x.club_id===t?.club_id);
+  return c?(c.role==='cq'?'CQ':'Coordinateur'):'';
+}
+const clubOf=cid=>myClubs.find(c=>c.club_id===cid)?.clubs||null;
 async function loadProfile(){const{data}=await sb.from('profiles').select('*').eq('id',U.id).single();if(data){UP=data;document.getElementById('wname').textContent=`Bonjour ${data.prenom} !`;}renderNavUser();}
 
 // ============ NAVIGATION (en-tête, barre latérale iPad, menu compte) ============
@@ -142,7 +192,7 @@ function renderNavUser(){
   const name=UP?`${UP.prenom||''} ${UP.nom||''}`.trim():(U?.email||'');
   fillAll('.js-user-ini',el=>el.textContent=ini);
   fillAll('.js-user-name',el=>el.textContent=name);
-  fillAll('.js-user-role',el=>el.textContent=CT?(ROLE_LABEL[CT.team_members?.find(m=>m.profile_id===U?.id)?.role]||'Membre'):'');
+  fillAll('.js-user-role',el=>el.textContent=CT?(myRoleLabel(CT)||'Membre'):'');
   const adm=document.getElementById('umenu-admin');
   if(adm)adm.style.display=(isAdmin||(U&&myAdminTeams().length))?'flex':'none';
 }
@@ -155,14 +205,17 @@ function closeUserMenu(e){if(!e||e.target===document.getElementById('umenu'))doc
 
 // ============ TEAMS ============
 async function loadTeams(){
-  const{data}=await sb.from('teams').select('*,team_members!inner(profile_id,role)').eq('team_members.profile_id',U.id);
+  // Toutes les équipes visibles (la base filtre : mes équipes + celles des clubs dont je
+  // suis CQ/coordinateur). team_members est filtré sur moi seul, sans exclure les équipes
+  // où je n'ai pas de rôle d'équipe (avant : « !inner » les cachait aux CQ/coordinateurs).
+  const{data}=await sb.from('teams').select('*,team_members(profile_id,role),clubs(id,nom,logo,slug,verifie)').eq('team_members.profile_id',U.id).order('nom');
   teams=data||[];renderTeamsList();renderTsw();
   if(teams.length>0&&!CT)selTeam(teams[0]);
   else if(CT){const u=teams.find(t=>t.id===CT.id);if(u)selTeam(u);}
 }
 function selTeam(t){
   CT = t;
-  isAdmin = Array.isArray(t?.team_members) && t.team_members.some(tm=>tm.profile_id===U?.id&&isStaffRole(tm.role));
+  isAdmin = isTeamStaff(t);
   const adminBtn=document.getElementById('admin-btn');
   if(adminBtn)adminBtn.style.display=isAdmin?'inline-flex':'none';
   document.getElementById('hdr-tname').textContent = CT?.nom || 'Choisir une équipe';
@@ -178,15 +231,15 @@ function renderTeamsList(){
   const el=document.getElementById('teams-list');
   if(!teams.length){el.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Aucune équipe</div><div class="empty-s">Crée ta première équipe</div></div>`;return;}
   el.innerHTML=teams.map(t=>{
-    const role=t.team_members?.find(m=>m.profile_id===U.id)?.role||'';
+    const staff=isTeamStaff(t);
     return `<div class="card" onclick="switchTeam('${t.id}');goPage('home')">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
         <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${safeLogo(t)?'transparent':t.couleur+'22'};color:${t.couleur}">${safeLogo(t)?`<img class="team-logo" src="${safeLogo(t)}" alt="">`:t.nom.slice(0,2).toUpperCase()}</div>
-        <div style="flex:1"><div style="font-size:14px;font-weight:600">${t.nom}</div><div style="font-size:12px;color:var(--text2)">${t.categorie} · ${t.format}</div></div>
-        ${isStaffRole(role)?`<button onclick="editTeam('${t.id}',event)" class="bsec" style="font-size:12px;padding:5px 9px">Modifier</button>`:''}
-        ${isStaffRole(role)?`<button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>`:''}
+        <div style="flex:1"><div style="font-size:14px;font-weight:600">${esc(t.nom)}</div><div style="font-size:12px;color:var(--text2)">${esc(t.clubs?.nom||t.categorie)} · ${esc(formatLabel(t.format))}</div></div>
+        ${staff?`<button onclick="editTeam('${t.id}',event)" class="bsec" style="font-size:12px;padding:5px 9px">Modifier</button>`:''}
+        ${isClubStaff(t.club_id)||(!t.club_id&&staff)?`<button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>`:''}
       </div>
-      <div style="display:flex;gap:5px"><span class="pill pg">${t.categorie}</span><span class="pill pb">${t.format}</span><span class="pill pgr">${ROLE_LABEL[role]||role||'—'}</span></div>
+      <div style="display:flex;gap:5px"><span class="pill pg">${esc(t.categorie)}</span><span class="pill pb">${esc(formatLabel(t.format))}</span><span class="pill pgr">${esc(myRoleLabel(t)||'—')}</span></div>
     </div>`;
   }).join('');
 }
@@ -194,8 +247,9 @@ async function deleteTeam(id,e){
   if(e && e.stopPropagation) e.stopPropagation();
   const team = teams.find(t=>t.id===id);
   if(!team) return;
-  // Droit admin sur l'équipe visée (avant : sur l'équipe sélectionnée, pas forcément la même).
-  if(!myAdminTeams().some(t=>t.id===id)) return showToast('Accès admin requis','err');
+  // Supprimer une équipe d'un club est réservé au CQ / coordinateur de ce club
+  // (même règle que la base : can_delete_team) ; sans club, l'encadrement suffit.
+  if(!(isClubStaff(team.club_id)||(!team.club_id&&isTeamStaff(team)))) return showToast('Seuls le CQ et les coordinateurs du club peuvent supprimer une équipe','err');
   if(!await askConfirm(`Supprimer l'équipe "${team?.nom}" ? Cette action est irréversible.`)) return;
   // Fonction Supabase delete_team (vérifie le rôle admin côté base). Avec la sécurité
   // RLS, supprimer d'abord ses propres accès ferait perdre le droit de supprimer l'équipe.
@@ -211,15 +265,23 @@ async function deleteTeam(id,e){
 function renderTsw(){
   const box=document.getElementById('tsw-box');
   if(!teams.length){box.innerHTML=`<div style="padding:13px;text-align:center;color:var(--text2);font-size:13px">Aucune équipe</div>`;return;}
-  box.innerHTML=teams.map(t=>{
+  const row=t=>{
     const on=CT?.id===t.id;
     const n=on?players.length:teamPlayerCounts[t.id];
     const cnt=n===undefined?'':` · ${n} joueur${n>1?'s':''}`;
     return `<div class="topt ${on?'active':''}" style="${on?`border-color:${t.couleur}`:''}" onclick="switchTeam('${t.id}')">
     <div class="team-sq" style="background:${teamSqBg(t)}">${teamSqInner(t)}</div>
-    <div style="flex:1;min-width:0"><div class="topt-name">${t.nom}</div><div class="topt-sub">${t.categorie}${cnt}</div></div>
+    <div style="flex:1;min-width:0"><div class="topt-name">${esc(t.nom)}</div><div class="topt-sub">${esc(t.categorie)}${cnt}</div></div>
     ${on?'<span class="topt-check">✓</span>':''}
-  </div>`;}).join('');
+  </div>`;};
+  // Regroupement par club (en-tête avec logo et nom) ; les équipes sans club à la fin.
+  const groups={};teams.forEach(t=>{(groups[t.club_id||'']=groups[t.club_id||'']||[]).push(t);});
+  const keys=Object.keys(groups).sort((a,b)=>(a==='')-(b===''));
+  box.innerHTML=keys.map(k=>{
+    const c=k?(groups[k][0].clubs||clubOf(k)):null;
+    const head=keys.length>1||k?`<div class="tsw-club">${c&&safeLogo(c)?`<img class="team-logo" src="${safeLogo(c)}" alt="">`:'<span>🏟</span>'}<span>${esc(c?.nom||(k?'Club':'Sans club'))}</span></div>`:'';
+    return head+groups[k].map(row).join('');
+  }).join('');
 }
 // Nombre de joueurs par équipe pour la feuille "Mes équipes". Requête séparée et
 // tolérante aux erreurs : elle ne doit jamais empêcher le chargement des équipes.
@@ -256,13 +318,51 @@ function setTeamModalMode(t){
   document.getElementById('t-save').textContent=t?'Enregistrer':'Créer';
   selColor_=t?.couleur||'#00d68f';
   document.getElementById('t-nom').value=t?.nom||'';
+  fillTeamSelects();
   document.getElementById('t-cat').value=t?.categorie||'U10';
   const f=document.getElementById('t-fmt');f.value=t?.format||'8v8';f.disabled=false;
+  document.getElementById('t-niv').value=t?.niveau_id||'';
+  document.getElementById('t-niv-new').style.display='none';
   document.getElementById('t-fmt-note').style.display='none';
   document.querySelectorAll('.copt').forEach(el=>el.classList.toggle('on',el.dataset.c===selColor_));
   selLogo_=safeLogo(t);logoChanged=false;renderLogoPreview();
   document.getElementById('t-public').checked=!!t?.scores_publics;
 }
+// Listes de la fenêtre équipe depuis les référentiels (catégories, formats, niveaux).
+// Sans référentiels chargés, les options intégrées au HTML restent en place.
+function fillTeamSelects(){
+  if(refs.categories.length)document.getElementById('t-cat').innerHTML=refs.categories.map(c=>`<option value="${esc(c.code)}">${esc(c.libelle)}</option>`).join('');
+  if(refs.formats.length)document.getElementById('t-fmt').innerHTML=refs.formats.map(f=>`<option value="${esc(f.code)}">${esc(f.libelle)}${f.duree_mt?` (2×${f.duree_mt} min)`:f.live===false?' (sans Live)':''}</option>`).join('');
+  const canAdd=myClubs.length>0;
+  document.getElementById('t-niv').innerHTML=`<option value="">—</option>`+refs.niveaux.map(n=>`<option value="${n.id}">${esc(n.libelle)}</option>`).join('')+(canAdd?`<option value="__new">+ Ajouter un niveau…</option>`:'');
+}
+// Changer de catégorie propose son format par défaut (sauf format verrouillé par des matchs)
+function onTeamCatChange(){
+  const f=document.getElementById('t-fmt');if(f.disabled)return;
+  const c=refs.categories.find(c=>c.code===document.getElementById('t-cat').value);
+  if(c?.format_defaut)f.value=c.format_defaut;
+}
+function onTeamNivChange(){
+  const v=document.getElementById('t-niv').value;
+  document.getElementById('t-niv-new').style.display=v==='__new'?'flex':'none';
+  if(v==='__new')document.getElementById('t-niv-nom').focus();
+}
+// Nouveau niveau dans la liste commune (CQ / coordinateurs ; l'admin fusionne les doublons)
+async function addNiveau(){
+  const lib=document.getElementById('t-niv-nom').value.trim();
+  if(!lib)return showToast('Nom du niveau requis','err');
+  const exist=refs.niveaux.find(n=>n.libelle.toLowerCase()===lib.toLowerCase());
+  if(exist){document.getElementById('t-niv').value=exist.id;document.getElementById('t-niv-new').style.display='none';return showToast('Ce niveau existe déjà, il est sélectionné','ok');}
+  const{data,error}=await sb.from('niveaux').insert({libelle:lib,cree_par:U.id}).select().single();
+  if(error)return showToast('Ajout refusé (réservé aux CQ et coordinateurs)','err');
+  refs.niveaux.push(data);fillTeamSelects();
+  document.getElementById('t-niv').value=data.id;document.getElementById('t-niv-new').style.display='none';
+  document.getElementById('t-niv-nom').value='';
+  showToast('Niveau ajouté','ok');
+}
+// Club de la prochaine équipe créée (depuis la page Club) ; sinon la base choisit
+// automatiquement le club si je suis CQ/coordinateur d'un seul club.
+let newTeamClubId=null;
 // Logo choisi dans la fenêtre équipe. logoChanged : on n'envoie la colonne "logo" à
 // Supabase que si l'utilisateur l'a modifiée (l'app marche même sans cette colonne).
 let selLogo_=null,logoChanged=false;
@@ -289,11 +389,11 @@ function pickTeamLogo(input){
   img.onerror=()=>{URL.revokeObjectURL(url);showToast('Image illisible','err');};
   img.src=url;
 }
-function openTeamModal(){setTeamModalMode(null);openModal('modal-team');}
+function openTeamModal(clubId){setTeamModalMode(null);newTeamClubId=clubId||null;openModal('modal-team');}
 async function editTeam(id,e){
   if(e&&e.stopPropagation)e.stopPropagation();
   const t=teams.find(t=>t.id===id);if(!t)return;
-  if(!t.team_members?.some(m=>m.profile_id===U.id&&isStaffRole(m.role)))return showToast('Accès réservé à l\'encadrement','err');
+  if(!isTeamStaff(t))return showToast('Accès réservé à l\'encadrement','err');
   setTeamModalMode(t);openModal('modal-team');
   // Format verrouillé dès qu'il existe des matchs : leurs postes enregistrés (1,2,3,6,9
   // en 5v5 / 1,2,3,5,6,7,9,11 en 8v8) ne correspondraient plus au nouveau format.
@@ -307,7 +407,7 @@ async function editTeam(id,e){
 }
 function selColor(el){selColor_=el.dataset.c;document.querySelectorAll('.copt').forEach(o=>o.classList.remove('on'));el.classList.add('on');}
 // Colonne teams.logo absente (migration Supabase pas encore faite) : message explicite.
-function isMissingLogoCol(err){return !!err&&/logo|scores_publics|publication_ok/i.test((err.message||'')+(err.details||''))&&(err.code==='PGRST204'||err.code==='42703'||/column/i.test(err.message||''));}
+function isMissingLogoCol(err){return !!err&&/logo|scores_publics|publication_ok|niveau_id|club_id/i.test((err.message||'')+(err.details||''))&&(err.code==='PGRST204'||err.code==='42703'||/column/i.test(err.message||''));}
 async function saveTeam(){
   const nom=document.getElementById('t-nom').value.trim(),cat=document.getElementById('t-cat').value,fmt=document.getElementById('t-fmt').value;
   if(!nom)return showToast('Donne un nom','err');
@@ -318,6 +418,8 @@ async function saveTeam(){
     // N'envoie scores_publics que s'il change (l'app marche sans la colonne).
     const pub=document.getElementById('t-public').checked;
     if(pub!==!!teams.find(t=>t.id===editTid)?.scores_publics)upd.scores_publics=pub;
+    const niv=parseInt(document.getElementById('t-niv').value)||null;
+    if(niv!==(teams.find(t=>t.id===editTid)?.niveau_id||null))upd.niveau_id=niv;
     // .select() : avec les règles de sécurité Supabase, une modification refusée ne
     // renvoie pas d'erreur mais 0 ligne — on le détecte pour ne pas afficher "OK" à tort.
     const{data,error}=await sb.from('teams').update(upd).eq('id',editTid).select();
@@ -331,6 +433,9 @@ async function saveTeam(){
   const row={nom,categorie:cat,format:fmt,couleur:selColor_,saison_id:sd?.id};
   if(logoChanged&&selLogo_)row.logo=selLogo_;
   if(document.getElementById('t-public').checked)row.scores_publics=true;
+  const nivNew=parseInt(document.getElementById('t-niv').value)||null;
+  if(nivNew)row.niveau_id=nivNew;
+  if(newTeamClubId)row.club_id=newTeamClubId;
   const{data:t,error}=await sb.from('teams').insert(row).select().single();
   if(isMissingLogoCol(error))return showToast('Une colonne manque dans Supabase : exécute le dernier script SQL (dossier supabase/)','err');
   if(error)return showToast('Erreur création','err');
@@ -491,6 +596,8 @@ async function openMatchDetail(id){
   const sp=document.getElementById('det-status');sp.className='pill '+cls;sp.textContent=txt;
   document.getElementById('match-list-view').style.display='none';
   document.getElementById('match-detail-view').style.display='flex';
+  // Festifoot (format sans Live) : calendrier et présences seulement, pas d'onglet Live.
+  const liveTab=document.querySelector('.mtab[data-step="live"]');if(liveTab)liveTab.style.display=formatHasLive(CT?.format)?'':'none';
 
   // Si une sauvegarde précédente n'a pas atteint Supabase (coupure réseau sur le
   // terrain), on repart de cette version locale plus récente plutôt que de la
@@ -812,9 +919,11 @@ function renderConvs(){
     </div>`;
   }).join('');
   const area=document.getElementById('start-match-area');
-  const maxOn=CT?.format==='5v5'?5:8;
+  const maxOn=formatPlayers(CT?.format);
   const presents=players.filter(p=>convs[p.id]==='present');
-  if(CM.statut==='termine'){
+  if(!formatHasLive(CT?.format)){
+    area.innerHTML=`<div style="background:var(--bg3);border-radius:var(--rsm);padding:12px;text-align:center;color:var(--text2);font-size:13px">${presents.length} joueur${presents.length>1?'s':''} présent${presents.length>1?'s':''} · ${esc(formatLabel(CT?.format))} : pas de suivi Live, les présences suffisent</div>`;
+  } else if(CM.statut==='termine'){
     area.innerHTML=`<div style="background:var(--bg3);border-radius:var(--rsm);padding:12px;text-align:center;color:var(--text2);font-size:13px">Match terminé — voir l'onglet Résumé</div>`;
   } else if(CM.statut==='en_cours'){
     area.innerHTML=`<button class="bp" onclick="switchTab('live')" style="margin-top:0">▶ Reprendre le match en cours</button>`;
@@ -859,7 +968,7 @@ function ensureComposition(){
 function validateComposition(){
   if(!CM) return;
   if(CM.statut==='termine') return showToast('Match terminé — impossible','err');
-  const maxOn=CT.format==='5v5'?5:8;
+  const maxOn=formatPlayers(CT.format);
   const presents=players.filter(p=>convs[p.id]==='present');
   if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
   ensureComposition();
@@ -883,7 +992,7 @@ function startMatch(){
   // de trouver "Terminer le match"), on ne touche plus à rien — cette remise à zéro
   // écrasait un match déjà en cours (chronoS remis à 0 en pleine 2ème mi-temps).
   if(matchStarted){switchTab('live');return;}
-  const maxOn=CT.format==='5v5'?5:8;
+  const maxOn=formatPlayers(CT.format);
   const presents=players.filter(p=>convs[p.id]==='present');
   if(presents.length<maxOn) return showToast(`Minimum ${maxOn} joueurs requis`,'err');
   ensureComposition();
@@ -1695,7 +1804,7 @@ async function updateStats(){
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Fonction SQL absente (script de sécurité Supabase pas encore exécuté).
 function isMissingFn(err){return !!err&&(err.code==='PGRST202'||err.code==='42883'||/could not find the function/i.test(err.message||''));}
-function myAdminTeams(){return teams.filter(t=>t.team_members?.some(m=>m.profile_id===U.id&&isStaffRole(m.role)));}
+function myAdminTeams(){return teams.filter(isTeamStaff);}
 async function renderAdminPage(){
   const panel=document.getElementById('admin-team-members');
   const aTeams=myAdminTeams();
@@ -1838,6 +1947,147 @@ async function removeTeamMember(memberId){
   showToast('Membre retiré','ok');
   await renderAdminPage();
 }
+
+// ============ MON CLUB (CQ / coordinateurs) ============
+// Fiche du club (le CQ la modifie), encadrement du club (CQ et coordinateurs, gérés par
+// le CQ), équipes du club. Sans club : formulaire de création (le créateur devient CQ).
+// Les droits sont vérifiés par la base (RLS + fonctions) ; l'interface ne fait qu'adapter
+// ce qu'elle propose.
+let clubPageId=null,clubLogo_=null,clubLogoChanged=false;
+async function renderClubPage(){
+  const el=document.getElementById('club-content');
+  await loadMyClubs();
+  if(!myClubs.length){
+    el.innerHTML=`<div class="card club-create">
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">Créer mon club</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Tu en deviendras le CQ (correspondant qualifié). Le club sera visible des autres clubs après vérification par FootCoach.</div>
+      <div class="fg"><label class="fl">Nom du club</label><input class="fi" id="cc-nom" placeholder="ex : REH Braives"></div>
+      <div class="fg"><label class="fl">Province</label><select class="sel" id="cc-prov"><option value="">—</option>${refs.provinces.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Matricule ACFF <span style="color:var(--text3);font-weight:400">(optionnel)</span></label><input class="fi" id="cc-mat" inputmode="numeric"></div>
+      <button class="bp" onclick="createClub()">Créer le club</button>
+    </div>`;
+    return;
+  }
+  // Club affiché : celui choisi, sinon celui de l'équipe courante, sinon le premier
+  if(!clubPageId||!isClubStaff(clubPageId))clubPageId=isClubStaff(CT?.club_id)?CT.club_id:myClubs[0].club_id;
+  const cid=clubPageId,cq=isClubCQ(cid);
+  const [{data:club},{data:mem}]=await Promise.all([
+    sb.from('clubs').select('*').eq('id',cid).single(),
+    sb.from('club_members').select('id,role,profile_id,profiles(prenom,nom,email)').eq('club_id',cid)]);
+  if(!club){el.innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Club introuvable</div></div>`;return;}
+  clubLogo_=safeLogo(club);clubLogoChanged=false;
+  const prov=refs.provinces.find(p=>p.id===club.province_id)?.nom;
+  const clubTeams=teams.filter(t=>t.club_id===cid);
+  const chooser=myClubs.length>1?`<div class="club-chooser">${myClubs.map(c=>`<button class="${c.club_id===cid?'on':''}" onclick="clubPageId='${c.club_id}';renderClubPage()">${esc(c.clubs?.nom||'Club')}</button>`).join('')}</div>`:'';
+  const head=`<div class="card club-head">
+    <div class="club-logo" style="background:${clubLogo_?'transparent':esc(club.couleur1||'var(--bg3)')}">${clubLogo_?`<img class="team-logo" src="${clubLogo_}" alt="">`:'🏟'}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:17px;font-weight:700">${esc(club.nom)}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:2px">${esc([prov,club.matricule?'Matricule '+club.matricule:''].filter(Boolean).join(' · ')||'—')}</div>
+      <div style="margin-top:6px">${club.verifie?'<span class="pill pg" style="font-size:11px">✓ Club vérifié</span>':'<span class="pill pgr" style="font-size:11px">⏳ En attente de vérification</span>'} <span class="pill pb" style="font-size:11px">${cq?'CQ':'Coordinateur'}</span></div>
+    </div></div>`;
+  const infos=cq?`<div class="card">
+    <div class="club-sec">Informations du club</div>
+    <div class="fg"><label class="fl">Nom</label><input class="fi" id="cl-nom" value="${esc(club.nom)}"></div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Province</label><select class="sel" id="cl-prov"><option value="">—</option>${refs.provinces.map(p=>`<option value="${p.id}" ${p.id===club.province_id?'selected':''}>${esc(p.nom)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Matricule</label><input class="fi" id="cl-mat" value="${esc(club.matricule||'')}" inputmode="numeric"></div>
+    </div>
+    <div class="fg"><label class="fl">Adresse du terrain</label><input class="fi" id="cl-adr" value="${esc(club.adresse||'')}" placeholder="Rue, numéro, code postal, commune"></div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Couleur 1</label><input class="fi club-color" type="color" id="cl-c1" value="${esc(club.couleur1||'#fdea2e')}"></div>
+      <div class="fg"><label class="fl">Couleur 2</label><input class="fi club-color" type="color" id="cl-c2" value="${esc(club.couleur2||'#b0212f')}"></div>
+    </div>
+    <div class="fg"><label class="fl">Logo</label><div class="logo-row">
+      <div class="logo-prev" id="cl-logo-prev">${clubLogo_?`<img class="team-logo" src="${clubLogo_}" alt="">`:'<span>Aucun</span>'}</div>
+      <label class="bsec logo-btn">Choisir une image<input type="file" accept="image/*" onchange="pickClubLogo(this)" hidden></label>
+    </div></div>
+    <button class="bp" onclick="saveClub()">Enregistrer</button>
+  </div>`:'';
+  const roleLbl=r=>r==='cq'?'CQ':'Coordinateur';
+  const staff=`<div class="card">
+    <div class="club-sec">Encadrement du club</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px"><b>CQ</b> : tous les droits sur le club. <b>Coordinateur</b> : gère les équipes du club et la recherche de matchs.</div>
+    ${(mem||[]).sort((a,b)=>(a.role>b.role?-1:1)).map(m=>{
+      const p=m.profiles||{};const me=m.profile_id===U.id;
+      return `<div class="club-mem"><div style="flex:1;min-width:0"><div class="admin-name">${esc((p.prenom||'')+' '+(p.nom||''))}${me?' <span class="pill pgr" style="font-size:10px">Vous</span>':''}</div><div class="admin-role">${esc(p.email||'—')}</div></div>
+        <span class="pill ${m.role==='cq'?'pg':'pb'}" style="font-size:11px">${roleLbl(m.role)}</span>
+        ${(cq||me)?`<button class="bred club-del" onclick="removeClubMember('${m.id}',${me})">${me?'Quitter':'Retirer'}</button>`:''}</div>`;}).join('')}
+    ${cq?`<div class="club-add">
+      <input class="fi" id="cm-email" type="email" placeholder="email@club.be">
+      <select class="sel" id="cm-role"><option value="coordinateur">Coordinateur</option><option value="cq">CQ</option></select>
+      <button class="bsec logo-btn" onclick="addClubMember()">Ajouter</button>
+    </div><div style="font-size:11px;color:var(--text3);margin-top:6px">La personne doit avoir un compte FootCoach (sinon : Membres &amp; accès → + Personne pour le créer).</div>`:''}
+  </div>`;
+  const equipes=`<div class="card">
+    <div class="club-sec" style="display:flex;align-items:center;justify-content:space-between">Équipes du club <button class="badd" onclick="openTeamModal('${cid}')">+ Équipe</button></div>
+    ${clubTeams.length?clubTeams.map(t=>`<div class="club-team" onclick="switchTeam('${t.id}')">
+      <div class="team-sq acc-sq" style="background:${teamSqBg(t)}">${teamSqInner(t)}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${esc(t.nom)}</div><div style="font-size:12px;color:var(--text2)">${esc(t.categorie)} · ${esc(formatLabel(t.format))}${t.niveau_id?' · '+esc(refs.niveaux.find(n=>n.id===t.niveau_id)?.libelle||''):''}</div></div>
+      <span style="color:var(--text3)">›</span></div>`).join(''):'<div style="font-size:13px;color:var(--text3)">Aucune équipe pour l\'instant</div>'}
+  </div>`;
+  el.innerHTML=chooser+head+infos+staff+equipes;
+}
+async function createClub(){
+  const nom=document.getElementById('cc-nom').value.trim();
+  if(!nom)return showToast('Nom du club obligatoire','err');
+  const prov=parseInt(document.getElementById('cc-prov').value)||null;
+  const mat=document.getElementById('cc-mat').value.trim()||null;
+  const{data,error}=await sb.rpc('create_club',{p_nom:nom,p_province_id:prov,p_matricule:mat});
+  if(error)return showToast(/matricule|unique|duplicate/i.test(error.message)?'Ce matricule est déjà utilisé par un autre club':'Création impossible : '+error.message,'err');
+  clubPageId=data;showToast('Club créé — tu en es le CQ','ok');
+  await loadMyClubs();await loadTeams();renderClubPage();
+}
+function pickClubLogo(input){
+  const file=input.files&&input.files[0];input.value='';
+  if(!file||!file.type.startsWith('image/'))return showToast('Choisis une image','err');
+  const url=URL.createObjectURL(file);const img=new Image();
+  img.onload=()=>{
+    const max=160,r=Math.min(1,max/Math.max(img.width,img.height));
+    const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*r));c.height=Math.max(1,Math.round(img.height*r));
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);
+    clubLogo_=c.toDataURL('image/png');clubLogoChanged=true;
+    document.getElementById('cl-logo-prev').innerHTML=`<img class="team-logo" src="${clubLogo_}" alt="">`;
+  };
+  img.onerror=()=>{URL.revokeObjectURL(url);showToast('Image illisible','err');};
+  img.src=url;
+}
+async function saveClub(){
+  const nom=document.getElementById('cl-nom').value.trim();
+  if(!nom)return showToast('Nom du club obligatoire','err');
+  const upd={nom,province_id:parseInt(document.getElementById('cl-prov').value)||null,
+    matricule:document.getElementById('cl-mat').value.trim()||null,adresse:document.getElementById('cl-adr').value.trim()||null,
+    couleur1:document.getElementById('cl-c1').value,couleur2:document.getElementById('cl-c2').value};
+  if(clubLogoChanged)upd.logo=clubLogo_;
+  const{data,error}=await sb.from('clubs').update(upd).eq('id',clubPageId).select();
+  if(error)return showToast(/matricule|unique|duplicate/i.test(error.message)?'Ce matricule est déjà utilisé par un autre club':'Enregistrement refusé','err');
+  if(!data?.length)return showToast('Enregistrement refusé (réservé au CQ)','err');
+  showToast('Club enregistré','ok');
+  await loadMyClubs();await loadTeams();renderClubPage();
+}
+async function addClubMember(){
+  const email=document.getElementById('cm-email').value.trim().toLowerCase();
+  const role=document.getElementById('cm-role').value;
+  if(!email)return showToast('Email requis','err');
+  const r=await sb.rpc('find_profile_by_email',{e:email});
+  const profile=Array.isArray(r.data)?r.data[0]:r.data;
+  if(!profile)return showToast('Aucun compte avec cet email : crée-le d\'abord (Membres & accès → + Personne)','err');
+  const{data,error}=await sb.from('club_members').insert({club_id:clubPageId,profile_id:profile.id,role}).select();
+  if(error)return showToast(/duplicate|unique/i.test(error.message)?'Cette personne a déjà ce rôle':'Ajout refusé (réservé au CQ)','err');
+  if(!data?.length)return showToast('Ajout refusé (réservé au CQ)','err');
+  showToast(`${profile.prenom||'Personne'} ajouté(e) comme ${role==='cq'?'CQ':'coordinateur'}`,'ok');
+  renderClubPage();
+}
+async function removeClubMember(id,me){
+  if(!await askConfirm(me?'Quitter ce rôle dans le club ?':'Retirer cette personne de l\'encadrement du club ?'))return;
+  const{data,error}=await sb.from('club_members').delete().eq('id',id).select();
+  if(error)return showToast(/au moins un CQ/i.test(error.message)?'Un club doit garder au moins un CQ':'Retrait refusé','err');
+  if(!data?.length)return showToast('Retrait refusé','err');
+  showToast('Rôle retiré','ok');
+  await loadMyClubs();await loadTeams();
+  if(me&&!isClubStaff(clubPageId))clubPageId=null;
+  renderClubPage();
+}
 function renderHome(){
   if(UP){
     const h=new Date().getHours(),g=h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir';
@@ -1907,6 +2157,7 @@ function goPage(name){
     },1000);
   }
   if(name==='admin')renderAdminPage();
+  if(name==='club')renderClubPage();
   if(name==='stats')loadMatches().then(()=>renderStatsPage());
 }
 function goAdmin(){

@@ -259,6 +259,14 @@
     </div>
   </div>
 
+  <!-- MON CLUB (CQ / coordinateurs) -->
+  <div class="page" id="page-club">
+    <div class="pc">
+      <div class="sh"><span class="st">Mon club</span></div>
+      <div id="club-content"><div class="spin"></div></div>
+    </div>
+  </div>
+
   <!-- STATS -->
   <div class="page" id="page-stats">
     <div class="pc">
@@ -315,6 +323,7 @@
       <button class="umenu-item" onclick="closeUserMenu();toggleMode()"><span>⚽</span><span id="umenu-md">Mode Match Day</span></button>
       <button class="umenu-item" onclick="closeUserMenu();toggleKiosk()"><span>📺</span><span>Mode Kiosk</span></button>
       <a class="umenu-item" href="scores.html" target="_blank" rel="noopener" onclick="closeUserMenu()" style="text-decoration:none"><span>🏆</span><span>Page publique des scores</span></a>
+      <button class="umenu-item" onclick="closeUserMenu();goPage('club')"><span>🏟</span><span>Mon club</span></button>
       <button class="umenu-item" id="umenu-admin" onclick="closeUserMenu();goAdmin()" style="display:none"><span>🛠</span><span>Membres &amp; accès</span></button>
       <button class="umenu-item umenu-out" onclick="closeUserMenu();signOut()"><span>⎋</span><span>Se déconnecter</span></button>
     </div>
@@ -340,11 +349,18 @@
       <div class="mt" id="mt-title">Nouvelle équipe</div>
       <div class="fg"><label class="fl">Nom</label><input class="fi" id="t-nom" placeholder="ex: U10 Thisnes" type="text"></div>
       <div class="fg"><label class="fl">Catégorie</label>
-        <select class="sel" id="t-cat"><option value="U8">U8</option><option value="U9">U9</option><option value="U10" selected>U10</option><option value="U11">U11</option><option value="U12">U12</option><option value="U13">U13</option></select>
+        <select class="sel" id="t-cat" onchange="onTeamCatChange()"><option value="U8">U8</option><option value="U9">U9</option><option value="U10" selected>U10</option><option value="U11">U11</option><option value="U12">U12</option><option value="U13">U13</option></select>
       </div>
       <div class="fg"><label class="fl">Format</label>
         <select class="sel" id="t-fmt"><option value="5v5">5v5 — U8/U9 (2×25 min)</option><option value="8v8" selected>8v8 — U10/U13 (2×30 min)</option></select>
         <div id="t-fmt-note" style="display:none;font-size:11px;color:var(--amber);margin-top:6px"></div>
+      </div>
+      <div class="fg"><label class="fl">Niveau <span style="color:var(--text3);font-weight:400">(optionnel)</span></label>
+        <select class="sel" id="t-niv" onchange="onTeamNivChange()"><option value="">—</option></select>
+        <div id="t-niv-new" style="display:none;gap:8px;margin-top:8px">
+          <input class="fi" id="t-niv-nom" type="text" placeholder="ex : IP, Régional…" style="flex:1">
+          <button type="button" class="bsec logo-btn" onclick="addNiveau()">Ajouter</button>
+        </div>
       </div>
       <div class="fg"><label class="fl">Couleur</label>
         <div class="crow" id="color-picker">
