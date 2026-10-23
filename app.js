@@ -117,6 +117,14 @@ async function loadProfile(){const{data}=await sb.from('profiles').select('*').e
 // ============ NAVIGATION (en-tête, barre latérale iPad, menu compte) ============
 // Le bouton équipe et l'avatar existent en deux exemplaires (en-tête iPhone + barre
 // latérale iPad/PC) : on les remplit par classe .js-* pour ne pas dupliquer la logique.
+// Rôles d'équipe : anciens noms (admin/member, avant la migration A2) et nouveaux
+// (entraineur/delegue/parent). Entraîneur et délégué ont les mêmes droits.
+const STAFF_ROLES=['admin','entraineur','delegue'];
+const isStaffRole=r=>STAFF_ROLES.includes(r);
+const ROLE_LABEL={admin:'Entraîneur',entraineur:'Entraîneur',member:'Délégué',delegue:'Délégué',parent:'Parent'};
+// Valeur affichée dans le sélecteur d'accès. On écrit toujours admin/member :
+// avant A2 ce sont les seuls noms connus, après A2 la base les convertit.
+const roleSeg=r=>(r==='admin'||r==='entraineur')?'admin':(r==='member'||r==='delegue')?'member':r==='parent'?'parent':'none';
 function fillAll(sel,fn){document.querySelectorAll(sel).forEach(fn);}
 // Logo d'équipe : image réduite stockée en data URL dans teams.logo. N'accepte que des
 // data URL d'image base64 (injectées dans du HTML, donc rien d'autre ne doit passer).
@@ -134,7 +142,7 @@ function renderNavUser(){
   const name=UP?`${UP.prenom||''} ${UP.nom||''}`.trim():(U?.email||'');
   fillAll('.js-user-ini',el=>el.textContent=ini);
   fillAll('.js-user-name',el=>el.textContent=name);
-  fillAll('.js-user-role',el=>el.textContent=CT?(isAdmin?'Admin':'Membre'):'');
+  fillAll('.js-user-role',el=>el.textContent=CT?(ROLE_LABEL[CT.team_members?.find(m=>m.profile_id===U?.id)?.role]||'Membre'):'');
   const adm=document.getElementById('umenu-admin');
   if(adm)adm.style.display=(isAdmin||(U&&myAdminTeams().length))?'flex':'none';
 }
@@ -154,7 +162,7 @@ async function loadTeams(){
 }
 function selTeam(t){
   CT = t;
-  isAdmin = Array.isArray(t?.team_members) && t.team_members.some(tm=>tm.role==='admin');
+  isAdmin = Array.isArray(t?.team_members) && t.team_members.some(tm=>tm.profile_id===U?.id&&isStaffRole(tm.role));
   const adminBtn=document.getElementById('admin-btn');
   if(adminBtn)adminBtn.style.display=isAdmin?'inline-flex':'none';
   document.getElementById('hdr-tname').textContent = CT?.nom || 'Choisir une équipe';
@@ -170,15 +178,15 @@ function renderTeamsList(){
   const el=document.getElementById('teams-list');
   if(!teams.length){el.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Aucune équipe</div><div class="empty-s">Crée ta première équipe</div></div>`;return;}
   el.innerHTML=teams.map(t=>{
-    const role=t.team_members?.find(m=>m.profile_id===U.id)?.role||'membre';
+    const role=t.team_members?.find(m=>m.profile_id===U.id)?.role||'';
     return `<div class="card" onclick="switchTeam('${t.id}');goPage('home')">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
         <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:${safeLogo(t)?'transparent':t.couleur+'22'};color:${t.couleur}">${safeLogo(t)?`<img class="team-logo" src="${safeLogo(t)}" alt="">`:t.nom.slice(0,2).toUpperCase()}</div>
         <div style="flex:1"><div style="font-size:14px;font-weight:600">${t.nom}</div><div style="font-size:12px;color:var(--text2)">${t.categorie} · ${t.format}</div></div>
-        ${role==='admin'?`<button onclick="editTeam('${t.id}',event)" class="bsec" style="font-size:12px;padding:5px 9px">Modifier</button>`:''}
-        ${role==='admin'?`<button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>`:''}
+        ${isStaffRole(role)?`<button onclick="editTeam('${t.id}',event)" class="bsec" style="font-size:12px;padding:5px 9px">Modifier</button>`:''}
+        ${isStaffRole(role)?`<button onclick="deleteTeam('${t.id}',event)" class="bred" style="font-size:12px;padding:5px 9px">Supprimer</button>`:''}
       </div>
-      <div style="display:flex;gap:5px"><span class="pill pg">${t.categorie}</span><span class="pill pb">${t.format}</span><span class="pill pgr">${role}</span></div>
+      <div style="display:flex;gap:5px"><span class="pill pg">${t.categorie}</span><span class="pill pb">${t.format}</span><span class="pill pgr">${ROLE_LABEL[role]||role||'—'}</span></div>
     </div>`;
   }).join('');
 }
@@ -285,7 +293,7 @@ function openTeamModal(){setTeamModalMode(null);openModal('modal-team');}
 async function editTeam(id,e){
   if(e&&e.stopPropagation)e.stopPropagation();
   const t=teams.find(t=>t.id===id);if(!t)return;
-  if(!t.team_members?.some(m=>m.profile_id===U.id&&m.role==='admin'))return showToast('Accès admin requis','err');
+  if(!t.team_members?.some(m=>m.profile_id===U.id&&isStaffRole(m.role)))return showToast('Accès réservé à l\'encadrement','err');
   setTeamModalMode(t);openModal('modal-team');
   // Format verrouillé dès qu'il existe des matchs : leurs postes enregistrés (1,2,3,6,9
   // en 5v5 / 1,2,3,5,6,7,9,11 en 8v8) ne correspondraient plus au nouveau format.
@@ -1687,7 +1695,7 @@ async function updateStats(){
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Fonction SQL absente (script de sécurité Supabase pas encore exécuté).
 function isMissingFn(err){return !!err&&(err.code==='PGRST202'||err.code==='42883'||/could not find the function/i.test(err.message||''));}
-function myAdminTeams(){return teams.filter(t=>t.team_members?.some(m=>m.profile_id===U.id&&m.role==='admin'));}
+function myAdminTeams(){return teams.filter(t=>t.team_members?.some(m=>m.profile_id===U.id&&isStaffRole(m.role)));}
 async function renderAdminPage(){
   const panel=document.getElementById('admin-team-members');
   const aTeams=myAdminTeams();
@@ -1697,11 +1705,11 @@ async function renderAdminPage(){
   const people={};
   data.forEach(m=>{
     const p=people[m.profile_id]||(people[m.profile_id]={id:m.profile_id,profile:m.profiles||{},roles:{}});
-    p.roles[m.team_id]=m.role;
+    p.roles[m.team_id]=roleSeg(m.role);
   });
   accPeople=people;
   const list=Object.values(people).sort((a,b)=>(b.id===U.id)-(a.id===U.id)||`${a.profile.prenom||''}`.localeCompare(`${b.profile.prenom||''}`));
-  const opts=[['none','Aucun'],['member','Membre'],['admin','Admin']];
+  const opts=[['none','Aucun'],['member','Délégué'],['admin','Entraîneur']];
   panel.innerHTML=`<div class="acc-help">Choisis pour chaque personne à quelles équipes elle a accès. <b>Membre</b> : voit et gère les matchs de l'équipe. <b>Admin</b> : peut aussi modifier l'équipe et ses accès.</div>`+
   list.map(p=>{
     const me=p.id===U.id;

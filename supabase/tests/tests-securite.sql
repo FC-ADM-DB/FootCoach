@@ -37,6 +37,28 @@ begin
   return n;
 end $$;
 
+-- Ajoute l'externe avec un ancien nom de rôle, renvoie le rôle réellement enregistré
+create or replace function pg_temp.ajout_role_ancien(ancien text) returns text language plpgsql as $f$
+declare v text;
+begin
+  insert into team_members(team_id, profile_id, role)
+  values ('10000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000004', ancien);
+  select role into v from team_members where team_id = '10000000-0000-4000-a000-0000000000a1'
+    and profile_id = '00000000-0000-4000-a000-000000000004';
+  delete from team_members where team_id = '10000000-0000-4000-a000-0000000000a1'
+    and profile_id = '00000000-0000-4000-a000-000000000004';
+  return v;
+end $f$;
+
+-- Crée une équipe sans préciser de club, renvoie le club attribué automatiquement
+create or replace function pg_temp.creer_equipe_club() returns uuid language plpgsql as $f$
+declare v uuid; c uuid;
+begin
+  insert into teams(nom, categorie) values ('TEST auto-club', 'U8') returning id into v;
+  select club_id into c from teams where id = v;
+  return c;
+end $f$;
+
 drop table if exists pg_temp.r;
 create temp table r (n serial, qui text, test text, attendu text, obtenu text);
 grant all on r to anon, authenticated;
@@ -79,21 +101,22 @@ insert into r (qui, test, attendu, obtenu) values
  ('Externe', 'crée sa propre équipe', '1', pg_temp.essai($q$insert into teams(nom,categorie) values ('TEST nouvelle','U8')$q$));
 reset role;
 
--- ------------------------------------------------------------- MEMBRE de l'équipe A
+-- ------------------------------------------------------------- DÉLÉGUÉ de l'équipe A (ex-« membre », mêmes droits qu'un entraîneur depuis A2)
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
- ('Membre A', 'voit l''équipe A', '1', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
- ('Membre A', 'voit l''équipe B', '0', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000b1'$q$)),
- ('Membre A', 'voit les joueurs A (2)', '2', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
- ('Membre A', 'voit les joueurs B', '0', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000b1'$q$)),
- ('Membre A', 'voit les matchs B', '0', pg_temp.essai($q$select 1 from matches where team_id = '10000000-0000-4000-a000-0000000000b1'$q$)),
- ('Membre A', 'voit le profil du coach A', '1', pg_temp.essai($q$select 1 from profiles where id = '00000000-0000-4000-a000-000000000001'$q$)),
- ('Membre A', 'voit le profil du coach B', '0', pg_temp.essai($q$select 1 from profiles where id = '00000000-0000-4000-a000-000000000003'$q$)),
- ('Membre A', 'modifie l''équipe A', '0', pg_temp.essai($q$update teams set nom = nom where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
- ('Membre A', 'ajoute quelqu''un à l''équipe A', 'refusé', pg_temp.essai($q$insert into team_members(team_id,profile_id,role) values ('10000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','member')$q$)),
- ('Membre A', 'retire le coach A', '0', pg_temp.essai($q$delete from team_members where profile_id = '00000000-0000-4000-a000-000000000001'$q$)),
- ('Membre A', 'met à jour le score d''un match A', '1', pg_temp.essai($q$update matches set score_nous = 1 where team_id = '10000000-0000-4000-a000-0000000000a1'$q$));
+ ('Délégué A', 'voit l''équipe A', '1', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Délégué A', 'voit l''équipe B', '0', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000b1'$q$)),
+ ('Délégué A', 'voit les joueurs A (2)', '2', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Délégué A', 'voit les joueurs B', '0', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000b1'$q$)),
+ ('Délégué A', 'voit les matchs B', '0', pg_temp.essai($q$select 1 from matches where team_id = '10000000-0000-4000-a000-0000000000b1'$q$)),
+ ('Délégué A', 'voit le profil du coach A', '1', pg_temp.essai($q$select 1 from profiles where id = '00000000-0000-4000-a000-000000000001'$q$)),
+ ('Délégué A', 'voit le profil du coach B', '0', pg_temp.essai($q$select 1 from profiles where id = '00000000-0000-4000-a000-000000000003'$q$)),
+ ('Délégué A', 'modifie l''équipe A', '1', pg_temp.essai($q$update teams set nom = nom where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Délégué A', 'ajoute quelqu''un à l''équipe A', '1', pg_temp.essai($q$insert into team_members(team_id,profile_id,role) values ('10000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','member')$q$)),
+ ('Délégué A', 'retire le coach A', '1', pg_temp.essai($q$delete from team_members where profile_id = '00000000-0000-4000-a000-000000000001'$q$)),
+ ('Délégué A', 'met à jour le score d''un match A', '1', pg_temp.essai($q$update matches set score_nous = 1 where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Délégué A', 'supprime l''équipe A (réservé au club)', 'refusé', pg_temp.essai($q$select delete_team('10000000-0000-4000-a000-0000000000a1')$q$));
 reset role;
 
 -- ------------------------------------------------------------- ADMIN de l'équipe A
@@ -147,10 +170,10 @@ reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
- ('Membre A', '[A1] voit le club A (son équipe)', '1', pg_temp.essai($q$select 1 from clubs where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
- ('Membre A', '[A1] voit le club B', '0', pg_temp.essai($q$select 1 from clubs where id = '50000000-0000-4000-a000-0000000000b1'$q$)),
- ('Membre A', '[A1] modifie le club A', '0', pg_temp.essai($q$update clubs set nom = nom where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
- ('Membre A', '[A1] voit les CQ/coordinateurs du club A', '0', pg_temp.essai($q$select 1 from club_members$q$));
+ ('Délégué A', '[A1] voit le club A (son équipe)', '1', pg_temp.essai($q$select 1 from clubs where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Délégué A', '[A1] voit le club B', '0', pg_temp.essai($q$select 1 from clubs where id = '50000000-0000-4000-a000-0000000000b1'$q$)),
+ ('Délégué A', '[A1] modifie le club A', '0', pg_temp.essai($q$update clubs set nom = nom where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Délégué A', '[A1] voit les CQ/coordinateurs du club A', '0', pg_temp.essai($q$select 1 from club_members$q$));
 reset role;
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
@@ -188,11 +211,60 @@ reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000005","role":"authenticated"}', false);
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
- ('Admin', '[A1] voit tous les clubs (2)', '2', pg_temp.essai($q$select 1 from clubs$q$)),
+ ('Admin', '[A1] voit tous les clubs (A, B, REH Braives)', '3', pg_temp.essai($q$select 1 from clubs$q$)),
  ('Admin', '[A1] vérifie le club A', '1', pg_temp.essai($q$update clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000a1'$q$)),
  ('Admin', '[A1] modifie un format', '1', pg_temp.essai($q$update formats set duree_mt = 25 where code = '5v5'$q$)),
  ('Admin', '[A1] supprime un niveau', '1', pg_temp.essai($q$delete from niveaux where libelle = 'Niveau 4'$q$)),
  ('Admin', '[A1] ne voit pas les joueurs (pas membre)', '0', pg_temp.essai($q$select 1 from players$q$));
+reset role;
+
+-- ============================================================= PHASE A2 : MIGRATION & RÔLES
+-- Contrôles de la migration (exécutés sans rôle particulier)
+insert into r (qui, test, attendu, obtenu) values
+ ('Migration', '[A2] plus aucun rôle « admin »/« member »', '0', (select count(*)::text from team_members where role in ('admin','member'))),
+ ('Migration', '[A2] équipe historique rattachée au club 4308', '1', (select count(*)::text from teams t join clubs c on c.id = t.club_id where t.id = '10000000-0000-4000-a000-0000000000c1' and c.matricule = '4308')),
+ ('Migration', '[A2] club 4308 vérifié, CQ = admin plateforme', '1', (select count(*)::text from clubs c join club_members cm on cm.club_id = c.id and cm.role = 'cq' join platform_admins a on a.profile_id = cm.profile_id where c.matricule = '4308' and c.verifie)),
+ ('Migration', '[A2] équipes A et B gardent leur club', '2', (select count(*)::text from teams where club_id in ('50000000-0000-4000-a000-0000000000a1','50000000-0000-4000-a000-0000000000b1')));
+
+-- Parent de l'équipe A : voit l'équipe et les matchs, rien d'autre
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[A2] voit l''équipe A', '1', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Parent A', '[A2] voit les matchs A', '1', pg_temp.essai($q$select 1 from matches where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Parent A', '[A2] voit les convocations A', '1', pg_temp.essai($q$select 1 from convocations where match_id = '40000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Parent A', '[A2] voit les fiches joueurs (dates de naissance)', '0', pg_temp.essai($q$select 1 from players$q$)),
+ ('Parent A', '[A2] voit les notes joueurs', '0', pg_temp.essai($q$select 1 from player_notes$q$)),
+ ('Parent A', '[A2] modifie un match', '0', pg_temp.essai($q$update matches set score_nous = 9 where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Parent A', '[A2] modifie une convocation', '0', pg_temp.essai($q$update convocations set statut = 'absent'$q$)),
+ ('Parent A', '[A2] ajoute quelqu''un à l''équipe', 'refusé', pg_temp.essai($q$insert into team_members(team_id,profile_id,role) values ('10000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','delegue')$q$)),
+ ('Parent A', '[A2] modifie l''équipe A', '0', pg_temp.essai($q$update teams set nom = nom where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Parent A', '[A2] voit l''équipe B', '0', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000b1'$q$));
+reset role;
+
+-- Coordinateur du club A (pas membre de l'équipe A) : gère les équipes de son club
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000006","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coord A', '[A2] voit l''équipe A (son club)', '1', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Coord A', '[A2] voit les joueurs A (2)', '2', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Coord A', '[A2] met à jour un match A', '1', pg_temp.essai($q$update matches set score_nous = 3 where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Coord A', '[A2] ajoute un délégué à l''équipe A', '1', pg_temp.essai($q$insert into team_members(team_id,profile_id,role) values ('10000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','delegue')$q$)),
+ ('Coord A', '[A2] voit le profil du parent A', '1', pg_temp.essai($q$select 1 from profiles where id = '00000000-0000-4000-a000-000000000007'$q$)),
+ ('Coord A', '[A2] supprime l''équipe A (delete_team)', '1', pg_temp.essai($q$select delete_team('10000000-0000-4000-a000-0000000000a1')$q$)),
+ ('Coord A', '[A2] voit les joueurs B (autre club)', '0', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000b1'$q$)),
+ ('Coord A', '[A2] modifie l''équipe B (autre club)', '0', pg_temp.essai($q$update teams set nom = nom where id = '10000000-0000-4000-a000-0000000000b1'$q$)),
+ ('Coord A', '[A2] nouvelle équipe rattachée à son club', '1', pg_temp.essai($q$select 1 where pg_temp.creer_equipe_club() = '50000000-0000-4000-a000-0000000000a1'$q$));
+reset role;
+
+-- Entraîneur A : l'app (ancienne version) écrit encore « admin » → converti en « entraineur »
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach A', '[A2] rôle « admin » écrit → « entraineur »', '1', pg_temp.essai($q$select 1 where pg_temp.ajout_role_ancien('admin') = 'entraineur'$q$)),
+ ('Coach A', '[A2] rôle « member » écrit → « delegue »', '1', pg_temp.essai($q$select 1 where pg_temp.ajout_role_ancien('member') = 'delegue'$q$)),
+ ('Coach A', '[A2] rôle inconnu refusé', 'refusé', pg_temp.essai($q$insert into team_members(team_id,profile_id,role) values ('10000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','pirate')$q$)),
+ ('Coach A', '[A2] déplace l''équipe A vers le club B', 'refusé', pg_temp.essai($q$update teams set club_id = '50000000-0000-4000-a000-0000000000b1' where id = '10000000-0000-4000-a000-0000000000a1'$q$));
 reset role;
 select set_config('request.jwt.claims', '', false);
 

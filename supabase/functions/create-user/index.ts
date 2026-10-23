@@ -36,22 +36,36 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const admin = createClient(url, service);
 
-    // ---- Action « reset_password » : nouveau mot de passe choisi par un admin ----
-    // Autorisé si l'appelant est admin d'au moins une équipe de la personne, et que la
-    // personne n'est pas admin d'une équipe dont l'appelant n'est pas admin (sinon un
-    // admin pourrait prendre le compte d'un admin d'une autre équipe).
+    // ---- Action « reset_password » : nouveau mot de passe choisi par l'encadrement ----
+    // Autorisé si l'appelant encadre au moins une équipe de la personne (entraîneur,
+    // délégué, ou CQ/coordinateur du club de l'équipe), et que la personne n'encadre
+    // pas une équipe ou un club que l'appelant n'encadre pas (sinon on pourrait prendre
+    // le compte d'un responsable d'une autre équipe ou d'un autre club).
+    // Rôles : anciens noms (admin/member) et nouveaux (entraineur/delegue/parent).
     if (body.action === "reset_password") {
       const target = String(body.profile_id ?? "");
       const password = String(body.password ?? "");
       if (!target || target === user.id) return json({ error: "Personne invalide" }, 400);
       if (password.length < 8) return json({ error: "Mot de passe : 8 caractères minimum" }, 400);
-      const { data: tRows } = await admin.from("team_members").select("team_id, role").eq("profile_id", target);
-      const { data: mine } = await admin.from("team_members").select("team_id").eq("profile_id", user.id).eq("role", "admin");
+      const STAFF = ["admin", "entraineur", "delegue"];
       type Row = { team_id: string; role?: string };
-      const myAdmin = new Set(((mine ?? []) as Row[]).map((r: Row) => r.team_id));
-      const shared = ((tRows ?? []) as Row[]).some((r: Row) => myAdmin.has(r.team_id));
-      const adminElsewhere = ((tRows ?? []) as Row[]).some((r: Row) => r.role === "admin" && !myAdmin.has(r.team_id));
-      if (!shared || adminElsewhere) return json({ error: "Tu ne peux pas réinitialiser le mot de passe de cette personne" }, 403);
+      type ClubRow = { club_id: string };
+      const { data: tRows } = await admin.from("team_members").select("team_id, role").eq("profile_id", target);
+      const { data: mine } = await admin.from("team_members").select("team_id, role").eq("profile_id", user.id).in("role", STAFF);
+      const myTeams = new Set(((mine ?? []) as Row[]).map((r: Row) => r.team_id));
+      // Équipes des clubs où l'appelant est CQ/coordinateur (tables absentes avant A1 : ignoré)
+      const { data: myClubs } = await admin.from("club_members").select("club_id").eq("profile_id", user.id);
+      const myClubIds = ((myClubs ?? []) as ClubRow[]).map((r: ClubRow) => r.club_id);
+      if (myClubIds.length) {
+        const { data: clubTeams } = await admin.from("teams").select("id").in("club_id", myClubIds);
+        for (const t of (clubTeams ?? []) as { id: string }[]) myTeams.add(t.id);
+      }
+      const { data: tClubs } = await admin.from("club_members").select("club_id").eq("profile_id", target);
+      const rows = (tRows ?? []) as Row[];
+      const shared = rows.some((r: Row) => myTeams.has(r.team_id));
+      const staffElsewhere = rows.some((r: Row) => STAFF.includes(r.role ?? "") && !myTeams.has(r.team_id))
+        || ((tClubs ?? []) as ClubRow[]).some((c: ClubRow) => !myClubIds.includes(c.club_id));
+      if (!shared || staffElsewhere) return json({ error: "Tu ne peux pas réinitialiser le mot de passe de cette personne" }, 403);
       const { error } = await admin.auth.admin.updateUserById(target, { password });
       if (error) return json({ error: error.message }, 400);
       return json({ ok: true });

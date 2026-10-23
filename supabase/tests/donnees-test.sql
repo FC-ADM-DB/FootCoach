@@ -14,7 +14,7 @@ end $$;
 -- Les clubs d'abord (le garde-fou « dernier CQ » bloquerait la suppression des comptes).
 do $$ begin
   if to_regclass('public.clubs') is not null then
-    execute $d$delete from public.clubs where nom like 'TEST %'$d$;
+    execute $d$delete from public.clubs where nom like 'TEST %' or matricule = '4308'$d$;
   end if;
 end $$;
 delete from public.teams where nom like 'TEST %';
@@ -36,18 +36,23 @@ from (values
   ('00000000-0000-4000-a000-000000000003', 'coach.b@test.footcoach',  'Chloé',  'CoachB'),
   ('00000000-0000-4000-a000-000000000004', 'externe@test.footcoach',  'Damien', 'Externe'),
   ('00000000-0000-4000-a000-000000000005', 'admin@test.footcoach',    'Eric',   'AdminPlateforme'),
-  ('00000000-0000-4000-a000-000000000006', 'coord.a@test.footcoach',  'Fanny',  'CoordA')
+  ('00000000-0000-4000-a000-000000000006', 'coord.a@test.footcoach',  'Fanny',  'CoordA'),
+  ('00000000-0000-4000-a000-000000000007', 'parent.a@test.footcoach', 'Gaëlle', 'ParentA')
 ) as u(id, email, prenom, nom);
 
 -- Équipes : A (club A) et B (club B)
 insert into public.teams (id, nom, categorie, format, saison_id, created_by) values
   ('10000000-0000-4000-a000-0000000000a1', 'TEST U10 Club A', 'U10', '8v8', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000001'),
-  ('10000000-0000-4000-a000-0000000000b1', 'TEST U9 Club B',  'U9',  '5v5', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000003');
+  ('10000000-0000-4000-a000-0000000000b1', 'TEST U9 Club B',  'U9',  '5v5', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000003'),
+  -- équipe « historique » sans club, comme en production avant A2 (admin = l'admin plateforme)
+  ('10000000-0000-4000-a000-0000000000c1', 'TEST U8 Historique', 'U8', '5v5', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000005');
 
 insert into public.team_members (team_id, profile_id, role) values
   ('10000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000001', 'admin'),
   ('10000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000002', 'member'),
-  ('10000000-0000-4000-a000-0000000000b1', '00000000-0000-4000-a000-000000000003', 'admin');
+  ('10000000-0000-4000-a000-0000000000b1', '00000000-0000-4000-a000-000000000003', 'admin'),
+  ('10000000-0000-4000-a000-0000000000c1', '00000000-0000-4000-a000-000000000005', 'admin'),
+  ('10000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000007', 'parent');
 
 insert into public.players (id, team_id, prenom, nom, date_naissance) values
   ('30000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000a1', 'Léo', 'Alpha', '2016-03-14'),
