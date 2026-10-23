@@ -1957,12 +1957,15 @@ async function removeTeamMember(memberId){
 // Les droits sont vérifiés par la base (RLS + fonctions) ; l'interface ne fait qu'adapter
 // ce qu'elle propose.
 let clubPageId=null,clubLogo_=null,clubLogoChanged=false;
+// true : affiche le formulaire « Créer un autre club » (pour quelqu'un qui a déjà un club)
+let clubCreating=false;
 async function renderClubPage(){
   const el=document.getElementById('club-content');
   await loadMyClubs();
-  if(!myClubs.length){
+  if(!myClubs.length||clubCreating){
     el.innerHTML=`<div class="card club-create">
-      <div style="font-size:15px;font-weight:600;margin-bottom:4px">Créer mon club</div>
+      ${myClubs.length?`<button class="bsec logo-btn" style="margin-bottom:12px" onclick="clubCreating=false;renderClubPage()">← Retour à mon club</button>`:''}
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">${myClubs.length?'Créer un autre club':'Créer mon club'}</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Tu en deviendras le CQ (correspondant qualifié). Le club sera visible des autres clubs après vérification par FootCoach.</div>
       <div class="fg"><label class="fl">Nom du club</label><input class="fi" id="cc-nom" placeholder="ex : REH Braives"></div>
       <div class="fg"><label class="fl">Province</label><select class="sel" id="cc-prov"><option value="">—</option>${refs.provinces.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
@@ -2030,7 +2033,8 @@ async function renderClubPage(){
       <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${esc(t.nom)}</div><div style="font-size:12px;color:var(--text2)">${esc(t.categorie)} · ${esc(formatLabel(t.format))}${t.niveau_id?' · '+esc(refs.niveaux.find(n=>n.id===t.niveau_id)?.libelle||''):''}</div></div>
       <span style="color:var(--text3)">›</span></div>`).join(''):'<div style="font-size:13px;color:var(--text3)">Aucune équipe pour l\'instant</div>'}
   </div>`;
-  el.innerHTML=chooser+head+infos+staff+equipes;
+  const autre=`<button class="bsec" style="width:100%;margin-top:10px;min-height:44px" onclick="clubCreating=true;renderClubPage()">+ Créer un autre club</button>`;
+  el.innerHTML=chooser+head+infos+staff+equipes+autre;
 }
 async function createClub(){
   const nom=document.getElementById('cc-nom').value.trim();
@@ -2046,7 +2050,7 @@ async function createClub(){
   const{data,error}=await sb.rpc('create_club',{p_nom:nom,p_province_id:prov,p_matricule:mat,p_adresse:adr});
   if(error)return showToast(/matricule|unique|duplicate/i.test(error.message)?'Ce matricule est déjà utilisé par un autre club':'Création impossible : '+error.message,'err');
   if(pos)await sb.from('clubs').update({lat:pos.lat,lng:pos.lng}).eq('id',data);
-  clubPageId=data;
+  clubPageId=data;clubCreating=false;
   showToast(pos?'Club créé — tu en es le CQ (📍 '+pos.label+')':'Club créé — position de l\'adresse non trouvée : corrige-la dans la fiche du club pour les distances',pos?'ok':'err');
   await loadMyClubs();await loadTeams();renderClubPage();
 }
