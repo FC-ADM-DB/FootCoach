@@ -1966,6 +1966,7 @@ async function renderClubPage(){
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Tu en deviendras le CQ (correspondant qualifié). Le club sera visible des autres clubs après vérification par FootCoach.</div>
       <div class="fg"><label class="fl">Nom du club</label><input class="fi" id="cc-nom" placeholder="ex : REH Braives"></div>
       <div class="fg"><label class="fl">Province</label><select class="sel" id="cc-prov"><option value="">—</option>${refs.provinces.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Adresse du terrain</label><input class="fi" id="cc-adr" placeholder="Rue, numéro, code postal, commune"><div style="font-size:11px;color:var(--text3);margin-top:5px">Obligatoire : sert à calculer la distance avec les autres clubs (« Trouver un match »).</div></div>
       <div class="fg"><label class="fl">Matricule ACFF <span style="color:var(--text3);font-weight:400">(optionnel)</span></label><input class="fi" id="cc-mat" inputmode="numeric"></div>
       <button class="bp" onclick="createClub()">Créer le club</button>
     </div>`;
@@ -1996,7 +1997,7 @@ async function renderClubPage(){
       <div class="fg"><label class="fl">Province</label><select class="sel" id="cl-prov"><option value="">—</option>${refs.provinces.map(p=>`<option value="${p.id}" ${p.id===club.province_id?'selected':''}>${esc(p.nom)}</option>`).join('')}</select></div>
       <div class="fg"><label class="fl">Matricule</label><input class="fi" id="cl-mat" value="${esc(club.matricule||'')}" inputmode="numeric"></div>
     </div>
-    <div class="fg"><label class="fl">Adresse du terrain</label><input class="fi" id="cl-adr" value="${esc(club.adresse||'')}" placeholder="Rue, numéro, code postal, commune"></div>
+    <div class="fg"><label class="fl">Adresse du terrain</label><input class="fi" id="cl-adr" value="${esc(club.adresse||'')}" placeholder="Rue, numéro, code postal, commune"><div style="font-size:11px;margin-top:5px;color:${club.lat!=null?'var(--green)':'var(--amber)'}">${club.lat!=null?'📍 Position connue (distance calculable)':'⚠️ Position inconnue : enregistre l\'adresse pour la calculer'}</div></div>
     <div class="frow">
       <div class="fg"><label class="fl">Couleur 1</label><input class="fi club-color" type="color" id="cl-c1" value="${esc(club.couleur1||'#fdea2e')}"></div>
       <div class="fg"><label class="fl">Couleur 2</label><input class="fi club-color" type="color" id="cl-c2" value="${esc(club.couleur2||'#b0212f')}"></div>
@@ -2036,9 +2037,14 @@ async function createClub(){
   if(!nom)return showToast('Nom du club obligatoire','err');
   const prov=parseInt(document.getElementById('cc-prov').value)||null;
   const mat=document.getElementById('cc-mat').value.trim()||null;
-  const{data,error}=await sb.rpc('create_club',{p_nom:nom,p_province_id:prov,p_matricule:mat});
+  const adr=document.getElementById('cc-adr').value.trim();
+  if(!adr)return showToast('Adresse du terrain obligatoire','err');
+  const pos=await geocodeAdresse(adr);
+  if(!pos)return showToast('Adresse introuvable : vérifie la rue, le code postal et la commune','err');
+  const{data,error}=await sb.rpc('create_club',{p_nom:nom,p_province_id:prov,p_matricule:mat,p_adresse:adr});
   if(error)return showToast(/matricule|unique|duplicate/i.test(error.message)?'Ce matricule est déjà utilisé par un autre club':'Création impossible : '+error.message,'err');
-  clubPageId=data;showToast('Club créé — tu en es le CQ','ok');
+  await sb.from('clubs').update({lat:pos.lat,lng:pos.lng}).eq('id',data);
+  clubPageId=data;showToast('Club créé — tu en es le CQ (📍 '+pos.label+')','ok');
   await loadMyClubs();await loadTeams();renderClubPage();
 }
 function pickClubLogo(input){
@@ -2062,11 +2068,32 @@ async function saveClub(){
     matricule:document.getElementById('cl-mat').value.trim()||null,adresse:document.getElementById('cl-adr').value.trim()||null,
     couleur1:document.getElementById('cl-c1').value,couleur2:document.getElementById('cl-c2').value};
   if(clubLogoChanged)upd.logo=clubLogo_;
+  if(!upd.adresse)return showToast('Adresse du terrain obligatoire','err');
+  const cur=myClubs.find(c=>c.club_id===clubPageId)?.clubs||{};
+  let pos=null;
+  if(upd.adresse!==(cur.adresse||'')||cur.lat==null){
+    pos=await geocodeAdresse(upd.adresse);
+    if(!pos)return showToast('Adresse introuvable : vérifie la rue, le code postal et la commune','err');
+    upd.lat=pos.lat;upd.lng=pos.lng;
+  }
   const{data,error}=await sb.from('clubs').update(upd).eq('id',clubPageId).select();
   if(error)return showToast(/matricule|unique|duplicate/i.test(error.message)?'Ce matricule est déjà utilisé par un autre club':'Enregistrement refusé','err');
   if(!data?.length)return showToast('Enregistrement refusé (réservé au CQ)','err');
-  showToast('Club enregistré','ok');
+  showToast('Club enregistré'+(pos?' (📍 '+pos.label+')':''),'ok');
   await loadMyClubs();await loadTeams();renderClubPage();
+}
+// Position du terrain à partir de l'adresse (OpenStreetMap / Nominatim, gratuit) :
+// sert à calculer la distance entre clubs pour « Trouver un match ». Appelé seulement
+// à la création du club ou quand son adresse change (règles d'usage : peu de requêtes).
+async function geocodeAdresse(adr){
+  try{
+    const u='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=be&accept-language=fr&addressdetails=1&q='+encodeURIComponent(adr);
+    const r=await fetch(u,{headers:{'Accept':'application/json'}});
+    if(!r.ok)return null;
+    const j=(await r.json())[0];if(!j)return null;
+    const a=j.address||{};
+    return{lat:+j.lat,lng:+j.lon,label:a.village||a.town||a.city||a.municipality||j.display_name.split(',')[0]};
+  }catch(e){return null;}
 }
 async function addClubMember(){
   const email=document.getElementById('cm-email').value.trim().toLowerCase();
@@ -2161,6 +2188,7 @@ function goPage(name){
   }
   if(name==='admin')renderAdminPage();
   if(name==='club')renderClubPage();
+  if(name==='reseau')renderReseauPage();
   if(name==='stats')loadMatches().then(()=>renderStatsPage());
 }
 function goAdmin(){

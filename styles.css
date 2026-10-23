@@ -536,3 +536,40 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   #screen-app.live-active .player-bubble .bb-starter{bottom:-7px;right:-7px}
   #screen-app.live-active .poste-marker{width:19px;height:19px;font-size:10px;border-radius:5px;transform:translate(-50%,calc(-50% - 22px))}
 }
+
+/* ============ TROUVER UN MATCH (reseau.js) ============ */
+.rs-tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
+.rs-tabs button{flex-shrink:0;min-height:40px;padding:0 14px;border-radius:99px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer}
+.rs-tabs button.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
+.rs-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:99px;background:var(--amber);color:var(--bg);font-size:11px;font-weight:700;margin-left:4px}
+.rs-filters{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.rs-lbl{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--text2)}
+.rs-card{display:flex;flex-direction:column;gap:7px}
+#reseau-content .card+.card{margin-top:10px}
+.rs-top{display:flex;align-items:center;gap:10px}
+.rs-logo{width:40px;height:40px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;flex-shrink:0}
+.rs-club{font-size:15px;font-weight:700}
+.rs-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.rs-team{font-size:14px;font-weight:600}
+.rs-line{font-size:12.5px;color:var(--text2)}
+.rs-chips{display:flex;flex-wrap:wrap;gap:6px}
+.rs-chips span{font-size:12px;font-weight:600;padding:5px 9px;border-radius:99px;background:var(--bg3);border:1px solid var(--border)}
+.rs-chips span.pris{text-decoration:line-through;opacity:.6}
+.rs-msg{font-size:13px;color:var(--text);background:var(--bg3);border-radius:var(--rsm);padding:8px 10px;white-space:pre-line}
+.rs-ok{font-size:12.5px;color:var(--green);font-weight:600}
+.rs-warn{font-size:12.5px;color:var(--amber);font-weight:500}
+.rs-prop{min-height:42px;font-size:13px;opacity:.6}
+.rs-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.rs-acts button{min-height:38px;padding:0 12px;font-size:13px}
+.rs-act{width:auto;margin:0}
+.an-seg{width:100%}
+.an-seg button{flex:1;padding:0 6px}
+.an-chips{display:flex;flex-wrap:wrap;gap:6px}
+.an-chips button{min-height:36px;padding:0 12px;border-radius:99px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer}
+.an-chips button.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
+.an-cr{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:6px;margin-bottom:6px}
+.an-cr .fi{padding:9px 8px;font-size:14px}
+.an-cr .bred{min-width:40px;padding:0}
+.an-cibles{display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto;margin-top:8px}
+.an-cibles label{display:flex;align-items:center;gap:8px;min-height:38px;font-size:13px;color:var(--text)}
+.an-foot{flex-wrap:wrap}

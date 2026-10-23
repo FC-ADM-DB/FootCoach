@@ -89,7 +89,7 @@
       </div>
       <div class="qgrid">
         <button class="qb" onclick="goPage('match')" style="border-color:var(--green-border)"><span style="font-size:20px;display:block;margin-bottom:5px">▶</span><span style="font-size:13px;font-weight:600;display:block">Match</span><span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Chrono & terrain</span></button>
-        <button class="qb" onclick="goPage('training')" style="border-color:var(--blue-border)"><span style="font-size:20px;display:block;margin-bottom:5px">📋</span><span style="font-size:13px;font-weight:600;display:block">Entraînement</span><span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Préparer séance</span></button>
+        <button class="qb" onclick="goPage('reseau')" style="border-color:var(--blue-border)"><span style="font-size:20px;display:block;margin-bottom:5px">🤝</span><span style="font-size:13px;font-weight:600;display:block">Trouver un match</span><span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Annonces entre clubs</span></button>
         <button class="qb" onclick="goPage('players')" style="border-color:var(--amber-border)"><span style="font-size:20px;display:block;margin-bottom:5px">👥</span><span style="font-size:13px;font-weight:600;display:block">Effectif</span><span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Gérer joueurs</span></button>
         <button class="qb" onclick="goPage('stats')" style="border-color:var(--blue-border)"><span style="font-size:20px;display:block;margin-bottom:5px">📊</span><span style="font-size:13px;font-weight:600;display:block">Stats</span><span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Temps de jeu</span></button>
       </div>
@@ -267,6 +267,14 @@
     </div>
   </div>
 
+  <!-- TROUVER UN MATCH (annonces entre clubs, reseau.js) -->
+  <div class="page" id="page-reseau">
+    <div class="pc">
+      <div class="sh"><span class="st">Trouver un match</span></div>
+      <div id="reseau-content"><div class="spin"></div></div>
+    </div>
+  </div>
+
   <!-- STATS -->
   <div class="page" id="page-stats">
     <div class="pc">
@@ -324,8 +332,21 @@
       <button class="umenu-item" onclick="closeUserMenu();toggleKiosk()"><span>📺</span><span>Mode Kiosk</span></button>
       <a class="umenu-item" id="umenu-scores" href="scores.html" target="_blank" rel="noopener" onclick="closeUserMenu()" style="text-decoration:none"><span>🏆</span><span>Page publique des scores</span></a>
       <button class="umenu-item" onclick="closeUserMenu();goPage('club')"><span>🏟</span><span>Mon club</span></button>
+      <button class="umenu-item" onclick="closeUserMenu();goPage('reseau')"><span>🤝</span><span>Trouver un match</span></button>
       <button class="umenu-item" id="umenu-admin" onclick="closeUserMenu();goAdmin()" style="display:none"><span>🛠</span><span>Membres &amp; accès</span></button>
       <button class="umenu-item umenu-out" onclick="closeUserMenu();signOut()"><span>⎋</span><span>Se déconnecter</span></button>
+    </div>
+  </div>
+
+  <!-- ANNONCE (formulaire rendu par reseau.js) -->
+  <div class="mo" id="modal-annonce"><div class="modal" id="annonce-form"></div></div>
+  <!-- REFUS D'UNE ANNONCE (coordinateur → entraîneur) -->
+  <div class="mo" id="modal-refus">
+    <div class="modal">
+      <div class="mh"></div>
+      <div class="mt">Refuser l'annonce</div>
+      <div class="fg"><label class="fl">Raison (visible par l'entraîneur)</label><textarea class="fi" id="refus-txt" rows="3" placeholder="ex : ce week-end le terrain est pris par les U12"></textarea></div>
+      <div class="mfoot"><button class="bcan" onclick="closeModal('modal-refus')">Annuler</button><button class="bp" onclick="anRefusOk()">Refuser</button></div>
     </div>
   </div>
 
@@ -523,5 +544,6 @@
   <div class="toast" id="toast"></div>
 </div>
 <script src="app.js"></script>
+<script src="reseau.js"></script>
 </body>
 </html>
