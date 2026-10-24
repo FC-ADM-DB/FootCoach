@@ -20,7 +20,7 @@ async function renderPlateforme(){
   if(!isPlatformAdmin){el.innerHTML=`<div class="empty"><div class="empty-i">🔒</div><div class="empty-t">Réservé à l'administrateur FootCoach</div></div>`;return;}
   el.innerHTML='<div class="spin"></div>';
   const [st,cl]=await Promise.all([sb.rpc('admin_stats'),sb.rpc('admin_clubs')]);
-  if(st.error||cl.error){el.innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Plateforme indisponible</div><div class="empty-s">${esc((st.error||cl.error).message)}</div></div>`;return;}
+  if(st.error||cl.error){el.innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Gestion des clubs indisponible</div><div class="empty-s">${esc((st.error||cl.error).message)}</div></div>`;return;}
   const s=st.data?.[0]||{};ptClubs=cl.data||[];
   const tile=(n,l,c)=>`<div class="pt-tile${c?' '+c:''}"><div class="pt-n">${n??'—'}</div><div class="pt-l">${l}</div></div>`;
   const tab=(k,l)=>`<button class="${ptTab===k?'on':''}" onclick="ptTab='${k}';renderPlateforme()">${l}</button>`;
