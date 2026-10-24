@@ -25,6 +25,11 @@ function tbPositions(fmt,n){
   const base=[{x:50,y:86},{x:28,y:62},{x:72,y:62},{x:50,y:40},{x:30,y:30},{x:70,y:30}];
   return base.slice(0,n||3).map((p,i)=>({num:i+1,...p}));
 }
+// Position de départ : chaque équipe dans SA moitié (sinon, avec les positions « plein
+// terrain » du Live, nos attaquants et les défenseurs adverses se superposaient).
+// Notre équipe : moitié basse (y 51 → 94) ; adversaires : en miroir, moitié haute (6 → 49).
+const tbCampNous=(x,y)=>({x,y:+(51+y*0.48).toFixed(1)});
+const tbCampEux=(x,y)=>({x:+(100-x).toFixed(1),y:+(49-y*0.48).toFixed(1)});
 function tbNouvelEtat(fmt,matchLayout,assign,nFesti){
   const pos=tbPositions(fmt,nFesti);
   const lay=matchLayout&&Object.keys(matchLayout).length?matchLayout:null;
@@ -35,10 +40,11 @@ function tbNouvelEtat(fmt,matchLayout,assign,nFesti){
     const q=lay?.[p.num]||p;
     let joueur=assign?.[p.num]||null;
     if(!joueur&&!assign)joueur=libres.find(j=>j.numero_poste===p.num&&!pions.some(x=>x.joueur===j.id))?.id||null;
-    pions.push({id:'n'+p.num,camp:'nous',num:p.num,x:q.x,y:q.y,joueur});
+    const c=tbCampNous(q.x,q.y);
+    pions.push({id:'n'+p.num,camp:'nous',num:p.num,x:c.x,y:c.y,joueur});
   });
   // Adversaires : même organisation, en miroir (leur gardien en haut)
-  pos.forEach(p=>pions.push({id:'e'+p.num,camp:'eux',num:p.num,x:100-p.x,y:100-p.y}));
+  pos.forEach(p=>{const c=tbCampEux(p.x,p.y);pions.push({id:'e'+p.num,camp:'eux',num:p.num,x:c.x,y:c.y});});
   return{v:1,terrain:{adversaires:true,libelles:'prenoms'},consignes:[],etapes:[{pions,ballon:{x:50,y:50},traits:[]}]};
 }
 
@@ -172,8 +178,8 @@ function tbFesti(delta){
   if(n===nous)return;
   const pos=tbPositions('festifoot',n);
   tbSnap();
-  et.pions=[...pos.map(p=>et.pions.find(x=>x.id==='n'+p.num)||{id:'n'+p.num,camp:'nous',num:p.num,x:p.x,y:p.y,joueur:null}),
-            ...pos.map(p=>et.pions.find(x=>x.id==='e'+p.num)||{id:'e'+p.num,camp:'eux',num:p.num,x:100-p.x,y:100-p.y})];
+  et.pions=[...pos.map(p=>et.pions.find(x=>x.id==='n'+p.num)||{id:'n'+p.num,camp:'nous',num:p.num,...tbCampNous(p.x,p.y),joueur:null}),
+            ...pos.map(p=>et.pions.find(x=>x.id==='e'+p.num)||{id:'e'+p.num,camp:'eux',num:p.num,...tbCampEux(p.x,p.y)})];
   tbRender();tbSauver();
 }
 
