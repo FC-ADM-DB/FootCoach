@@ -7,7 +7,8 @@
 -- « attendu » = le comportement SOUHAITÉ (un ÉCHEC signale une faille ou un écart).
 -- ============================================================================
 do $$ begin
-  if exists (select 1 from public.teams where nom not like 'TEST %') then
+  -- Base de production = de vrais comptes (ni @test ni @demo.footcoach) : on refuse.
+  if exists (select 1 from auth.users where email not like '%@test.footcoach' and email not like '%@demo.footcoach') then
     raise exception 'STOP : ce n''est pas la base de test.';
   end if;
 end $$;
@@ -340,6 +341,35 @@ set role anon;
 insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[C1] voit des annonces', '0', pg_temp.essai($q$select 1 from annonces$q$)),
  ('Visiteur', '[C1] appelle la recherche', 'refusé', pg_temp.essai($q$select 1 from annonces_reseau(null)$q$));
+reset role;
+
+-- ============================================================= PLATEFORME D'ADMINISTRATION (P1)
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000005","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Admin', '[P1] liste de tous les clubs (A, B, C, REH)', '4', pg_temp.essai($q$select 1 from admin_clubs()$q$)),
+ ('Admin', '[P1] voit le CQ du club C (non vérifié)', '1', pg_temp.essai($q$select 1 from admin_clubs() where nom = 'TEST Club C' and cq_email = 'cq.c@test.footcoach' and not verifie$q$)),
+ ('Admin', '[P1] chiffres de la plateforme', '1', pg_temp.essai($q$select 1 from admin_stats() where clubs = 4 and clubs_en_attente = 1$q$)),
+ ('Admin', '[P1] niveaux et leur utilisation', '4', pg_temp.essai($q$select 1 from admin_niveaux()$q$)),
+ ('Admin', '[P1] vérifie le club C', '1', pg_temp.essai($q$update clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000c1'$q$)),
+ ('Admin', '[P1] renomme un niveau', '1', pg_temp.essai($q$update niveaux set libelle = 'Niveau 4 (régional)' where libelle = 'Niveau 4'$q$)),
+ ('Admin', '[P1] fusionne Niveau 4 dans Niveau 3', '1', pg_temp.essai($q$select admin_fusion_niveau((select id from niveaux where libelle = 'Niveau 4'), (select id from niveaux where libelle = 'Niveau 3'))$q$)),
+ ('Admin', '[P1] fusion d''un niveau avec lui-même', 'refusé', pg_temp.essai($q$select admin_fusion_niveau(1, 1)$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ A', '[P1] liste de tous les clubs', 'refusé', pg_temp.essai($q$select 1 from admin_clubs()$q$)),
+ ('CQ A', '[P1] chiffres de la plateforme', 'refusé', pg_temp.essai($q$select 1 from admin_stats()$q$)),
+ ('CQ A', '[P1] fusionne des niveaux', 'refusé', pg_temp.essai($q$select admin_fusion_niveau(4, 3)$q$)),
+ ('CQ A', '[P1] vérifie le club C', '0', pg_temp.essai($q$update clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000c1'$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[P1] liste de tous les clubs', 'refusé', pg_temp.essai($q$select 1 from admin_clubs()$q$));
 reset role;
 select set_config('request.jwt.claims', '', false);
 
