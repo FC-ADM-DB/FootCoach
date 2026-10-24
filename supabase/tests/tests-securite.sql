@@ -7,7 +7,8 @@
 -- « attendu » = le comportement SOUHAITÉ (un ÉCHEC signale une faille ou un écart).
 -- ============================================================================
 do $$ begin
-  if exists (select 1 from public.teams where nom not like 'TEST %') then
+  -- Base de production = de vrais comptes (ni @test ni @demo.footcoach) : on refuse.
+  if exists (select 1 from auth.users where email not like '%@test.footcoach' and email not like '%@demo.footcoach') then
     raise exception 'STOP : ce n''est pas la base de test.';
   end if;
 end $$;

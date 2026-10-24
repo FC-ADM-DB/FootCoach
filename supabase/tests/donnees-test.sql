@@ -5,10 +5,21 @@
 -- Comptes : mot de passe « test-footcoach » (inutilisé par les tests SQL).
 -- ============================================================================
 do $$ begin
-  if exists (select 1 from public.teams where nom not like 'TEST %') then
+  -- Base de production = de vrais comptes (ni @test ni @demo.footcoach) : on refuse.
+  if exists (select 1 from auth.users where email not like '%@test.footcoach' and email not like '%@demo.footcoach') then
     raise exception 'STOP : cette base contient de vraies équipes, ce n''est pas la base de test.';
   end if;
 end $$;
+
+-- Les tests partent d'un état connu : la démo « région » est effacée (la relancer
+-- ensuite avec supabase/tests/donnees-demo-region.sql).
+do $d$ begin
+  if to_regclass('public.clubs') is not null then
+    delete from public.teams where club_id in (select id from public.clubs where slug like 'demo-%');
+    delete from public.clubs where slug like 'demo-%';
+  end if;
+end $d$;
+delete from auth.users where email like '%@demo.footcoach';
 
 -- Nettoyage des données de test précédentes (cascade vers profils, membres, joueurs…)
 -- Les clubs d'abord (le garde-fou « dernier CQ » bloquerait la suppression des comptes).
