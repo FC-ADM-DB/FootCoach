@@ -593,3 +593,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
 /* Lien de démonstration (base de test) */
 .demo-banner{position:fixed;top:calc(var(--st) + 4px);left:50%;transform:translateX(-50%);z-index:400;background:#facc15;color:#1c1a17;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+
+/* ============ PLATEFORME (plateforme.js) ============ */
+.pt-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.pt-tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center}
+.pt-tile.warn{border-color:var(--amber-border);background:var(--amber-bg)}
+.pt-n{font-size:22px;font-weight:700;font-family:var(--mono)}
+.pt-l{font-size:11px;color:var(--text2);margin-top:2px}
+#plateforme-content .card+.card{margin-top:10px}
+.pt-niv{display:flex;gap:8px;align-items:center}
+.pt-niv .fi,.pt-niv .sel{flex:1;min-width:0}
+.pt-niv button{min-height:40px;padding:0 12px;flex-shrink:0}
+@media(min-width:700px){.pt-tiles{grid-template-columns:repeat(6,1fr)}}

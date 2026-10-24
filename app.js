@@ -123,7 +123,7 @@ async function doResetPassword(){
     btn.disabled=false;btn.textContent='Réinitialiser le mot de passe';
   }
 }
-async function loadApp(user){U=user;document.getElementById('screen-auth').classList.remove('active');document.getElementById('screen-app').classList.add('active');await loadProfile();await Promise.all([loadRefs(),loadMyClubs()]);await loadTeams();renderHome();}
+async function loadApp(user){U=user;document.getElementById('screen-auth').classList.remove('active');document.getElementById('screen-app').classList.add('active');await loadProfile();await Promise.all([loadRefs(),loadMyClubs(),typeof loadPlatformAdmin==='function'?loadPlatformAdmin():null]);await loadTeams();renderHome();}
 
 // ============ RÉFÉRENTIELS & CLUBS (modèle multi-clubs, phases A1/A2) ============
 // Catégories, formats, niveaux, provinces : lus en base (configurables). Si la lecture
@@ -2237,6 +2237,7 @@ function goPage(name){
   if(name==='admin')renderAdminPage();
   if(name==='club')renderClubPage();
   if(name==='reseau')renderReseauPage();
+  if(name==='plateforme')renderPlateforme();
   if(name==='stats')loadMatches().then(()=>renderStatsPage());
 }
 function goAdmin(){
