@@ -374,8 +374,20 @@
     <div class="tb-field">
       <div class="terrain-wrap tb-wrap" id="tb-wrap">
         <svg class="terrain-svg" id="tb-svg" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg class="tb-traits" id="tb-traits" xmlns="http://www.w3.org/2000/svg"></svg>
         <div class="tb-pions" id="tb-pions"></div>
       </div>
+    </div>
+    <div class="tb-bar" role="toolbar" aria-label="Outils du tableau">
+      <button class="tb-btn" data-outil="deplacer" onclick="tbChoisirOutil('deplacer')" aria-label="Déplacer les pions">✋</button>
+      <button class="tb-btn" data-outil="course" onclick="tbChoisirOutil('course')" aria-label="Flèche de course">➜</button>
+      <button class="tb-btn" data-outil="passe" onclick="tbChoisirOutil('passe')" aria-label="Flèche de passe">⇢</button>
+      <button class="tb-btn" data-outil="crayon" onclick="tbChoisirOutil('crayon')" aria-label="Crayon">✏️</button>
+      <button class="tb-btn" data-outil="gomme" onclick="tbChoisirOutil('gomme')" aria-label="Gomme : toucher un tracé">🧽</button>
+      <span class="tb-sep"></span>
+      <button class="tb-btn" id="tb-undo" onclick="tbAnnuler()" aria-label="Annuler">↶</button>
+      <button class="tb-btn" id="tb-redo" onclick="tbRetablir()" aria-label="Rétablir">↷</button>
+      <button class="tb-btn" onclick="tbEffacerTraits()" aria-label="Effacer les tracés">🗑</button>
     </div>
   </div>
   <div class="mo" id="modal-tableaux">

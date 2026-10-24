@@ -643,3 +643,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .tb-new{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .tb-new button{flex:1;min-height:44px;width:auto;margin:0;font-size:13px}
 @media (max-width:420px){.tb-pion{width:34px;height:34px;font-size:13px}.tb-pion.eux{width:30px;height:30px;font-size:12px}}
+
+/* Tableau tactique — outils de dessin (T2) */
+.tb-traits{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;touch-action:none;z-index:1}
+.tb-traits.actif{pointer-events:auto;cursor:crosshair}
+.tb-traits .tb-hit{pointer-events:stroke}
+.tb-pions{z-index:2}
+.tb-pions.inactif,.tb-pions.inactif .tb-pion{pointer-events:none}
+.tb-bar{display:flex;align-items:center;gap:5px;justify-content:center;flex-wrap:nowrap;overflow-x:auto;padding-top:8px;flex-shrink:0}
+.tb-bar .tb-btn{font-size:18px;padding:0;width:46px}
+.tb-bar .tb-btn.on{background:var(--green-bg);border-color:var(--green-border);box-shadow:inset 0 0 0 1px var(--green)}
+.tb-bar .tb-btn:disabled{opacity:.35}
+.tb-sep{width:1px;height:28px;background:var(--border2);margin:0 3px;flex-shrink:0}
+@media (max-width:420px){.tb-bar .tb-btn{width:40px;min-width:40px;font-size:16px}.tb-bar{gap:3px}}
