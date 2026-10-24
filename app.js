@@ -1808,11 +1808,18 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 // Fonction SQL absente (script de sécurité Supabase pas encore exécuté).
 function isMissingFn(err){return !!err&&(err.code==='PGRST202'||err.code==='42883'||/could not find the function/i.test(err.message||''));}
 function myAdminTeams(){return teams.filter(isTeamStaff);}
+// Membres & accès : une ligne compacte par personne (résumé de ses accès), dépliable
+// pour modifier ses accès ; recherche, filtre par équipe (sélecteur directement sur
+// la ligne) et par rôle — utilisable avec beaucoup de membres. Filtres et fiche
+// ouverte gardés entre deux rafraîchissements (setAccess recharge la page).
+let accFilter={q:'',team:'',role:''},accOpen=null,accTeams=[];
+const ACC_OPTS=[['none','Aucun'],['member','Délégué'],['admin','Entraîneur']];
+const ACC_LBL={admin:'Entraîneur',member:'Délégué',parent:'Parent'};
 async function renderAdminPage(){
   const panel=document.getElementById('admin-team-members');
-  const aTeams=myAdminTeams();
-  if(!aTeams.length){panel.innerHTML=`<div class="empty"><div class="empty-i">🔒</div><div class="empty-t">Accès administration réservé aux admins</div><div class="empty-s">Tu n'es admin d'aucune équipe</div></div>`;return;}
-  const {data,error}=await sb.from('team_members').select('id,team_id,role,profile_id,profiles(id,prenom,nom,email)').in('team_id',aTeams.map(t=>t.id));
+  accTeams=myAdminTeams();
+  if(!accTeams.length){panel.innerHTML=`<div class="empty"><div class="empty-i">🔒</div><div class="empty-t">Réservé à l'encadrement</div><div class="empty-s">Tu n'encadres aucune équipe</div></div>`;return;}
+  const {data,error}=await sb.from('team_members').select('id,team_id,role,profile_id,profiles(id,prenom,nom,email)').in('team_id',accTeams.map(t=>t.id));
   if(error){panel.innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Impossible de charger les membres</div></div>`;return;}
   const people={};
   data.forEach(m=>{
@@ -1820,23 +1827,51 @@ async function renderAdminPage(){
     p.roles[m.team_id]=roleSeg(m.role);
   });
   accPeople=people;
-  const list=Object.values(people).sort((a,b)=>(b.id===U.id)-(a.id===U.id)||`${a.profile.prenom||''}`.localeCompare(`${b.profile.prenom||''}`));
-  const opts=[['none','Aucun'],['member','Délégué'],['admin','Entraîneur']];
-  panel.innerHTML=`<div class="acc-help">Choisis pour chaque personne à quelles équipes elle a accès. <b>Membre</b> : voit et gère les matchs de l'équipe. <b>Admin</b> : peut aussi modifier l'équipe et ses accès.</div>`+
-  list.map(p=>{
-    const me=p.id===U.id;
+  if(accFilter.team&&!accTeams.some(t=>t.id===accFilter.team))accFilter.team='';
+  const opt=(v,l,cur)=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(l)}</option>`;
+  panel.innerHTML=`<div class="acc-help"><b>Entraîneur</b> et <b>délégué</b> ont les mêmes droits : effectif, matchs, Live, accès de l'équipe. Touche une personne pour modifier ses accès.</div>
+    <div class="acc-tools">
+      <input class="fi" id="acc-q" type="search" placeholder="🔎 Rechercher un nom ou un email" value="${esc(accFilter.q)}" oninput="accFilter.q=this.value;accRenderList()">
+      <div class="frow">
+        <select class="sel" onchange="accFilter.team=this.value;accRenderList()">${opt('','Toutes les équipes',accFilter.team)}${accTeams.map(t=>opt(t.id,t.nom,accFilter.team)).join('')}</select>
+        <select class="sel" onchange="accFilter.role=this.value;accRenderList()">${opt('','Tous les rôles',accFilter.role)}${opt('admin','Entraîneurs',accFilter.role)}${opt('member','Délégués',accFilter.role)}</select>
+      </div>
+    </div>
+    <div class="acc-count" id="acc-count"></div>
+    <div id="acc-list"></div>`;
+  accRenderList();
+}
+function accRenderList(){
+  const q=accFilter.q.trim().toLowerCase(),T=accFilter.team,R=accFilter.role;
+  let list=Object.values(accPeople).sort((a,b)=>(b.id===U.id)-(a.id===U.id)||`${a.profile.prenom||''} ${a.profile.nom||''}`.localeCompare(`${b.profile.prenom||''} ${b.profile.nom||''}`));
+  if(q)list=list.filter(p=>`${p.profile.prenom||''} ${p.profile.nom||''} ${p.profile.email||''}`.toLowerCase().includes(q));
+  if(T)list=list.filter(p=>p.roles[T]&&p.roles[T]!=='none');
+  if(R)list=list.filter(p=>T?p.roles[T]===R:Object.values(p.roles).includes(R));
+  document.getElementById('acc-count').textContent=`${list.length} personne${list.length>1?'s':''}${T?' dans '+(accTeams.find(t=>t.id===T)?.nom||''):''}`;
+  const el=document.getElementById('acc-list');
+  if(!list.length){el.innerHTML=`<div class="empty" style="padding:24px 0"><div class="empty-t">Personne ne correspond</div></div>`;return;}
+  const seg=(p,t,me)=>{const cur=p.roles[t.id]||'none';
+    return `<div class="acc-seg">${ACC_OPTS.map(([v,l])=>`<button class="${cur===v?'on on-'+v:''}" ${me?'disabled':''} onclick="event.stopPropagation();setAccess('${p.id}','${t.id}','${v}')">${l}</button>`).join('')}</div>`;};
+  el.innerHTML=list.map(p=>{
+    const me=p.id===U.id,open=accOpen===p.id;
     const name=p.profile.prenom?`${p.profile.prenom} ${p.profile.nom||''}`:'Profil inconnu';
-    return `<div class="acc-card">
-      <div class="acc-head"><div class="avatar">${esc(((p.profile.prenom||'?')[0]+((p.profile.nom||'')[0]||'')).toUpperCase())}</div>
-        <div style="min-width:0;flex:1"><div class="admin-name">${esc(name)}${me?' <span class="pill pgr" style="font-size:10px">Vous</span>':''}</div><div class="admin-role">${esc(p.profile.email||'—')}</div></div>
-        ${me?'':`<button class="bsec acc-pwd" onclick="resetMemberPassword('${p.id}')">🔑 Mot de passe</button>`}</div>
-      ${aTeams.map(t=>{
-        const cur=p.roles[t.id]||'none';
-        return `<div class="acc-row">
-          <div class="team-sq acc-sq" style="background:${teamSqBg(t)}">${teamSqInner(t)}</div>
-          <div class="acc-team">${esc(t.nom)}</div>
-          <div class="acc-seg">${opts.map(([v,l])=>`<button class="${cur===v?'on on-'+v:''}" ${me?'disabled':''} onclick="setAccess('${p.id}','${t.id}','${v}')">${l}</button>`).join('')}</div>
-        </div>`;}).join('')}
+    const ini=esc(((p.profile.prenom||'?')[0]+((p.profile.nom||'')[0]||'')).toUpperCase());
+    const acces=accTeams.filter(t=>p.roles[t.id]&&p.roles[t.id]!=='none');
+    const resume=acces.map(t=>`<span class="acc-chip ${p.roles[t.id]==='admin'?'e':'d'}">${esc(t.nom)} · ${ACC_LBL[p.roles[t.id]]||''}</span>`).join('')||'<span class="acc-chip">Aucun accès</span>';
+    // Filtre par équipe : sélecteur directement sur la ligne (gestion rapide d'une équipe)
+    const t=T&&accTeams.find(x=>x.id===T);
+    return `<div class="acc-line${open?' open':''}">
+      <div class="acc-sum" onclick="accOpen=accOpen==='${p.id}'?null:'${p.id}';accRenderList()">
+        <div class="avatar">${ini}</div>
+        <div class="acc-who"><div class="admin-name">${esc(name)}${me?' <span class="pill pgr" style="font-size:10px">Vous</span>':''}</div>
+          <div class="admin-role">${esc(p.profile.email||'—')}</div>
+          ${t?'':`<div class="acc-chips">${resume}</div>`}</div>
+        ${t?seg(p,t,me):`<span class="acc-arrow">${open?'▴':'▾'}</span>`}
+      </div>
+      ${open&&!t?`<div class="acc-detail">
+        ${accTeams.map(tt=>`<div class="acc-row"><div class="team-sq acc-sq" style="background:${teamSqBg(tt)}">${teamSqInner(tt)}</div><div class="acc-team">${esc(tt.nom)}</div>${seg(p,tt,me)}</div>`).join('')}
+        ${me?'<div class="admin-role" style="padding-top:8px">Tes propres accès se modifient par un autre responsable.</div>':`<button class="bsec acc-pwd" style="margin-top:10px" onclick="resetMemberPassword('${p.id}')">🔑 Réinitialiser le mot de passe</button>`}
+      </div>`:''}
     </div>`;
   }).join('');
 }
