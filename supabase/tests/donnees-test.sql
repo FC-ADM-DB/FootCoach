@@ -162,6 +162,16 @@ do $$ begin
   end if;
 end $$;
 
+-- Tableau tactique (si la table existe) : TB1 pour l'équipe A, match A, avant le match
+do $tb$ begin
+  if to_regclass('public.tableaux') is not null then
+    execute $c$insert into public.tableaux (id, team_id, match_id, phase, etat, cree_par) values
+      ('70000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000a1', '40000000-0000-4000-a000-0000000000a1',
+       'avant', '{"v":1,"etapes":[{"pions":[{"id":"n1","camp":"nous","x":50,"y":88,"num":1,"joueur":"30000000-0000-4000-a000-0000000000a1"}]}]}',
+       '00000000-0000-4000-a000-000000000001')$c$;
+  end if;
+end $tb$;
+
 insert into public.player_notes (player_id, auteur_id, note) values
   ('30000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000001', 'Note de test (club A)');
 

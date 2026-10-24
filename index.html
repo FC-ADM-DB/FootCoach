@@ -130,6 +130,7 @@
           <div style="font-size:11px;color:var(--text2)" id="det-sub"></div>
         </div>
         <button id="match-delete-btn" onclick="deleteMatch(CM.id)" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:6px 10px;font-family:var(--font);font-size:12px;cursor:pointer">🗑 Supprimer</button>
+        <button class="tb-open" onclick="openTableauxMatch()" aria-label="Tableau tactique" title="Tableau tactique">📋</button>
         <span class="pill" id="det-status"></span>
         <!-- Copie du bouton Start/Pause du chrono, affichée seulement en Live sur iPhone portrait
              (le vrai #btn-chrono est alors masqué ; texte et couleur recopiés par app.js) -->
@@ -357,6 +358,34 @@
     </div>
   </div>
 
+  <!-- TABLEAU TACTIQUE (tableau.js) -->
+  <div class="tb-screen" id="tb-screen" style="display:none">
+    <div class="tb-top">
+      <button class="tb-btn" onclick="fermerTableau()" aria-label="Fermer">←</button>
+      <div class="tb-head"><input class="tb-titre" id="tb-titre" placeholder="Titre (ex : sortie de balle)" maxlength="80" oninput="tbSauver()"><span class="tb-phase" id="tb-phase"></span></div>
+      <span class="tb-statut" id="tb-statut"></span>
+    </div>
+    <div class="tb-tools">
+      <button class="tb-btn tb-tog" id="tb-adv" onclick="tbToggleAdv()">👥 Adversaires</button>
+      <button class="tb-btn" id="tb-lib" onclick="tbToggleLib()">Aa Prénoms</button>
+      <div class="tb-festi" id="tb-festi"><button class="tb-btn" onclick="tbFesti(-1)" aria-label="Un joueur de moins">−</button><span>joueurs</span><button class="tb-btn" onclick="tbFesti(1)" aria-label="Un joueur de plus">+</button></div>
+    </div>
+    <div class="tb-field">
+      <div class="terrain-wrap tb-wrap" id="tb-wrap">
+        <svg class="terrain-svg" id="tb-svg" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="tb-pions" id="tb-pions"></div>
+      </div>
+    </div>
+  </div>
+  <div class="mo" id="modal-tableaux">
+    <div class="modal">
+      <div class="mh"></div>
+      <div class="mt">Tableaux du match</div>
+      <div id="tb-liste"></div>
+      <div class="mfoot"><button class="bcan" onclick="closeModal('modal-tableaux')">Fermer</button></div>
+    </div>
+  </div>
+
   <!-- TEAM SWITCHER -->
   <div class="tsw" id="tsw" onclick="closeTsw(event)">
     <div class="tsw-sheet">
@@ -553,5 +582,6 @@
 <script src="app.js"></script>
 <script src="reseau.js"></script>
 <script src="plateforme.js"></script>
+<script src="tableau.js"></script>
 </body>
 </html>

@@ -375,6 +375,51 @@ set role anon;
 insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[P1] liste de tous les clubs', 'refusé', pg_temp.essai($q$select 1 from admin_clubs()$q$));
 reset role;
+
+-- ============================================================= TABLEAU TACTIQUE (T1)
+-- TB1 : tableau de l'équipe A pour le match A (phase « avant »), créé par les données de test.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach A', '[T1] voit le tableau de son équipe', '1', pg_temp.essai($q$select 1 from tableaux where id = '70000000-0000-4000-a000-000000000001'$q$)),
+ ('Coach A', '[T1] crée un tableau (id du téléphone)', '1', pg_temp.essai($q$insert into tableaux(id, team_id, match_id, phase, etat) values (gen_random_uuid(), '10000000-0000-4000-a000-0000000000a1', '40000000-0000-4000-a000-0000000000a1', 'pause', '{"v":1}')$q$)),
+ ('Coach A', '[T1] modifie le tableau (version +1)', '1', pg_temp.essai($q$update tableaux set titre = 'Sortie de balle' where id = '70000000-0000-4000-a000-000000000001' and version = 1$q$)),
+ ('Coach A', '[T1] rattache un tableau au match d''une autre équipe', 'refusé', pg_temp.essai($q$insert into tableaux(team_id, match_id, etat) values ('10000000-0000-4000-a000-0000000000a1', '40000000-0000-4000-a000-0000000000b1', '{}')$q$)),
+ ('Coach A', '[T1] crée un tableau pour l''équipe B', 'refusé', pg_temp.essai($q$insert into tableaux(team_id, etat) values ('10000000-0000-4000-a000-0000000000b1', '{}')$q$)),
+ ('Coach A', '[T1] modèle lié à un match', 'refusé', pg_temp.essai($q$insert into tableaux(team_id, match_id, est_modele, etat) values ('10000000-0000-4000-a000-0000000000a1', '40000000-0000-4000-a000-0000000000a1', true, '{}')$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Délégué A', '[T1] voit et modifie le tableau', '1', pg_temp.essai($q$update tableaux set titre = 'x' where id = '70000000-0000-4000-a000-000000000001'$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000006","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coord A', '[T1] voit le tableau (équipe de son club)', '1', pg_temp.essai($q$select 1 from tableaux where id = '70000000-0000-4000-a000-000000000001'$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[T1] voit les tableaux', '0', pg_temp.essai($q$select 1 from tableaux$q$)),
+ ('Parent A', '[T1] crée un tableau', 'refusé', pg_temp.essai($q$insert into tableaux(team_id, etat) values ('10000000-0000-4000-a000-0000000000a1', '{}')$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ B', '[T1] voit les tableaux du club A', '0', pg_temp.essai($q$select 1 from tableaux where id = '70000000-0000-4000-a000-000000000001'$q$)),
+ ('CQ B', '[T1] modifie un tableau du club A', '0', pg_temp.essai($q$update tableaux set titre = 'pirate' where id = '70000000-0000-4000-a000-000000000001'$q$));
+reset role;
+
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[T1] voit des tableaux', '0', pg_temp.essai($q$select 1 from tableaux$q$));
+reset role;
 select set_config('request.jwt.claims', '', false);
 
 select n, qui, test, attendu, obtenu, case when attendu = obtenu then 'OK' else 'ÉCHEC' end as resultat
