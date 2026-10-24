@@ -354,7 +354,10 @@ insert into r (qui, test, attendu, obtenu) values
  ('Admin', '[P1] vérifie le club C', '1', pg_temp.essai($q$update clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000c1'$q$)),
  ('Admin', '[P1] renomme un niveau', '1', pg_temp.essai($q$update niveaux set libelle = 'Niveau 4 (régional)' where libelle = 'Niveau 4'$q$)),
  ('Admin', '[P1] fusionne Niveau 4 dans Niveau 3', '1', pg_temp.essai($q$select admin_fusion_niveau((select id from niveaux where libelle = 'Niveau 4'), (select id from niveaux where libelle = 'Niveau 3'))$q$)),
- ('Admin', '[P1] fusion d''un niveau avec lui-même', 'refusé', pg_temp.essai($q$select admin_fusion_niveau(1, 1)$q$));
+ ('Admin', '[P1] fusion d''un niveau avec lui-même', 'refusé', pg_temp.essai($q$select admin_fusion_niveau(1, 1)$q$)),
+ ('Admin', '[P1] fiche club A : 5 personnes (CQ, coord., équipe)', '5', pg_temp.essai($q$select 1 from admin_club_membres('50000000-0000-4000-a000-0000000000a1')$q$)),
+ ('Admin', '[P1] fiche club A : 1 équipe, compteurs', '1', pg_temp.essai($q$select 1 from admin_club_equipes('50000000-0000-4000-a000-0000000000a1') where nb_joueurs = 2$q$)),
+ ('Admin', '[P1] modifie la fiche du club C', '1', pg_temp.essai($q$update clubs set adresse = 'Grand-Place 1, 4000 Liège' where id = '50000000-0000-4000-a000-0000000000c1'$q$));
 reset role;
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
@@ -363,6 +366,7 @@ insert into r (qui, test, attendu, obtenu) values
  ('CQ A', '[P1] liste de tous les clubs', 'refusé', pg_temp.essai($q$select 1 from admin_clubs()$q$)),
  ('CQ A', '[P1] chiffres de la plateforme', 'refusé', pg_temp.essai($q$select 1 from admin_stats()$q$)),
  ('CQ A', '[P1] fusionne des niveaux', 'refusé', pg_temp.essai($q$select admin_fusion_niveau(4, 3)$q$)),
+ ('CQ A', '[P1] fiche d''un autre club (membres)', 'refusé', pg_temp.essai($q$select 1 from admin_club_membres('50000000-0000-4000-a000-0000000000b1')$q$)),
  ('CQ A', '[P1] vérifie le club C', '0', pg_temp.essai($q$update clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000c1'$q$));
 reset role;
 
