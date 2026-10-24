@@ -41,6 +41,21 @@ from (values
   ('00000000-0000-4000-a000-000000000008', 'cq.c@test.footcoach',     'Hugo',   'CqC')
 ) as u(id, email, prenom, nom);
 
+-- Comptes créés en SQL : champs « jeton » vides (et non NULL) + identité email,
+-- sinon la connexion répond « Database error querying schema ».
+update auth.users set
+  confirmation_token = coalesce(confirmation_token, ''), recovery_token = coalesce(recovery_token, ''),
+  email_change_token_new = coalesce(email_change_token_new, ''), email_change = coalesce(email_change, ''),
+  email_change_token_current = coalesce(email_change_token_current, ''), phone_change = coalesce(phone_change, ''),
+  phone_change_token = coalesce(phone_change_token, ''), reauthentication_token = coalesce(reauthentication_token, '')
+where email like '%@demo.footcoach' or email like '%@test.footcoach';
+insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+select gen_random_uuid(), u.id, u.id::text, jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true),
+       'email', now(), now(), now()
+from auth.users u
+where (u.email like '%@demo.footcoach' or u.email like '%@test.footcoach')
+  and not exists (select 1 from auth.identities i where i.user_id = u.id and i.provider = 'email');
+
 -- Équipes : A (club A) et B (club B)
 insert into public.teams (id, nom, categorie, format, saison_id, created_by) values
   ('10000000-0000-4000-a000-0000000000a1', 'TEST U10 Club A', 'U10', '8v8', '20000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000001'),

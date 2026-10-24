@@ -44,6 +44,21 @@ from (values
 insert into public.platform_admins (profile_id) values (md5('david@demo.footcoach')::uuid)
 on conflict do nothing;
 
+-- Comptes créés en SQL : champs « jeton » vides (et non NULL) + identité email,
+-- sinon la connexion répond « Database error querying schema ».
+update auth.users set
+  confirmation_token = coalesce(confirmation_token, ''), recovery_token = coalesce(recovery_token, ''),
+  email_change_token_new = coalesce(email_change_token_new, ''), email_change = coalesce(email_change, ''),
+  email_change_token_current = coalesce(email_change_token_current, ''), phone_change = coalesce(phone_change, ''),
+  phone_change_token = coalesce(phone_change_token, ''), reauthentication_token = coalesce(reauthentication_token, '')
+where email like '%@demo.footcoach' or email like '%@test.footcoach';
+insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+select gen_random_uuid(), u.id, u.id::text, jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true),
+       'email', now(), now(), now()
+from auth.users u
+where (u.email like '%@demo.footcoach' or u.email like '%@test.footcoach')
+  and not exists (select 1 from auth.identities i where i.user_id = u.id and i.provider = 'email');
+
 -- ------------------------------------------------------------------ CLUBS
 insert into public.clubs (id, nom, slug, province_id, adresse, lat, lng, couleur1, couleur2, verifie, cree_par)
 select md5(c.slug)::uuid, c.nom, c.slug, (select id from public.provinces where nom = 'Liège'),
