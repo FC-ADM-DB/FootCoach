@@ -13,6 +13,8 @@ async function loadPlatformAdmin(){
   }catch(e){}
   const m=document.getElementById('umenu-plateforme');
   if(m)m.style.display=isPlatformAdmin?'flex':'none';
+  // Lien vers la démo (base de test) : pour l'admin, et pas depuis la démo elle-même
+  const d=document.getElementById('umenu-demo');if(d)d.style.display=isPlatformAdmin&&!SB_DEMO?'flex':'none';
 }
 const ptDate=d=>d?new Date(d).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'}):'';
 
