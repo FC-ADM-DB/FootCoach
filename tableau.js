@@ -75,11 +75,15 @@ async function openTableau(id){
   if(!row)return showToast('Tableau introuvable','err');
   tb={id:row.id,team_id:row.team_id,match_id:row.match_id,phase:row.phase,periode:row.periode,titre:row.titre||'',format:row.format||CT.format,etat:row.etat,version:row.version||0};
   if(!tb.etat?.etapes?.length)tb.etat=tbNouvelEtat(tb.format,null,null,3);
+  // Tableau ancien ou incomplet : on complète ce qui manque (options, ballon, tracés)
+  tb.etat.terrain={adversaires:true,libelles:'prenoms',...(tb.etat.terrain||{})};tb.etat.consignes=tb.etat.consignes||[];
+  tb.etat.etapes.forEach(e=>{e.pions=e.pions||[];e.ballon=e.ballon||{x:50,y:50};e.traits=e.traits||[];});
   tbOuvrirEcran();
 }
 
 // ------------------------------------------------------------ ÉCRAN
 function tbOuvrirEcran(){
+  tbHist=[];tbRedo=[];tbOutil='deplacer';
   document.getElementById('tb-screen').style.display='flex';
   document.getElementById('tb-titre').value=tb.titre;
   document.getElementById('tb-phase').textContent=TB_PHASES[tb.phase]+(tb.phase==='pause'&&tb.periode?' '+tb.periode:'');
@@ -117,6 +121,7 @@ function tbRender(){
     el.addEventListener('pointerdown',tbDragStart);
     el.addEventListener('keydown',tbKey);
   });
+  tbRenderTraits();tbMajOutils();
   tbMajStatut();
 }
 const tbObj=id=>id==='ballon'?tbEtape().ballon:tbEtape().pions.find(p=>p.id===id);
@@ -126,7 +131,8 @@ let tbDrag=null;
 function tbDragStart(e){
   const el=e.currentTarget,o=tbObj(el.dataset.id);if(!o)return;
   e.preventDefault();el.setPointerCapture(e.pointerId);el.classList.add('drag');
-  tbDrag={el,o,rect:document.getElementById('tb-pions').getBoundingClientRect()};
+  tbSnap();
+  tbDrag={el,o,rect:document.getElementById('tb-pions').getBoundingClientRect(),x0:o.x,y0:o.y};
   el.addEventListener('pointermove',tbDragMove);
   el.addEventListener('pointerup',tbDragEnd,{once:true});
   el.addEventListener('pointercancel',tbDragEnd,{once:true});
@@ -141,13 +147,16 @@ function tbDragMove(e){
 function tbDragEnd(e){
   if(!tbDrag)return;
   tbDrag.el.classList.remove('drag');tbDrag.el.removeEventListener('pointermove',tbDragMove);
-  tbDrag=null;tbSauver();
+  // Simple toucher sans déplacement : pas d'étape d'historique inutile
+  if(tbDrag.o.x===tbDrag.x0&&tbDrag.o.y===tbDrag.y0)tbHist.pop();
+  tbDrag=null;tbRenderTraits();tbSauver();
 }
 function tbKey(e){
   const pas=e.shiftKey?6:2,d={ArrowLeft:[-pas,0],ArrowRight:[pas,0],ArrowUp:[0,-pas],ArrowDown:[0,pas]}[e.key];
   if(!d)return;
   e.preventDefault();
   const el=e.currentTarget,o=tbObj(el.dataset.id);if(!o)return;
+  tbSnap();
   const s=tbToScreen(o.x,o.y),n={x:tbClamp(s.x+d[0]),y:tbClamp(s.y+d[1])};
   const p=tbFromScreen(n.x,n.y);o.x=p.x;o.y=p.y;
   el.style.left=n.x+'%';el.style.top=n.y+'%';
@@ -162,6 +171,7 @@ function tbFesti(delta){
   const et=tbEtape(),nous=et.pions.filter(p=>p.camp==='nous').length,n=Math.max(2,Math.min(6,nous+delta));
   if(n===nous)return;
   const pos=tbPositions('festifoot',n);
+  tbSnap();
   et.pions=[...pos.map(p=>et.pions.find(x=>x.id==='n'+p.num)||{id:'n'+p.num,camp:'nous',num:p.num,x:p.x,y:p.y,joueur:null}),
             ...pos.map(p=>et.pions.find(x=>x.id==='e'+p.num)||{id:'e'+p.num,camp:'eux',num:p.num,x:100-p.x,y:100-p.y})];
   tbRender();tbSauver();
@@ -203,3 +213,89 @@ function tbTaille(){
   wrap.style.width=Math.floor(w)+'px';wrap.style.height=Math.floor(h)+'px';
 }
 window.addEventListener('resize',()=>{if(tb&&document.getElementById('tb-screen').style.display==='flex')tbRender();});
+
+// ============ T2 : OUTILS DE DESSIN (course, passe, crayon, gomme, annuler/rétablir) ============
+// Les tracés sont stockés dans l'étape (traits : [{id, type, pts:[[x,y],…]}]) en % du
+// terrain, orientation portrait, comme les pions. Dessinés en pixels dans un SVG au-dessus
+// du terrain (sous les pions) pour garder des flèches nettes quelle que soit la taille.
+let tbOutil='deplacer',tbHist=[],tbRedo=[],tbTrace=null;
+const TB_OUTILS={deplacer:'✋',course:'➜',passe:'⇢',crayon:'✏️',gomme:'🧽'};
+const TB_COUL={course:'#ffffff',passe:'#facc15',crayon:'#fb923c'};
+function tbSnap(){tbHist.push(JSON.stringify(tb.etat.etapes));if(tbHist.length>60)tbHist.shift();tbRedo=[];tbMajOutils();}
+function tbAnnuler(){if(!tbHist.length)return;tbRedo.push(JSON.stringify(tb.etat.etapes));tb.etat.etapes=JSON.parse(tbHist.pop());tbRender();tbSauver();}
+function tbRetablir(){if(!tbRedo.length)return;tbHist.push(JSON.stringify(tb.etat.etapes));tb.etat.etapes=JSON.parse(tbRedo.pop());tbRender();tbSauver();}
+function tbEffacerTraits(){if(!tbEtape().traits.length)return;tbSnap();tbEtape().traits=[];tbRenderTraits();tbSauver();showToast('Tracés effacés (↶ pour annuler)','ok');}
+function tbChoisirOutil(o){tbOutil=o;tbMajOutils();}
+function tbMajOutils(){
+  document.querySelectorAll('.tb-bar [data-outil]').forEach(b=>b.classList.toggle('on',b.dataset.outil===tbOutil));
+  const u=document.getElementById('tb-undo'),r=document.getElementById('tb-redo');
+  if(u)u.disabled=!tbHist.length;if(r)r.disabled=!tbRedo.length;
+  // Dessin : la couche des tracés reçoit le doigt ; déplacer : ce sont les pions
+  const dessin=tbOutil!=='deplacer';
+  document.getElementById('tb-pions')?.classList.toggle('inactif',dessin);
+  document.getElementById('tb-traits')?.classList.toggle('actif',dessin);
+}
+// Rendu des tracés en pixels
+function tbRenderTraits(){
+  const svg=document.getElementById('tb-traits'),wrap=document.getElementById('tb-wrap');if(!svg||!wrap||!tb)return;
+  const W=wrap.clientWidth,H=wrap.clientHeight;svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  const px=([x,y])=>{const s=tbToScreen(x,y);return[s.x*W/100,s.y*H/100];};
+  const fl=Math.max(9,Math.min(W,H)*0.035);   // taille de la pointe de flèche
+  const traits=[...tbEtape().traits,...(tbTrace?[tbTrace]:[])];
+  svg.innerHTML=traits.map(t=>{
+    const P=t.pts.map(px),c=TB_COUL[t.type]||'#fff',w=t.type==='crayon'?3:3.5;
+    const d='M'+P.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L');
+    let tete='';
+    if(t.type!=='crayon'&&P.length>1){
+      const [x1,y1]=P[P.length-2],[x2,y2]=P[P.length-1],a=Math.atan2(y2-y1,x2-x1);
+      const p1=[x2-fl*Math.cos(a-0.45),y2-fl*Math.sin(a-0.45)],p2=[x2-fl*Math.cos(a+0.45),y2-fl*Math.sin(a+0.45)];
+      tete=`<polygon points="${x2},${y2} ${p1[0]},${p1[1]} ${p2[0]},${p2[1]}" fill="${c}"/>`;
+    }
+    // Trait invisible large : zone de toucher pour la gomme
+    return `<g data-id="${t.id||''}"><path d="${d}" fill="none" stroke="transparent" stroke-width="24" stroke-linecap="round" class="tb-hit"/>
+      <path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${t.type==='passe'?' stroke-dasharray="8 7"':''} opacity=".95"/>${tete}</g>`;
+  }).join('');
+}
+// Dessin au doigt sur la couche des tracés
+function tbPoint(e){const r=document.getElementById('tb-traits').getBoundingClientRect();
+  const p=tbFromScreen(tbClamp((e.clientX-r.left)/r.width*100),tbClamp((e.clientY-r.top)/r.height*100));
+  return[+p.x.toFixed(1),+p.y.toFixed(1)];}
+function tbTraitsDown(e){
+  if(tbOutil==='deplacer')return;
+  e.preventDefault();
+  if(tbOutil==='gomme'){
+    const g=e.target.closest('g[data-id]');if(!g)return;
+    const id=g.dataset.id,et=tbEtape(),i=et.traits.findIndex(t=>t.id===id);if(i<0)return;
+    tbSnap();et.traits.splice(i,1);tbRenderTraits();tbSauver();return;
+  }
+  e.currentTarget.setPointerCapture(e.pointerId);
+  const p=tbPoint(e);tbTrace={id:tbUuid().slice(0,8),type:tbOutil,pts:[p,p]};
+}
+function tbTraitsMove(e){
+  if(!tbTrace)return;
+  const p=tbPoint(e);
+  if(tbTrace.type==='crayon'){const l=tbTrace.pts[tbTrace.pts.length-1];if(Math.hypot(p[0]-l[0],p[1]-l[1])>=1)tbTrace.pts.push(p);}
+  else tbTrace.pts[1]=p;   // flèche droite : départ → point actuel
+  tbRenderTraits();
+}
+function tbTraitsUp(){
+  if(!tbTrace)return;
+  const t=tbTrace;tbTrace=null;
+  const a=t.pts[0],b=t.pts[t.pts.length-1];
+  // Trait trop court (simple toucher) : ignoré
+  if(t.type==='crayon'?t.pts.length<3:Math.hypot(b[0]-a[0],b[1]-a[1])<3){tbRenderTraits();return;}
+  tbSnap();tbEtape().traits.push(t);tbRenderTraits();tbSauver();
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const svg=document.getElementById('tb-traits');if(!svg)return;
+  svg.addEventListener('pointerdown',tbTraitsDown);
+  svg.addEventListener('pointermove',tbTraitsMove);
+  svg.addEventListener('pointerup',tbTraitsUp);
+  svg.addEventListener('pointercancel',tbTraitsUp);
+});
+// Raccourcis clavier : Ctrl+Z / Ctrl+Y
+document.addEventListener('keydown',e=>{
+  if(!tb||document.getElementById('tb-screen')?.style.display!=='flex')return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?tbRetablir():tbAnnuler();}
+  else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();tbRetablir();}
+});
