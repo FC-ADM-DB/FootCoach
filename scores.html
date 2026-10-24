@@ -81,8 +81,12 @@ footer{text-align:center;font-size:11px;color:var(--ink2);padding:0 16px 24px}
 <footer id="foot"></footer>
 
 <script>
-const SB_URL='https://oejcfjthamzgnudofcwi.supabase.co';
-const SB_KEY='sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
+// Base Supabase : production, sauf sur le lien de démonstration (branche « demo » sur
+// Vercel : foot-coach-git-demo-…) qui utilise la base de test FootLink (données
+// fictives). Les deux clés sont des clés PUBLIQUES (la sécurité est dans la base).
+const SB_DEMO=/^foot-coach-git-demo-/.test(location.hostname);
+const SB_URL=SB_DEMO?'https://shdmzyfdzczhwibwnvdn.supabase.co':'https://oejcfjthamzgnudofcwi.supabase.co';
+const SB_KEY=SB_DEMO?'sb_publishable_rXiHRcgsFm6TwzFapFckQA_shM52ilJ':'sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
 let day=null,rows=[],refreshIv=null;
 // Club demandé dans l'adresse (identifiant court, ex. reh-braives) ; null = tous les clubs
 const CLUB=(new URLSearchParams(location.search).get('club')||'').toLowerCase().replace(/[^a-z0-9-]/g,'')||null;

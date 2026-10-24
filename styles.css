@@ -590,3 +590,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .acc-arrow{color:var(--text3);font-size:14px;flex-shrink:0;padding:0 4px}
 .acc-detail{padding:0 12px 12px;border-top:1px solid var(--border)}
 @media (max-width:420px){.acc-sum .acc-seg button{padding:0 7px;font-size:11px}}
+
+/* Lien de démonstration (base de test) */
+.demo-banner{position:fixed;top:calc(var(--st) + 4px);left:50%;transform:translateX(-50%);z-index:400;background:#facc15;color:#1c1a17;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}

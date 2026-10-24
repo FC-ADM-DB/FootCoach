@@ -1,6 +1,11 @@
-const SB_URL='https://oejcfjthamzgnudofcwi.supabase.co';
-const SB_KEY='sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
+// Base Supabase : production, sauf sur le lien de démonstration (branche « demo » sur
+// Vercel : foot-coach-git-demo-…) qui utilise la base de test FootLink (données
+// fictives). Les deux clés sont des clés PUBLIQUES (la sécurité est dans la base).
+const SB_DEMO=/^foot-coach-git-demo-/.test(location.hostname);
+const SB_URL=SB_DEMO?'https://shdmzyfdzczhwibwnvdn.supabase.co':'https://oejcfjthamzgnudofcwi.supabase.co';
+const SB_KEY=SB_DEMO?'sb_publishable_rXiHRcgsFm6TwzFapFckQA_shM52ilJ':'sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
 const sb=supabase.createClient(SB_URL,SB_KEY);
+if(SB_DEMO)document.addEventListener('DOMContentLoaded',()=>{const b=document.createElement('div');b.className='demo-banner';b.textContent='🧪 DÉMO — base de test, données fictives';document.body.appendChild(b);});
 
 // STATE
 let U=null,UP=null,teams=[],CT=null,players=[];
