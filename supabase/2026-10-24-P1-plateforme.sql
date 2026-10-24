@@ -79,9 +79,49 @@ $$ begin
   delete from niveaux where id = p_source;
 end $$;
 
+-- Fiche d'un club : personnes (encadrement du club + membres des équipes) …
+create or replace function public.admin_club_membres(p_club uuid)
+returns table(club_member_id uuid, profile_id uuid, prenom text, nom text, email text, role text, equipe text)
+language plpgsql stable security definer set search_path = public as
+$$ begin
+  perform public.exiger_admin_plateforme();
+  return query
+  select cm.id, p.id, p.prenom::text, p.nom::text, p.email::text, cm.role::text, null::text
+    from club_members cm join profiles p on p.id = cm.profile_id where cm.club_id = p_club
+  union all
+  select null::uuid, p.id, p.prenom::text, p.nom::text, p.email::text, tm.role::text, t.nom::text
+    from team_members tm join teams t on t.id = tm.team_id join profiles p on p.id = tm.profile_id
+   where t.club_id = p_club
+  order by 7 nulls first, 3, 4;
+end $$;
+
+-- … et équipes (compteurs seulement, aucune donnée de joueur)
+create or replace function public.admin_club_equipes(p_club uuid)
+returns table(id uuid, nom text, categorie text, format text, niveau text, nb_membres int, nb_joueurs int, nb_matchs int)
+language plpgsql stable security definer set search_path = public as
+$$ begin
+  perform public.exiger_admin_plateforme();
+  return query
+  select t.id, t.nom::text, t.categorie::text, t.format::text, n.libelle::text,
+         (select count(*) from team_members tm where tm.team_id = t.id)::int,
+         (select count(*) from players pl where pl.team_id = t.id and pl.actif)::int,
+         (select count(*) from matches m where m.team_id = t.id)::int
+  from teams t left join niveaux n on n.id = t.niveau_id
+  where t.club_id = p_club order by t.categorie, t.nom;
+end $$;
+
+-- Recherche d'une personne par email : aussi pour l'admin plateforme (nommer le CQ
+-- d'un club qui n'en a plus), en plus de l'encadrement des équipes et clubs.
+create or replace function public.find_profile_by_email(e text)
+  returns table(id uuid, prenom text, nom text, email text)
+  language sql stable security definer set search_path = public as
+$$ select p.id, p.prenom::text, p.nom::text, p.email::text from profiles p
+   where lower(p.email) = lower(trim(e)) and (public.is_any_staff() or public.is_platform_admin()) $$;
+
 do $$ declare f text; begin
   foreach f in array array['exiger_admin_plateforme()', 'admin_clubs()', 'admin_stats()', 'admin_niveaux()',
-                           'admin_fusion_niveau(integer, integer)'] loop
+                           'admin_fusion_niveau(integer, integer)', 'admin_club_membres(uuid)', 'admin_club_equipes(uuid)',
+                           'find_profile_by_email(text)'] loop
     execute format('revoke execute on function public.%s from public, anon', f);
     execute format('grant execute on function public.%s to authenticated', f);
   end loop;
