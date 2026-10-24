@@ -656,3 +656,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .tb-bar .tb-btn:disabled{opacity:.35}
 .tb-sep{width:1px;height:28px;background:var(--border2);margin:0 3px;flex-shrink:0}
 @media (max-width:420px){.tb-bar .tb-btn{width:40px;min-width:40px;font-size:16px}.tb-bar{gap:3px}}
+
+/* Tableau tactique — étapes et lecture (T3) */
+.tb-etapes{display:flex;align-items:center;gap:5px;overflow-x:auto;padding-top:8px;flex-shrink:0;justify-content:center}
+.tb-et{min-width:40px;min-height:40px;padding:0 10px;border-radius:99px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0}
+.tb-et.on{background:var(--green);border-color:var(--green);color:#0a1628}
+.tb-et.plus{color:var(--green);border-style:dashed}
+.tb-et.lire{background:var(--blue-bg);border-color:var(--blue-border);color:var(--blue);padding:0 14px}
+.tb-et.lire.on{background:var(--amber);border-color:var(--amber);color:#0a1628}
+.tb-et:disabled{opacity:.4}
+.tb-screen.lecture .tb-pions,.tb-screen.lecture .tb-pion,.tb-screen.lecture .tb-traits{pointer-events:none}
+.tb-screen.lecture .tb-bar{opacity:.4;pointer-events:none}

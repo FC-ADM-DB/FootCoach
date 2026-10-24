@@ -11,7 +11,8 @@ let tb=null;            // tableau ouvert : {id, team_id, match_id, phase, perio
 let tbLand=false,tbMQ=null,tbSaveT=null,tbEtat='ok';   // tbEtat : 'ok' | 'attente' (non synchronisé)
 const TB_PHASES={avant:'Avant le match',pause:'Pause',apres:'Après le match',libre:'Tableau'};
 const tbUuid=()=>crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16);});
-const tbEtape=()=>tb.etat.etapes[0];   // T1 : une seule étape (les étapes animées arrivent en T3)
+let tbEtapeIdx=0;      // étape affichée / modifiée
+const tbEtape=()=>tb.etat.etapes[Math.min(tbEtapeIdx,tb.etat.etapes.length-1)];
 const tbClamp=v=>Math.max(2,Math.min(98,v));
 // Portrait (stockage) ↔ affichage
 const tbToScreen=(x,y)=>tbLand?{x:y,y:100-x}:{x,y};
@@ -89,7 +90,7 @@ async function openTableau(id){
 
 // ------------------------------------------------------------ ÉCRAN
 function tbOuvrirEcran(){
-  tbHist=[];tbRedo=[];tbOutil='deplacer';
+  tbHist=[];tbRedo=[];tbOutil='deplacer';tbEtapeIdx=0;tbStop();
   document.getElementById('tb-screen').style.display='flex';
   document.getElementById('tb-titre').value=tb.titre;
   document.getElementById('tb-phase').textContent=TB_PHASES[tb.phase]+(tb.phase==='pause'&&tb.periode?' '+tb.periode:'');
@@ -97,6 +98,7 @@ function tbOuvrirEcran(){
   tbRender();
 }
 function fermerTableau(){
+  tbStop();
   tbSauver(true);
   document.getElementById('tb-screen').style.display='none';
 }
@@ -127,7 +129,7 @@ function tbRender(){
     el.addEventListener('pointerdown',tbDragStart);
     el.addEventListener('keydown',tbKey);
   });
-  tbRenderTraits();tbMajOutils();
+  tbRenderTraits();tbMajOutils();tbRenderEtapes();
   tbMajStatut();
 }
 const tbObj=id=>id==='ballon'?tbEtape().ballon:tbEtape().pions.find(p=>p.id===id);
@@ -174,11 +176,11 @@ function tbToggleAdv(){tb.etat.terrain.adversaires=!tb.etat.terrain.adversaires;
 function tbToggleLib(){tb.etat.terrain.libelles=tb.etat.terrain.libelles==='prenoms'?'numeros':'prenoms';tbRender();tbSauver();}
 // Festifoot : nombre de joueurs par équipe réglable (2 à 6)
 function tbFesti(delta){
-  const et=tbEtape(),nous=et.pions.filter(p=>p.camp==='nous').length,n=Math.max(2,Math.min(6,nous+delta));
+  const nous=tbEtape().pions.filter(p=>p.camp==='nous').length,n=Math.max(2,Math.min(6,nous+delta));
   if(n===nous)return;
   const pos=tbPositions('festifoot',n);
   tbSnap();
-  et.pions=[...pos.map(p=>et.pions.find(x=>x.id==='n'+p.num)||{id:'n'+p.num,camp:'nous',num:p.num,...tbCampNous(p.x,p.y),joueur:null}),
+  for(const et of tb.etat.etapes)et.pions=[...pos.map(p=>et.pions.find(x=>x.id==='n'+p.num)||{id:'n'+p.num,camp:'nous',num:p.num,...tbCampNous(p.x,p.y),joueur:null}),
             ...pos.map(p=>et.pions.find(x=>x.id==='e'+p.num)||{id:'e'+p.num,camp:'eux',num:p.num,...tbCampEux(p.x,p.y)})];
   tbRender();tbSauver();
 }
@@ -305,3 +307,75 @@ document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?tbRetablir():tbAnnuler();}
   else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();tbRetablir();}
 });
+
+// ============ T3 : ÉTAPES ET LECTURE ANIMÉE ============
+// Une étape = positions des pions et du ballon + ses flèches. « Lire » fait glisser les
+// pions d'une étape à la suivante (flèches de l'étape de départ affichées pendant le
+// mouvement), avec une vitesse réglable. Maximum 10 étapes.
+const TB_MAX_ETAPES=10;
+const TB_VITESSES={lent:{d:1700,pause:900,ic:'🐢'},normal:{d:1100,pause:600,ic:'▶︎'},rapide:{d:650,pause:350,ic:'🐇'}};
+let tbVitesse='normal',tbLecture=null;   // tbLecture : {stop:true/false} pendant la lecture
+function tbRenderEtapes(){
+  const el=document.getElementById('tb-etapes');if(!el||!tb)return;
+  const n=tb.etat.etapes.length,lit=!!tbLecture;
+  tbEtapeIdx=Math.max(0,Math.min(tbEtapeIdx,n-1));   // après ↶ / ↷ le nombre d'étapes peut changer
+  el.innerHTML=tb.etat.etapes.map((_,i)=>`<button class="tb-et${i===tbEtapeIdx?' on':''}" onclick="tbAllerEtape(${i})" ${lit?'disabled':''} aria-label="Étape ${i+1}">${i+1}</button>`).join('')+
+    (n<TB_MAX_ETAPES?`<button class="tb-et plus" onclick="tbAjouterEtape()" ${lit?'disabled':''} aria-label="Ajouter une étape">＋</button>`:'')+
+    (n>1?`<button class="tb-et" onclick="tbSupprEtape()" ${lit?'disabled':''} aria-label="Supprimer l'étape ${tbEtapeIdx+1}">🗑</button>`:'')+
+    `<span class="tb-sep"></span>
+    <button class="tb-et lire${lit?' on':''}" onclick="tbLire()" aria-label="${lit?'Arrêter':'Lire l\'action'}">${lit?'⏸':'▶ Lire'}</button>
+    <button class="tb-et" onclick="tbChangerVitesse()" aria-label="Vitesse : ${tbVitesse}">${TB_VITESSES[tbVitesse].ic==='▶︎'?'1×':TB_VITESSES[tbVitesse].ic}</button>`;
+  document.getElementById('tb-screen').classList.toggle('lecture',lit);
+}
+function tbAllerEtape(i){if(tbLecture)return;tbEtapeIdx=i;tbRender();}
+function tbAjouterEtape(){
+  const E=tb.etat.etapes;if(E.length>=TB_MAX_ETAPES)return showToast(`${TB_MAX_ETAPES} étapes maximum`,'err');
+  tbSnap();
+  const copie=JSON.parse(JSON.stringify(tbEtape()));copie.traits=[];   // mêmes positions, sans flèches
+  E.splice(tbEtapeIdx+1,0,copie);tbEtapeIdx++;
+  tbRender();tbSauver();showToast(`Étape ${tbEtapeIdx+1} : déplace les joueurs`,'ok');
+}
+function tbSupprEtape(){
+  const E=tb.etat.etapes;if(E.length<=1)return;
+  tbSnap();E.splice(tbEtapeIdx,1);tbEtapeIdx=Math.max(0,Math.min(tbEtapeIdx,E.length-1));
+  tbRender();tbSauver();showToast('Étape supprimée (↶ pour annuler)','ok');
+}
+function tbChangerVitesse(){const k=Object.keys(TB_VITESSES);tbVitesse=k[(k.indexOf(tbVitesse)+1)%k.length];
+  showToast('Vitesse : '+tbVitesse,'ok');tbRenderEtapes();}
+function tbStop(){if(tbLecture)tbLecture.stop=true;tbLecture=null;}
+const tbAttendre=ms=>new Promise(r=>setTimeout(r,ms));
+const tbEase=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+async function tbLire(){
+  if(tbLecture){tbStop();tbRender();return;}
+  const E=tb.etat.etapes;
+  if(E.length<2)return showToast('Ajoute une 2e étape (＋) puis déplace les joueurs','err');
+  const lect={stop:false};tbLecture=lect;
+  const V=TB_VITESSES[tbVitesse];
+  tbEtapeIdx=0;tbRender();
+  for(let i=0;i<E.length-1;i++){
+    await tbAttendre(V.pause);if(lect.stop)return;
+    await tbAnimer(E[i],E[i+1],V.d,lect);if(lect.stop)return;
+    tbEtapeIdx=i+1;tbRender();
+  }
+  await tbAttendre(V.pause);
+  if(!lect.stop){tbLecture=null;tbRender();}
+}
+// Glissement des pions et du ballon de l'étape A à l'étape B (éléments déjà affichés)
+function tbAnimer(A,B,duree,lect){
+  return new Promise(res=>{
+    const els=[...document.querySelectorAll('#tb-pions .tb-pion')];
+    const pos=(et,id)=>id==='ballon'?et.ballon:et.pions.find(p=>p.id===id);
+    const t0=performance.now();
+    const frame=now=>{
+      if(lect.stop)return res();
+      const k=tbEase(Math.min(1,(now-t0)/duree));
+      for(const el of els){
+        const a=pos(A,el.dataset.id),b=pos(B,el.dataset.id);if(!a||!b)continue;
+        const s=tbToScreen(a.x+(b.x-a.x)*k,a.y+(b.y-a.y)*k);
+        el.style.left=s.x+'%';el.style.top=s.y+'%';
+      }
+      if(k<1)requestAnimationFrame(frame);else res();
+    };
+    requestAnimationFrame(frame);
+  });
+}
