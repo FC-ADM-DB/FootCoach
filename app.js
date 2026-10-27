@@ -898,11 +898,13 @@ function renderKiosk(){
 }
 
 // ============ CONVOCATIONS ============
+// convRep : dernière réponse d'un parent (A3) par joueur, affichée sous le nom
+let convRep={};
 async function loadConvs(){
   if(!CM)return;
   if(!players.length){renderConvs();return;}
   const{data}=await sb.from('convocations').select('*').eq('match_id',CM.id);
-  convs={};(data||[]).forEach(c=>{convs[c.player_id]=c.statut;});
+  convs={};convRep={};(data||[]).forEach(c=>{convs[c.player_id]=c.statut;if(c.reponse_parent)convRep[c.player_id]=c;});
   players.forEach(p=>{if(!convs[p.id])convs[p.id]='inconnu';});
   renderConvs();
 }
@@ -918,7 +920,7 @@ function renderConvs(){
     const presentDisabled = !isAdmin && st!=='present';
     return `<div class="cv">
       <div class="pinit" style="width:30px;height:30px;border-radius:8px;font-size:11px;background:${pCol(p)}22;color:${pCol(p)}">${pInit(p)}</div>
-      <div style="flex:1;font-size:13px;font-weight:500">${p.prenom} ${p.nom}</div>
+      <div style="flex:1;font-size:13px;font-weight:500">${p.prenom} ${p.nom}${convRep[p.id]?`<div class="pa-rep-badge">👪 Parent : ${({present:'présent',absent:'absent',incertain:'incertain'})[convRep[p.id].reponse_parent]} · ${new Date(convRep[p.id].reponse_le).toLocaleDateString('fr-BE',{day:'numeric',month:'short'})}</div>`:''}</div>
       <div style="display:flex;gap:3px">
         <button class="cvb ${st==='present'?'ap':''} ${presentDisabled?'disabled':''}" onclick="setConv('${p.id}','present')" ${presentDisabled?'disabled':''}>✓</button>
         <button class="cvb ${st==='incertain'?'ai':''}" onclick="setConv('${p.id}','incertain')">?</button>

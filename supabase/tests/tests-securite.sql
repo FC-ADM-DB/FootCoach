@@ -116,7 +116,7 @@ insert into r (qui, test, attendu, obtenu) values
  ('Délégué A', 'modifie l''équipe A', '1', pg_temp.essai($q$update teams set nom = nom where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
  ('Délégué A', 'ajoute quelqu''un à l''équipe A', '1', pg_temp.essai($q$insert into team_members(team_id,profile_id,role) values ('10000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','member')$q$)),
  ('Délégué A', 'retire le coach A', '1', pg_temp.essai($q$delete from team_members where profile_id = '00000000-0000-4000-a000-000000000001'$q$)),
- ('Délégué A', 'met à jour le score d''un match A', '1', pg_temp.essai($q$update matches set score_nous = 1 where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Délégué A', 'met à jour le score d''un match A', '1', pg_temp.essai($q$update matches set score_nous = 1 where id = '40000000-0000-4000-a000-0000000000a1'$q$)),
  ('Délégué A', 'supprime l''équipe A (réservé au club)', 'refusé', pg_temp.essai($q$select delete_team('10000000-0000-4000-a000-0000000000a1')$q$));
 reset role;
 
@@ -237,9 +237,9 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-0000000
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('Parent A', '[A2] voit l''équipe A', '1', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
- ('Parent A', '[A2] voit les matchs A', '1', pg_temp.essai($q$select 1 from matches where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Parent A', '[A2] voit les matchs A (A et A2)', '2', pg_temp.essai($q$select 1 from matches where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
  ('Parent A', '[A2] voit les convocations A', '1', pg_temp.essai($q$select 1 from convocations where match_id = '40000000-0000-4000-a000-0000000000a1'$q$)),
- ('Parent A', '[A2] voit les fiches joueurs (dates de naissance)', '0', pg_temp.essai($q$select 1 from players$q$)),
+ ('Parent A', '[A2] voit les fiches joueurs (seulement son enfant depuis A3)', '1', pg_temp.essai($q$select 1 from players$q$)),
  ('Parent A', '[A2] voit les notes joueurs', '0', pg_temp.essai($q$select 1 from player_notes$q$)),
  ('Parent A', '[A2] modifie un match', '0', pg_temp.essai($q$update matches set score_nous = 9 where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
  ('Parent A', '[A2] modifie une convocation', '0', pg_temp.essai($q$update convocations set statut = 'absent'$q$)),
@@ -254,7 +254,7 @@ set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('Coord A', '[A2] voit l''équipe A (son club)', '1', pg_temp.essai($q$select 1 from teams where id = '10000000-0000-4000-a000-0000000000a1'$q$)),
  ('Coord A', '[A2] voit les joueurs A (2)', '2', pg_temp.essai($q$select 1 from players where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
- ('Coord A', '[A2] met à jour un match A', '1', pg_temp.essai($q$update matches set score_nous = 3 where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Coord A', '[A2] met à jour les matchs A (A et A2)', '2', pg_temp.essai($q$update matches set score_nous = 3 where team_id = '10000000-0000-4000-a000-0000000000a1'$q$)),
  ('Coord A', '[A2] ajoute un délégué à l''équipe A', '1', pg_temp.essai($q$insert into team_members(team_id,profile_id,role) values ('10000000-0000-4000-a000-0000000000a1','00000000-0000-4000-a000-000000000004','delegue')$q$)),
  ('Coord A', '[A2] voit le profil du parent A', '1', pg_temp.essai($q$select 1 from profiles where id = '00000000-0000-4000-a000-000000000007'$q$)),
  ('Coord A', '[A2] supprime l''équipe A (delete_team)', '1', pg_temp.essai($q$select delete_team('10000000-0000-4000-a000-0000000000a1')$q$)),
@@ -419,6 +419,65 @@ select set_config('request.jwt.claims', '{"role":"anon"}', false);
 set role anon;
 insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[T1] voit des tableaux', '0', pg_temp.essai($q$select 1 from tableaux$q$));
+reset role;
+
+-- ============================================================= ACCÈS PARENTS (A3)
+-- Parent A = parent de Léo (équipe A). Match A2 à venir, match A terminé.
+-- Invitations : « test-invitation-zoe » (valable), « test-invitation-expiree ».
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[A3] voit la fiche de son enfant', '1', pg_temp.essai($q$select 1 from players where id = '30000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Parent A', '[A3] voit la fiche d''un autre enfant', '0', pg_temp.essai($q$select 1 from players where id = '30000000-0000-4000-a000-0000000000a2'$q$)),
+ ('Parent A', '[A3] voit les joueurs (total)', '1', pg_temp.essai($q$select 1 from players$q$)),
+ ('Parent A', '[A3] voit ses liens parent', '1', pg_temp.essai($q$select 1 from parent_enfants$q$)),
+ ('Parent A', '[A3] se rattache seul à un autre enfant', 'refusé', pg_temp.essai($q$insert into parent_enfants(player_id, profile_id) values ('30000000-0000-4000-a000-0000000000a2', auth.uid())$q$)),
+ ('Parent A', '[A3] voit les invitations', '0', pg_temp.essai($q$select 1 from invitations_parent$q$)),
+ ('Parent A', '[A3] répond Présent pour son enfant (match à venir)', '1', pg_temp.essai($q$select parent_repondre('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'present')$q$)),
+ ('Parent A', '[A3] répond pour un autre enfant', 'refusé', pg_temp.essai($q$select parent_repondre('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a2', 'absent')$q$)),
+ ('Parent A', '[A3] répond pour un match terminé', 'refusé', pg_temp.essai($q$select parent_repondre('40000000-0000-4000-a000-0000000000a1', '30000000-0000-4000-a000-0000000000a1', 'absent')$q$)),
+ ('Parent A', '[A3] répond pour un match d''une autre équipe', 'refusé', pg_temp.essai($q$select parent_repondre('40000000-0000-4000-a000-0000000000b1', '30000000-0000-4000-a000-0000000000a1', 'absent')$q$)),
+ ('Parent A', '[A3] réponse invalide', 'refusé', pg_temp.essai($q$select parent_repondre('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'peut-etre')$q$)),
+ ('Parent A', '[A3] modifie une convocation sans passer par la réponse', '0', pg_temp.essai($q$update convocations set statut = 'absent' where match_id = '40000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Parent A', '[A3] prénoms de son équipe', '2', pg_temp.essai($q$select 1 from equipe_prenoms('10000000-0000-4000-a000-0000000000a1')$q$)),
+ ('Parent A', '[A3] prénoms d''une autre équipe', '0', pg_temp.essai($q$select 1 from equipe_prenoms('10000000-0000-4000-a000-0000000000b1')$q$)),
+ ('Parent A', '[A3] voit les notes', '0', pg_temp.essai($q$select 1 from player_notes$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach A', '[A3] voit les invitations de son équipe', '2', pg_temp.essai($q$select 1 from invitations_parent$q$)),
+ ('Coach A', '[A3] crée une invitation pour un joueur', '1', pg_temp.essai($q$insert into invitations_parent(player_id) values ('30000000-0000-4000-a000-0000000000a1')$q$)),
+ ('Coach A', '[A3] crée une invitation pour un joueur d''une autre équipe', 'refusé', pg_temp.essai($q$insert into invitations_parent(player_id) values ('30000000-0000-4000-a000-0000000000b1')$q$)),
+ ('Coach A', '[A3] révoque une invitation', '1', pg_temp.essai($q$update invitations_parent set revoquee = true where token = 'test-invitation-zoe'$q$)),
+ ('Coach A', '[A3] voit les parents rattachés', '1', pg_temp.essai($q$select 1 from parent_enfants$q$)),
+ ('Coach A', '[A3] retire un parent', '1', pg_temp.essai($q$delete from parent_enfants where player_id = '30000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Coach A', '[A3] voit la réponse des parents (colonnes)', '1', pg_temp.essai($q$select reponse_parent, reponse_par, reponse_le from convocations$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ B', '[A3] voit les invitations du club A', '0', pg_temp.essai($q$select 1 from invitations_parent$q$)),
+ ('CQ B', '[A3] voit les parents du club A', '0', pg_temp.essai($q$select 1 from parent_enfants$q$)),
+ ('CQ B', '[A3] crée une invitation pour l''équipe A', 'refusé', pg_temp.essai($q$insert into invitations_parent(player_id) values ('30000000-0000-4000-a000-0000000000a1')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000004","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Externe', '[A3] infos d''une invitation (équipe, club)', '1', pg_temp.essai($q$select 1 from invitation_info('test-invitation-zoe')$q$)),
+ ('Externe', '[A3] rejoint par une invitation valable', '1', pg_temp.essai($q$select 1 from rejoindre_invitation('test-invitation-zoe')$q$)),
+ ('Externe', '[A3] rejoint par une invitation expirée', 'refusé', pg_temp.essai($q$select 1 from rejoindre_invitation('test-invitation-expiree')$q$)),
+ ('Externe', '[A3] rejoint par une invitation inconnue', 'refusé', pg_temp.essai($q$select 1 from rejoindre_invitation('nimporte-quoi')$q$)),
+ ('Externe', '[A3] répond pour un enfant sans lien', 'refusé', pg_temp.essai($q$select parent_repondre('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a2', 'present')$q$)),
+ ('Externe', '[A3] prénoms de l''équipe A', '0', pg_temp.essai($q$select 1 from equipe_prenoms('10000000-0000-4000-a000-0000000000a1')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[A3] infos d''une invitation', '1', pg_temp.essai($q$select 1 from invitation_info('test-invitation-zoe')$q$)),
+ ('Visiteur', '[A3] rejoint par une invitation', 'refusé', pg_temp.essai($q$select 1 from rejoindre_invitation('test-invitation-zoe')$q$)),
+ ('Visiteur', '[A3] prénoms d''une équipe', 'refusé', pg_temp.essai($q$select 1 from equipe_prenoms('10000000-0000-4000-a000-0000000000a1')$q$)),
+ ('Visiteur', '[A3] voit les liens parent', '0', pg_temp.essai($q$select 1 from parent_enfants$q$));
 reset role;
 select set_config('request.jwt.claims', '', false);
 
