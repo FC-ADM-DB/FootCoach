@@ -710,7 +710,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .pa-only{display:none}
 body.parent-mode .pa-only{display:block}
 body.parent-mode #page-home .srow,body.parent-mode #page-home .qgrid,body.parent-mode #page-home .sh:has(+#home-next),body.parent-mode #home-next,
-body.parent-mode #nav-players,body.parent-mode .badd{display:none!important}
+body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{display:none!important}
 .pa-inv{background:var(--blue-bg);border:1px solid var(--blue-border);color:var(--text);border-radius:var(--rsm);padding:10px 12px;font-size:13px;margin-bottom:12px;line-height:1.4}
 .pa-inv span{color:var(--text2);font-size:12px}
 .pa-enfants{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
