@@ -294,9 +294,19 @@ function tbTraitsUp(){
   const a=t.pts[0],b=t.pts[t.pts.length-1];
   // Trait trop court (simple toucher) : ignoré
   if(t.type==='crayon'?t.pts.length<3:Math.hypot(b[0]-a[0],b[1]-a[1])<3){tbRenderTraits();return;}
-  tbSnap();tbEtape().traits.push(t);
-  const suiv=tb.etat.etapes[tbEtapeIdx+1];if(suiv)tbSuivreFleches(tbEtape(),suiv,[t]);
-  tbRenderTraits();tbSauver();
+  tbSnap();
+  const et=tbEtape(),suiv=tb.etat.etapes[tbEtapeIdx+1];
+  et.traits.push(t);
+  // 1re passe de l'étape : le ballon se place tout seul au départ des pointillés (pas
+  // besoin de le déplacer à la main) ; l'étape suivante suit si son ballon n'avait pas bougé.
+  const bouge=t.type==='passe'&&et.traits.filter(x=>x.type==='passe').length===1;
+  if(bouge){
+    const nv={x:a[0],y:a[1]};
+    if(suiv&&tbDist(suiv.ballon,et.ballon)<0.5)suiv.ballon={...nv};
+    et.ballon=nv;
+  }
+  if(suiv)tbSuivreFleches(et,suiv,[t]);
+  bouge?tbRender():tbRenderTraits();tbSauver();
 }
 document.addEventListener('DOMContentLoaded',()=>{
   const svg=document.getElementById('tb-traits');if(!svg)return;
