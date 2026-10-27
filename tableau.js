@@ -211,6 +211,9 @@ function tbTaille(){
   const W=zone.clientWidth,H=zone.clientHeight,r=tbLand?420/300:300/420;
   let w=W,h=W/r;if(h>H){h=H;w=H*r;}
   wrap.style.width=Math.floor(w)+'px';wrap.style.height=Math.floor(h)+'px';
+  // Taille des pions proportionnelle au terrain (petit terrain en paysage sur téléphone :
+  // des pions de 38 px se chevauchaient tous)
+  wrap.style.setProperty('--tbp',Math.round(Math.max(26,Math.min(38,Math.min(w,h)*0.105)))+'px');
 }
 window.addEventListener('resize',()=>{if(tb&&document.getElementById('tb-screen').style.display==='flex')tbRender();});
 
