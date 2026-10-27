@@ -38,7 +38,8 @@ from (values
   ('cq.verlaine@demo.footcoach',  'Olivier',  'Dumont'),
   ('cq.huy@demo.footcoach',       'Isabelle', 'Mathieu'),
   ('cq.amay@demo.footcoach',      'Pierre',   'Lambrecht'),
-  ('cq.burdinne@demo.footcoach',  'Valérie',  'Hardy')
+  ('cq.burdinne@demo.footcoach',  'Valérie',  'Hardy'),
+  ('parent@demo.footcoach',       'Claire',   'Parent')     -- maman d'Arthur (U10A), accès parent (A3)
 ) as u(email, prenom, nom);
 
 insert into public.platform_admins (profile_id) values (md5('david@demo.footcoach')::uuid)
@@ -111,6 +112,49 @@ select md5('demo-reh-braives/U10A')::uuid, p.prenom, p.nom, p.poste, p.dn::date 
   ('Jade','Test',5,'2016-01-30'),   ('Victor','Demo',6,'2016-11-12'), ('Zoé','Exemple',7,'2016-04-09'),
   ('Louis','Fictif',9,'2016-07-17'), ('Mila','Test',11,'2016-09-25'), ('Sacha','Demo',null,'2016-03-14'),
   ('Rose','Exemple',null,'2016-12-01'), ('Tom','Fictif',null,'2016-06-06')) as p(prenom, nom, poste, dn);
+
+-- ------------------------------------------------------------------ ACCÈS PARENTS (A3, si installé)
+-- Claire = parent d'Arthur (U10A) ; un match à venir (pour répondre) et un match
+-- terminé (score, buteurs, temps de jeu d'Arthur).
+do $a3$ declare arthur uuid; lina uuid; begin
+  if to_regclass('public.parent_enfants') is null then return; end if;
+  select id into arthur from public.players where team_id = md5('demo-reh-braives/U10A')::uuid and prenom = 'Arthur';
+  select id into lina from public.players where team_id = md5('demo-reh-braives/U10A')::uuid and prenom = 'Lina';
+  insert into public.team_members (team_id, profile_id, role)
+    values (md5('demo-reh-braives/U10A')::uuid, md5('parent@demo.footcoach')::uuid, 'parent');
+  insert into public.parent_enfants (player_id, profile_id) values (arthur, md5('parent@demo.footcoach')::uuid);
+  insert into public.matches (team_id, date, adversaire, lieu, statut, timeline_json) values
+    (md5('demo-reh-braives/U10A')::uuid, date_trunc('day', now()) + interval '4 days 10 hours', 'RFC Hannutois', 'domicile', 'prevu', '{"halfDuration":30}');
+  insert into public.matches (team_id, date, adversaire, lieu, statut, score_nous, score_eux, timeline_json) values
+    (md5('demo-reh-braives/U10A')::uuid, date_trunc('day', now()) - interval '3 days' + interval '10 hours', 'Waremme', 'exterieur', 'termine', 3, 1,
+     jsonb_build_object('halfDuration', 30, 'chronoS', 1800, 'halfN', 2, 'matchStarted', true,
+       'goals', jsonb_build_array(
+         jsonb_build_object('t', 420, 'half', 1, 'adv', false, 'scorer', 'Arthur Demo', 'pid', arthur),
+         jsonb_build_object('t', 1260, 'half', 1, 'adv', true, 'scorer', 'Adversaire'),
+         jsonb_build_object('t', 600, 'half', 2, 'adv', false, 'scorer', 'Lina Exemple', 'pid', lina),
+         jsonb_build_object('t', 1500, 'half', 2, 'adv', false, 'scorer', 'Arthur Demo', 'pid', arthur)),
+       'MP', jsonb_build_object(arthur, jsonb_build_object('playSeconds', 2520, 'enteredAt', null, 'onField', false))));
+  insert into public.convocations (match_id, player_id, statut)
+    select m.id, p.id, 'present' from public.matches m, public.players p
+     where m.team_id = md5('demo-reh-braives/U10A')::uuid and p.team_id = m.team_id and p.prenom in ('Arthur','Lina','Noé','Jade','Victor','Zoé','Louis','Mila');
+end $a3$;
+
+-- ------------------------------------------------------------------ MESSAGERIE (A4, si installée)
+-- Messages signés par David (encadrement) et Claire (parent d'Arthur) : on se fait passer
+-- pour eux le temps de l'insertion (l'auteur est imposé par la base).
+do $a4$ declare arthur uuid; equipe uuid := md5('demo-reh-braives/U10A')::uuid; begin
+  if to_regclass('public.messages') is null then return; end if;
+  select id into arthur from public.players where team_id = equipe and prenom = 'Arthur';
+  perform set_config('request.jwt.claims', json_build_object('sub', md5('david@demo.footcoach')::uuid)::text, true);
+  insert into public.messages (team_id, player_id, texte) values
+    (equipe, null, 'Bonjour à tous ! Samedi contre Hannut : rendez-vous 9h15 au terrain, maillot blanc. Pensez aux gourdes 💧');
+  insert into public.messages (team_id, player_id, texte) values
+    (equipe, arthur, 'Bonjour Claire, Arthur a très bien joué samedi : 2 buts ! Il peut garder ce rythme 👍');
+  perform set_config('request.jwt.claims', json_build_object('sub', md5('parent@demo.footcoach')::uuid)::text, true);
+  insert into public.messages (team_id, player_id, texte) values
+    (equipe, arthur, 'Merci beaucoup ! Il arrivera peut-être 10 minutes en retard samedi.');
+  perform set_config('request.jwt.claims', '', true);
+end $a4$;
 
 -- ------------------------------------------------------------------ ANNONCES (publiées par les CQ)
 -- Distances depuis Braives (≈) : Hannut 7 km · Burdinne 6 · Waremme 8 · Verlaine 12 · Wanze 12 · Huy 14 · Amay 14

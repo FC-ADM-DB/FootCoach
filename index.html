@@ -82,6 +82,8 @@
         <div style="font-size:19px;font-weight:600;margin-bottom:3px" id="wname">Bonjour !</div>
         <div style="font-size:13px;color:var(--text2)" id="wsub"></div>
       </div>
+      <!-- Accueil parent (parents.js) : remplace les raccourcis et chiffres en mode parent -->
+      <div id="pa-home" class="pa-only"></div>
       <div class="srow">
         <div class="sc"><div class="sn" id="sj">—</div><div class="sl">Joueurs</div></div>
         <div class="sc"><div class="sn" id="sm">—</div><div class="sl">Matchs</div></div>
@@ -287,6 +289,14 @@
   </div>
 
   <!-- STATS -->
+  <!-- MESSAGES (messages.js) -->
+  <div class="page" id="page-messages">
+    <div class="pc">
+      <div class="sh"><span class="st" id="msg-titre">Messages</span></div>
+      <div id="msg-content"></div>
+    </div>
+  </div>
+
   <div class="page" id="page-stats">
     <div class="pc">
       <div class="sh"><span class="st">Statistiques</span></div>
@@ -306,6 +316,7 @@
     </button>
     <button class="ni active" onclick="goPage('home')" id="nav-home"><span class="ni-icon">🏠</span><span class="ni-lbl">Accueil</span></button>
     <button class="ni" onclick="goPage('match')" id="nav-match"><span class="ni-icon">⚽</span><span class="ni-lbl">Matchs</span></button>
+    <button class="ni" onclick="goPage('messages')" id="nav-messages"><span class="ni-icon">💬<b class="ni-badge" id="msg-badge" style="display:none"></b></span><span class="ni-lbl">Messages</span></button>
     <button class="ni" onclick="goPage('players')" id="nav-players"><span class="ni-icon">👥</span><span class="ni-lbl">Effectif</span></button>
     <button class="ni" onclick="goPage('stats')" id="nav-stats"><span class="ni-icon">📊</span><span class="ni-lbl">Stats</span></button>
     <!-- iPad/PC uniquement (pied de barre latérale) : compte -->
@@ -340,8 +351,8 @@
     <div class="umenu">
       <div class="umenu-head"><div class="umenu-name js-user-name"></div><div class="umenu-role js-user-role"></div></div>
       <a class="umenu-item" id="umenu-scores" href="scores.html" target="_blank" rel="noopener" onclick="closeUserMenu()" style="text-decoration:none"><span>🏆</span><span>Page publique des scores</span></a>
-      <button class="umenu-item" onclick="closeUserMenu();goPage('club')"><span>🏟</span><span>Mon club</span></button>
-      <button class="umenu-item" onclick="closeUserMenu();goPage('reseau')"><span>🤝</span><span>Trouver un match</span></button>
+      <button class="umenu-item pa-cache" onclick="closeUserMenu();goPage('club')"><span>🏟</span><span>Mon club</span></button>
+      <button class="umenu-item pa-cache" onclick="closeUserMenu();goPage('reseau')"><span>🤝</span><span>Trouver un match</span></button>
       <a class="umenu-item" id="umenu-demo" href="https://foot-coach-git-demo-fc-adm-dbs-projects.vercel.app" target="_blank" rel="noopener" onclick="closeUserMenu()" style="display:none;text-decoration:none"><span>🧪</span><span>Lien de démo</span></a>
       <button class="umenu-item" id="umenu-plateforme" onclick="closeUserMenu();goPage('plateforme')" style="display:none"><span>🛡</span><span>Gestion des clubs</span></button>
       <button class="umenu-item" id="umenu-admin" onclick="closeUserMenu();goAdmin()" style="display:none"><span>🛠</span><span>Membres &amp; accès</span></button>
@@ -401,6 +412,15 @@
       <div class="mt">Nouveau tableau</div>
       <div id="tb-nouveau-liste"></div>
       <div class="mfoot"><button class="bcan" onclick="closeModal('modal-tb-nouveau')">Annuler</button></div>
+    </div>
+  </div>
+
+  <!-- FICHE DE MATCH PARENT (parents.js, lecture seule) -->
+  <div class="mo" id="modal-parent-match">
+    <div class="modal">
+      <div class="mh"></div>
+      <div id="pa-match"></div>
+      <div class="mfoot"><button class="bcan" onclick="paFermerMatch()">Fermer</button></div>
     </div>
   </div>
 
@@ -478,6 +498,7 @@
         <div class="pm" id="pm-modal"></div>
         <button class="bsec" onclick="clearPoste()" style="margin-top:6px;font-size:12px;padding:5px 10px">Aucun poste</button>
       </div>
+      <div class="fg" id="p-parents"></div>
       <div class="mfoot">
         <button class="bcan" onclick="closeModal('modal-player')">Annuler</button>
         <button class="bp" id="btn-sp" onclick="savePlayer()">Ajouter</button>
@@ -601,5 +622,7 @@
 <script src="reseau.js"></script>
 <script src="plateforme.js"></script>
 <script src="tableau.js"></script>
+<script src="parents.js"></script>
+<script src="messages.js"></script>
 </body>
 </html>

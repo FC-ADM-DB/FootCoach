@@ -162,6 +162,34 @@ do $$ begin
   end if;
 end $$;
 
+-- Accès parents (A3, si en place) : match A2 à venir pour l'équipe A ; Parent A
+-- rattachée à Léo ; une invitation valable (Zoé) et une expirée (Léo).
+do $a3$ begin
+  if to_regclass('public.parent_enfants') is not null then
+    execute $c$
+      insert into public.matches (id, team_id, date, adversaire, lieu, statut) values
+        ('40000000-0000-4000-a000-0000000000a2', '10000000-0000-4000-a000-0000000000a1', now() + interval '3 days', 'Adversaire A2', 'domicile', 'prevu');
+      insert into public.parent_enfants (player_id, profile_id) values
+        ('30000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000007');
+      insert into public.invitations_parent (token, player_id, cree_par) values
+        ('test-invitation-zoe', '30000000-0000-4000-a000-0000000000a2', '00000000-0000-4000-a000-000000000001');
+      insert into public.invitations_parent (token, player_id, cree_par, expire_le) values
+        ('test-invitation-expiree', '30000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000001', now() - interval '1 day');
+    $c$;
+  end if;
+end $a3$;
+-- Messagerie (A4, si en place) : un message dans le groupe de l'équipe A, un dans la
+-- discussion de Léo, un dans celle de Zoé.
+do $a4$ begin
+  if to_regclass('public.messages') is not null then
+    execute $c$
+      insert into public.messages (id, team_id, player_id, texte) values
+        ('80000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000a1', null, 'RDV 9h15 au terrain'),
+        ('80000000-0000-4000-a000-000000000002', '10000000-0000-4000-a000-0000000000a1', '30000000-0000-4000-a000-0000000000a1', 'Léo a oublié sa gourde'),
+        ('80000000-0000-4000-a000-000000000003', '10000000-0000-4000-a000-0000000000a1', '30000000-0000-4000-a000-0000000000a2', 'Message pour les parents de Zoé');
+    $c$;
+  end if;
+end $a4$;
 -- Tableau tactique (si la table existe) : TB1 pour l'équipe A, match A, avant le match
 do $tb$ begin
   if to_regclass('public.tableaux') is not null then
