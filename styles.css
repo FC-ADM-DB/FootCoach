@@ -780,3 +780,31 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .pr-hist .pr-tour{align-self:stretch}
 .pr-msg-nb{font-size:12.5px;font-weight:700;color:var(--blue)}
 .pr-coord{width:100%;margin-top:12px;font-size:13px;min-height:40px}
+
+/* Calendrier du club (semaine par équipe) */
+.cal-nav{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.cal-nav .bsec{min-height:38px;min-width:40px;padding:0 10px;width:auto;margin:0}
+.cal-titre{flex:1;text-align:center;font-weight:700;font-size:14px}
+.cal-leg{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.cal-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+.cal{border-collapse:collapse;width:100%;min-width:760px;font-size:11.5px}
+.cal th,.cal td{border:1px solid var(--border);padding:4px;vertical-align:top}
+.cal thead th{background:var(--bg2);font-weight:500;color:var(--text2);text-align:center;font-size:11px}
+.cal thead th b{color:var(--text);font-size:14px}
+.cal tbody th{position:sticky;left:0;background:var(--bg2);text-align:left;min-width:86px;z-index:1}
+.cal-eq{font-weight:700;font-size:12.5px}
+.cal-cat{color:var(--text3);font-size:10.5px}
+.cal td{min-width:92px;height:44px}
+.cal .we{background:rgba(255,255,255,.025)}
+.cal .auj{box-shadow:inset 0 0 0 2px var(--green-border)}
+.cal-it{display:block;border-radius:6px;padding:3px 5px;margin-bottom:3px;line-height:1.25;font-size:11px;border:1px solid transparent}
+.cal-leg .cal-it{display:inline-block;margin:0}
+.cal-it.dom{background:var(--green-bg);border-color:var(--green-border)}
+.cal-it.ext{background:var(--blue-bg);border-color:var(--blue-border)}
+.cal-it.fini{opacity:.55}
+.cal-it.prop{border:1px dashed var(--amber);background:var(--amber-bg);cursor:pointer}
+.cal-it.prop small{display:block;color:var(--amber);font-weight:700}
+.cal-it.libre{border:1px dashed var(--border2);color:var(--text3)}
+.pr-cal{width:100%;margin-bottom:10px;font-size:13px;min-height:42px}
+.pr-jc{font-size:12.5px;background:var(--bg3);border-radius:var(--rsm);padding:8px 10px;margin-bottom:10px;line-height:1.45}
+.pr-jc a{white-space:nowrap}
