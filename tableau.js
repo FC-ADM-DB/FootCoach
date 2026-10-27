@@ -50,13 +50,14 @@ function tbNouvelEtat(fmt,matchLayout,assign,nFesti){
 }
 
 // ------------------------------------------------------------ OUVERTURE
-function nouveauTableau(phase){
+function tbCreer(phase,modele){
   const fmt=CT.format;
   // À la pause : composition DU MOMENT (assignment / posteLayout du match ouvert)
   const live=CM&&Object.keys(assignment||{}).length;
   tb={id:tbUuid(),team_id:CT.id,match_id:CM?.id||null,phase,periode:phase==='pause'?tbPeriode():null,
       titre:'',format:fmt,version:0,
       etat:tbNouvelEtat(fmt,live?posteLayout?.portrait:null,live?assignment:null,formatHasLive(fmt)?0:3)};
+  if(modele)tbAppliquerModele(modele);
   tbOuvrirEcran();tbSauver();
 }
 async function openTableau(id,lire){
@@ -66,7 +67,7 @@ async function openTableau(id,lire){
   try{const r=await sb.from('tableaux').select('*').eq('id',id).single();row=r.data;}catch(e){}
   if(loc&&(!row||loc.version>=row.version))row=loc;
   if(!row)return showToast('Tableau introuvable','err');
-  tb={id:row.id,team_id:row.team_id,match_id:row.match_id,phase:row.phase,periode:row.periode,titre:row.titre||'',format:row.format||CT.format,etat:row.etat,version:row.version||0};
+  tb={id:row.id,team_id:row.team_id,match_id:row.match_id,phase:row.phase,periode:row.periode,titre:row.titre||'',format:row.format||CT.format,etat:row.etat,version:row.version||0,est_modele:!!row.est_modele};
   if(!tb.etat?.etapes?.length)tb.etat=tbNouvelEtat(tb.format,null,null,3);
   // Tableau ancien ou incomplet : on complète ce qui manque (options, ballon, tracés)
   tb.etat.terrain={adversaires:true,libelles:'prenoms',...(tb.etat.terrain||{})};tb.etat.consignes=tb.etat.consignes||[];
@@ -80,7 +81,8 @@ function tbOuvrirEcran(){
   tbHist=[];tbRedo=[];tbOutil='deplacer';tbEtapeIdx=0;tbStop();
   document.getElementById('tb-screen').style.display='flex';
   document.getElementById('tb-titre').value=tb.titre;
-  document.getElementById('tb-phase').textContent=TB_PHASES[tb.phase]+(tb.phase==='pause'&&tb.periode?' '+tb.periode:'');
+  document.getElementById('tb-phase').textContent=tb.est_modele?'★ Modèle':TB_PHASES[tb.phase]+(tb.phase==='pause'&&tb.periode?' '+tb.periode:'');
+  document.getElementById('tb-mod').style.display=tb.est_modele?'none':'';
   if(!tbMQ){tbMQ=window.matchMedia('(orientation: landscape)');tbMQ.addEventListener?.('change',tbRender);}
   tbRender();
 }
@@ -181,7 +183,7 @@ function tbLireLocal(id){try{return JSON.parse(localStorage.getItem(tbCle(id))||
 function tbSauver(immediat){
   if(!tb)return;
   tb.titre=document.getElementById('tb-titre')?.value.trim()||'';
-  const row={id:tb.id,team_id:tb.team_id,match_id:tb.match_id,phase:tb.phase,periode:tb.periode,titre:tb.titre||null,format:tb.format,etat:tb.etat};
+  const row={id:tb.id,team_id:tb.team_id,match_id:tb.match_id,phase:tb.phase,periode:tb.periode,titre:tb.titre||null,format:tb.format,etat:tb.etat,est_modele:!!tb.est_modele};
   try{localStorage.setItem(tbCle(tb.id),JSON.stringify({...row,version:tb.version,local:true}));}catch(e){}
   tbEtat='attente';tbMajStatut();
   clearTimeout(tbSaveT);
@@ -549,4 +551,109 @@ function tbTrajetBallon(A,B){
     const seg=L[i]-L[i-1]||1,f=Math.max(0,Math.min(1,(d-L[i-1])/seg));
     return{x:P[i-1].x+(P[i].x-P[i-1].x)*f,y:P[i-1].y+(P[i].y-P[i-1].y)*f};
   };
+}
+
+// ============ T5 : MODÈLES ET EXPORT IMAGE ============
+// Modèles propres à chaque équipe (est_modele = true, sans match). Un modèle ne garde
+// aucun joueur : à l'utilisation, les pions reprennent les joueurs du match par poste.
+let tbModeles=[];
+async function nouveauTableau(phase){
+  let mods=[];
+  try{const{data}=await sb.from('tableaux').select('id,titre,format,etat,updated_at').eq('team_id',CT.id).eq('est_modele',true).order('titre');
+    mods=(data||[]).filter(m=>(m.format||CT.format)===CT.format);}catch(e){}
+  if(!mods.length)return tbCreer(phase);   // pas de modèle (ou hors ligne) : directement
+  tbModeles=mods;tbRenderModeles(phase);openModal('modal-tb-nouveau');
+}
+function tbRenderModeles(phase){
+  document.getElementById('tb-nouveau-liste').innerHTML=
+    `<button class="bp" style="margin:0 0 12px" onclick="closeModal('modal-tb-nouveau');tbCreer('${phase}')">${phase==='pause'?'Composition du moment':'Composition du match'}</button>
+    <div class="tb-sec-t">Ou partir d'un modèle</div>`+
+    tbModeles.map(m=>`<div class="tb-mod-l">
+      <button class="tb-item" onclick="closeModal('modal-tb-nouveau');tbCreer('${phase}',tbModeles.find(x=>x.id==='${m.id}'))">
+        <span class="tb-item-t">★ ${esc(m.titre||'Sans titre')}</span><span class="pill pb">${m.etat?.etapes?.length||1} ét.</span></button>
+      <button class="tb-btn" onclick="closeModal('modal-tb-nouveau');openTableau('${m.id}')" aria-label="Modifier le modèle ${esc(m.titre||'')}">✎</button>
+      <button class="tb-btn" onclick="tbSupprModele('${m.id}','${phase}')" aria-label="Supprimer le modèle ${esc(m.titre||'')}">🗑</button>
+    </div>`).join('');
+}
+// Copie des étapes du modèle dans le nouveau tableau ; joueurs repris de la composition
+function tbAppliquerModele(m){
+  const comp=Object.fromEntries(tb.etat.etapes[0].pions.filter(p=>p.camp==='nous').map(p=>[p.num,p.joueur]));
+  const etat=JSON.parse(JSON.stringify(m.etat||{}));
+  if(!etat.etapes?.length)return;
+  etat.etapes.forEach(e=>(e.pions||[]).forEach(p=>{if(p.camp==='nous')p.joueur=comp[p.num]||null;}));
+  etat.terrain={...tb.etat.terrain,...(etat.terrain||{})};etat.consignes=etat.consignes||[];
+  tb.etat=etat;tb.titre=m.titre||'';
+}
+async function tbSupprModele(id,phase){
+  const m=tbModeles.find(x=>x.id===id);
+  if(!await askConfirm(`Supprimer le modèle « ${m?.titre||'Sans titre'} » ?`))return;
+  const{error}=await sb.from('tableaux').delete().eq('id',id).eq('est_modele',true);
+  if(error)return showToast('Suppression impossible (hors ligne ?)','err');
+  tbModeles=tbModeles.filter(x=>x.id!==id);showToast('Modèle supprimé','ok');
+  if(tbModeles.length)tbRenderModeles(phase);else closeModal('modal-tb-nouveau');
+}
+async function tbEnregistrerModele(){
+  if(!tb)return;
+  const titre=document.getElementById('tb-titre').value.trim();
+  if(!titre){showToast('Donne d\'abord un titre au tableau (en haut)','err');document.getElementById('tb-titre').focus();return;}
+  const etat=JSON.parse(JSON.stringify(tb.etat));
+  etat.etapes.forEach(e=>e.pions.forEach(p=>{if(p.camp==='nous')p.joueur=null;}));   // aucun enfant dans un modèle
+  const{error}=await sb.from('tableaux').insert({id:tbUuid(),team_id:tb.team_id,match_id:null,phase:'libre',periode:null,
+    titre,format:tb.format,etat,est_modele:true});
+  if(error)return showToast('Modèle non enregistré (hors ligne ?)','err');
+  showToast(`★ Modèle « ${titre} » enregistré pour l'équipe`,'ok');
+}
+
+// Export image (PNG) de l'étape affichée : toujours en portrait, NUMÉROS SEULEMENT (aucun
+// prénom ne sort de l'app), puis partage (WhatsApp, mail…) ou téléchargement.
+async function tbExporter(){
+  if(!tb)return;
+  const et=tbEtape(),opt=tb.etat.terrain,S=3,W=300*S,HT=96,H=420*S+HT;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const g=cv.getContext('2d');
+  g.fillStyle='#0a1628';g.fillRect(0,0,W,H);
+  // En-tête : titre, équipe / adversaire, étape
+  const n=tb.etat.etapes.length;
+  g.fillStyle='#fff';g.font='700 34px "DM Sans",sans-serif';g.textBaseline='middle';
+  g.fillText((tb.titre||(tb.est_modele?'Modèle':TB_PHASES[tb.phase])).slice(0,40),24,34);
+  g.fillStyle='#94a3b8';g.font='500 24px "DM Sans",sans-serif';
+  const sous=[CT?.nom,CM&&tb.match_id===CM.id?'vs '+CM.adversaire:'',n>1?`Étape ${tbEtapeIdx+1}/${n}`:''].filter(Boolean).join(' · ');
+  g.fillText(sous.slice(0,60),24,72);
+  // Terrain : même dessin que le Live
+  const img=new Image();
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" width="${W}" height="${420*S}"><rect width="300" height="420" fill="#0f1f3d" rx="12"/>${pitchSvgMarkup(false)}</svg>`;
+  await new Promise((ok,ko)=>{img.onload=ok;img.onerror=ko;img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);}).catch(()=>{});
+  try{g.drawImage(img,0,HT,W,420*S);}catch(e){}
+  const X=x=>x/100*W,Y=y=>HT+y/100*420*S;
+  // Tracés
+  for(const t of et.traits){
+    const P=t.pts.map(p=>[X(p[0]),Y(p[1])]),c=TB_COUL[t.type]||'#fff';
+    g.strokeStyle=c;g.fillStyle=c;g.lineWidth=t.type==='crayon'?7:8;g.lineCap='round';g.lineJoin='round';
+    g.setLineDash(t.type==='passe'?[20,18]:[]);
+    g.beginPath();P.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.stroke();g.setLineDash([]);
+    if(t.type!=='crayon'&&P.length>1){
+      const [x1,y1]=P[P.length-2],[x2,y2]=P[P.length-1],a=Math.atan2(y2-y1,x2-x1),f=30;
+      g.beginPath();g.moveTo(x2,y2);g.lineTo(x2-f*Math.cos(a-0.45),y2-f*Math.sin(a-0.45));g.lineTo(x2-f*Math.cos(a+0.45),y2-f*Math.sin(a+0.45));g.closePath();g.fill();
+    }
+  }
+  // Pions (numéros seulement) puis ballon
+  for(const p of et.pions.filter(p=>p.camp==='nous'||opt.adversaires)){
+    const nous=p.camp==='nous',r=nous?40:36;
+    g.beginPath();g.arc(X(p.x),Y(p.y),r,0,Math.PI*2);
+    g.fillStyle=nous?'#00d68f':'#ff5c7c';g.fill();
+    g.lineWidth=5;g.strokeStyle=nous?'#fff':'rgba(255,255,255,.7)';g.stroke();
+    g.fillStyle=nous?'#0a1628':'#fff';g.font=`700 ${nous?40:34}px "DM Mono",monospace`;g.textAlign='center';
+    g.fillText(String(p.num),X(p.x),Y(p.y)+2);g.textAlign='left';
+  }
+  g.font='60px sans-serif';g.textAlign='center';g.fillText('⚽',X(et.ballon.x),Y(et.ballon.y)+4);g.textAlign='left';
+  const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+  if(!blob)return showToast('Image impossible à créer','err');
+  const nom=(tb.titre||'tableau').replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-|-$/g,'').toLowerCase()||'tableau';
+  const file=new File([blob],nom+'.png',{type:'image/png'});
+  try{
+    if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:tb.titre||'Tableau tactique'});return;}
+  }catch(e){if(e.name==='AbortError')return;}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  showToast('Image téléchargée','ok');
 }
