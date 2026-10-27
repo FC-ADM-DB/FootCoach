@@ -65,7 +65,7 @@ async function openTableau(id,lire){
   const loc=tbLireLocal(id);
   let row=null;
   try{const r=await sb.from('tableaux').select('*').eq('id',id).single();row=r.data;}catch(e){}
-  if(loc&&(!row||loc.version>=row.version))row=loc;
+  if(loc)row=loc;   // travail pas encore envoyé de cet appareil : prioritaire (conflit réglé à l'envoi)
   if(!row)return showToast('Tableau introuvable','err');
   tb={id:row.id,team_id:row.team_id,match_id:row.match_id,phase:row.phase,periode:row.periode,titre:row.titre||'',format:row.format||CT.format,etat:row.etat,version:row.version||0,est_modele:!!row.est_modele};
   if(!tb.etat?.etapes?.length)tb.etat=tbNouvelEtat(tb.format,null,null,3);
@@ -176,28 +176,99 @@ function tbFesti(delta){
 }
 
 // ------------------------------------------------------------ SAUVEGARDE (copie locale puis base)
-// Toujours une copie sur le téléphone d'abord : rien n'est perdu sans réseau ; l'envoi
-// est retenté à la prochaine modification ou réouverture (synchronisation complète : T6).
+// Toujours une copie sur le téléphone d'abord (fc_tb_<id>) : rien n'est perdu sans réseau.
+// Envoi (T6) :
+// - les envois d'un même appareil passent l'un après l'autre (tbChaine) — deux envois
+//   simultanés avec la même version de départ se seraient pris pour un conflit ;
+// - mise à jour CONDITIONNELLE (version de départ = version en base) : si le tableau a été
+//   modifié entre-temps sur un autre appareil, on n'écrase rien, on GARDE LES DEUX : la
+//   version de cet appareil est enregistrée comme copie « (copie) » ;
+// - copies en attente renvoyées au retour du réseau et toutes les 20 s (tbSyncAttente).
 const tbCle=id=>'fc_tb_'+id;
+let tbChaine=Promise.resolve();
 function tbLireLocal(id){try{return JSON.parse(localStorage.getItem(tbCle(id))||'null');}catch(e){return null;}}
 function tbSauver(immediat){
   if(!tb)return;
   tb.titre=document.getElementById('tb-titre')?.value.trim()||'';
+  tb.rev=(tb.rev||0)+1;   // n° de modification locale : la copie n'est retirée que si rien n'a changé pendant l'envoi
   const row={id:tb.id,team_id:tb.team_id,match_id:tb.match_id,phase:tb.phase,periode:tb.periode,titre:tb.titre||null,format:tb.format,etat:tb.etat,est_modele:!!tb.est_modele};
-  try{localStorage.setItem(tbCle(tb.id),JSON.stringify({...row,version:tb.version,local:true}));}catch(e){}
+  try{localStorage.setItem(tbCle(tb.id),JSON.stringify({...row,version:tb.version,rev:tb.rev,local:true}));}catch(e){}
   tbEtat='attente';tbMajStatut();
   clearTimeout(tbSaveT);
   const cur=tb;
-  const envoi=async()=>{
-    const{data,error}=await sb.from('tableaux').upsert(row).select('version').single();
-    if(error){if(tb===cur){tbEtat='attente';tbMajStatut();}return;}
-    cur.version=data.version;
-    try{localStorage.removeItem(tbCle(cur.id));}catch(e){}
-    if(tb===cur){tbEtat='ok';tbMajStatut();}
-  };
+  const envoi=()=>(tbChaine=tbChaine.then(()=>tbEnvoyerOuvert(cur)).catch(()=>{}));
   if(immediat)return envoi();
   tbSaveT=setTimeout(envoi,700);
 }
+// Envoi du tableau ouvert (ou qui vient d'être fermé)
+async function tbEnvoyerOuvert(cur){
+  const l=tbLireLocal(cur.id);if(!l)return;   // déjà envoyé
+  l.version=cur.version;                     // version de départ à jour (envoi précédent)
+  const r=await tbEnvoyer(l);
+  if(!r){if(tb===cur){tbEtat='attente';tbMajStatut();}return;}
+  const ancienId=cur.id;
+  cur.version=r.version;
+  if(r.conflit){
+    // La version de cet appareil vit désormais sous la copie : on continue dessus
+    cur.id=r.id;cur.titre=r.titre;
+    const loc=tbLireLocal(ancienId);
+    try{localStorage.removeItem(tbCle(ancienId));
+      if(loc&&loc.rev!==l.rev)localStorage.setItem(tbCle(r.id),JSON.stringify({...loc,id:r.id,titre:r.titre,version:r.version}));}catch(e){}
+    if(tb===cur){const t=document.getElementById('tb-titre');if(t)t.value=r.titre;}
+    showToast('Tableau modifié sur un autre appareil : les deux versions sont gardées (ta version = « copie »)','ok');
+    tbMajMatch();
+  }else{
+    try{if(tbLireLocal(ancienId)?.rev===l.rev)localStorage.removeItem(tbCle(ancienId));}catch(e){}
+  }
+  if(tb===cur){tbEtat=tbLireLocal(cur.id)?'attente':'ok';tbMajStatut();}
+}
+// Envoi d'une copie locale. Retour : {id, version, titre, conflit} ou null (réseau / refus)
+async function tbEnvoyer(l){
+  const{version:base,rev,local,...row}=l;
+  try{
+    if(base>0){
+      const{data,error}=await sb.from('tableaux').update(row).eq('id',row.id).eq('version',base).select('version');
+      if(error)return null;
+      if(data?.length)return{id:row.id,version:data[0].version,titre:row.titre};
+      const ex=await sb.from('tableaux').select('version').eq('id',row.id).maybeSingle();
+      if(ex.error)return null;
+      if(ex.data){   // modifié ailleurs entre-temps : on garde les deux
+        const titre=((row.titre||'Sans titre')+' (copie)').slice(0,80);
+        const copie={...row,id:tbUuid(),titre};
+        const r=await sb.from('tableaux').insert(copie).select('version').single();
+        if(r.error)return null;
+        return{id:copie.id,version:r.data.version,titre,conflit:true};
+      }
+      // supprimé ailleurs (ou nouveau) : recréé ci-dessous
+    }
+    const{data,error}=await sb.from('tableaux').upsert(row).select('version').single();
+    if(error)return null;
+    return{id:row.id,version:data.version,titre:row.titre};
+  }catch(e){return null;}
+}
+// Copies en attente (autres tableaux que celui ouvert, ou celui ouvert sans réseau)
+let tbSyncEnCours=false;
+async function tbSyncAttente(){
+  if(tbSyncEnCours||!navigator.onLine||!U)return;
+  const cles=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith('fc_tb_'))cles.push(k);}}catch(e){return;}
+  if(!cles.length)return;
+  tbSyncEnCours=true;
+  let conflits=0;
+  try{
+    for(const k of cles){
+      const l=JSON.parse(localStorage.getItem(k)||'null');if(!l?.id)continue;
+      if(tb&&tb.id===l.id){await (tbChaine=tbChaine.then(()=>tbEnvoyerOuvert(tb)).catch(()=>{}));continue;}
+      const r=await tbEnvoyer(l);if(!r)break;   // toujours pas de réseau : on réessaiera
+      if(r.conflit)conflits++;
+      if(tbLireLocal(l.id)?.rev===l.rev)localStorage.removeItem(k);
+    }
+  }catch(e){}
+  tbSyncEnCours=false;
+  if(conflits)showToast(`${conflits} tableau${conflits>1?'x':''} modifié${conflits>1?'s':''} ailleurs : les deux versions sont gardées`,'ok');
+  tbMajMatch();
+}
+window.addEventListener('online',()=>setTimeout(tbSyncAttente,1500));
+setInterval(tbSyncAttente,20000);
 function tbMajStatut(){
   const el=document.getElementById('tb-statut');if(!el)return;
   el.textContent=tbEtat==='ok'?'✓ Enregistré':'⏳ Enregistrement…';
