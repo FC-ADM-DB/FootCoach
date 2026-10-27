@@ -303,12 +303,20 @@ function tbTraitsUp(){
   if(bouge){
     const nv={x:a[0],y:a[1]};
     if(suiv&&tbDist(suiv.ballon,et.ballon)<0.5)suiv.ballon={...nv};
-    // Étapes précédentes où le ballon n'a pas encore servi (même place, pas de passe) :
-    // il y est placé aussi, sinon la lecture le faisait glisser jusqu'au passeur.
+    // Étapes précédentes où le ballon n'a pas encore servi (même place, pas de passe) : il
+    // y est donné au PASSEUR (pion le plus proche du départ), à sa position de chaque étape.
+    // Le ballon l'accompagne donc pendant sa course au lieu de l'attendre au point de passe
+    // (ou de glisser tout seul depuis le rond central à la lecture).
+    const passeur=et.pions.filter(p=>p.camp==='nous'||tb.etat.terrain.adversaires)
+      .map(p=>({p,d:tbDist(p,nv)})).filter(o=>o.d<TB_SEUIL).sort((x,y)=>x.d-y.d)[0]?.p;
+    const dx=passeur?nv.x-passeur.x:0,dy=passeur?nv.y-passeur.y:0;
+    let ancien=et.ballon;   // place du ballon avant modification, dans l'étape qui suit j
     for(let j=tbEtapeIdx-1;j>=0;j--){
       const e=tb.etat.etapes[j];
-      if(tbDist(e.ballon,et.ballon)>=0.5||e.traits.some(x=>x.type==='passe'))break;
-      e.ballon={...nv};
+      if(tbDist(e.ballon,ancien)>=0.5||e.traits.some(x=>x.type==='passe'))break;
+      ancien=e.ballon;
+      const q=passeur&&e.pions.find(x=>x.id===passeur.id);
+      e.ballon=q?{x:tbClamp(+(q.x+dx).toFixed(1)),y:tbClamp(+(q.y+dy).toFixed(1))}:{...nv};
     }
     et.ballon=nv;
   }
@@ -371,7 +379,7 @@ const tbEase=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
 async function tbLire(){
   if(tbLecture){tbStop();tbRender();return;}
   const E=tb.etat.etapes;
-  if(E.length<2)return showToast('Ajoute une 2e étape (＋) puis déplace les joueurs','err');
+  if(E.length<2&&!E[0].traits.some(t=>t.type!=='crayon'))return showToast('Trace des flèches ou ajoute une 2e étape (＋)','err');
   const lect={stop:false};tbLecture=lect;
   const V=TB_VITESSES[tbVitesse];
   tbEtapeIdx=0;tbRender();
@@ -379,6 +387,13 @@ async function tbLire(){
     await tbAttendre(V.pause);if(lect.stop)return;
     await tbAnimer(E[i],E[i+1],V.d,lect);if(lect.stop)return;
     tbEtapeIdx=i+1;tbRender();
+  }
+  // Flèches de la DERNIÈRE étape : jouées aussi (vers une étape « virtuelle » où chacun est
+  // au bout de sa flèche), sinon une passe tracée sur l'étape finale n'était jamais animée.
+  const der=E[E.length-1],fin=JSON.parse(JSON.stringify(der));
+  if(tbSuivreFleches(der,fin,der.traits)){
+    await tbAttendre(V.pause);if(lect.stop)return;
+    await tbAnimer(der,fin,V.d,lect);if(lect.stop)return;
   }
   await tbAttendre(V.pause);
   if(!lect.stop){tbLecture=null;tbRender();}
