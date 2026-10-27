@@ -130,7 +130,6 @@
           <div style="font-size:11px;color:var(--text2)" id="det-sub"></div>
         </div>
         <button id="match-delete-btn" onclick="deleteMatch(CM.id)" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:6px 10px;font-family:var(--font);font-size:12px;cursor:pointer">🗑 Supprimer</button>
-        <button class="tb-open" onclick="openTableauxMatch()" aria-label="Tableau tactique" title="Tableau tactique">📋</button>
         <span class="pill" id="det-status"></span>
         <!-- Copie du bouton Start/Pause du chrono, affichée seulement en Live sur iPhone portrait
              (le vrai #btn-chrono est alors masqué ; texte et couleur recopiés par app.js) -->
@@ -149,6 +148,7 @@
           <div style="margin:10px 0 8px;font-size:12px;color:var(--text2)">Définis la disponibilité avant le match</div>
           <div id="conv-list"></div>
           <div id="start-match-area" style="margin-top:12px"></div>
+          <div id="tb-match-conv" class="tb-match"></div>
         </div>
         <!-- LIVE -->
         <div id="tab-live" style="display:none">
@@ -165,6 +165,7 @@
               <div style="flex:1"></div>
               <button class="qbtn qbtn-goal" onclick="openQuickGoalPicker(false)">⚽ But</button>
               <button class="qbtn qbtn-conc" onclick="openQuickGoalPicker(true)">🔴</button>
+              <button id="btn-tb-pause" onclick="tbOuvrirPause()" class="qbtn qbtn-tb" style="display:none" aria-label="Tableau tactique de la pause">⏸ Tableau</button>
               <button onclick="switchHalf()" class="qbtn">Mi-temps</button>
               <button id="btn-chrono" onclick="toggleChrono()" class="qbtn qbtn-chrono">▶ Start</button>
             </div>
@@ -234,6 +235,7 @@
         <div id="tab-res" style="display:none;padding:12px 13px 20px">
           <button class="tl-link" onclick="switchTab('tl')">📈 Voir la timeline, les buts et les remplacements →</button>
           <div id="resume-content"></div>
+          <div id="tb-match-res" class="tb-match"></div>
         </div>
       </div>
     </div>
@@ -389,14 +391,6 @@
       <button class="tb-btn" id="tb-undo" onclick="tbAnnuler()" aria-label="Annuler">↶</button>
       <button class="tb-btn" id="tb-redo" onclick="tbRetablir()" aria-label="Rétablir">↷</button>
       <button class="tb-btn" onclick="tbEffacerTraits()" aria-label="Effacer les tracés">🗑</button>
-    </div>
-  </div>
-  <div class="mo" id="modal-tableaux">
-    <div class="modal">
-      <div class="mh"></div>
-      <div class="mt">Tableaux du match</div>
-      <div id="tb-liste"></div>
-      <div class="mfoot"><button class="bcan" onclick="closeModal('modal-tableaux')">Fermer</button></div>
     </div>
   </div>
 

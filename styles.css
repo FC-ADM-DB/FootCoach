@@ -614,7 +614,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .pt-mb{font-size:13px;padding:4px 0 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 
 /* ============ TABLEAU TACTIQUE (tableau.js) ============ */
-.tb-open{flex-shrink:0;min-width:40px;min-height:36px;border-radius:var(--rsm);border:1px solid var(--border);background:var(--bg3);font-size:17px;cursor:pointer}
 .tb-screen{position:fixed;inset:0;z-index:260;background:var(--bg);flex-direction:column;padding:calc(var(--st) + 6px) 8px calc(var(--sb) + 8px)}
 .tb-top{display:flex;align-items:center;gap:8px}
 .tb-head{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -667,3 +666,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .tb-et:disabled{opacity:.4}
 .tb-screen.lecture .tb-pions,.tb-screen.lecture .tb-pion,.tb-screen.lecture .tb-traits{pointer-events:none}
 .tb-screen.lecture .tb-bar{opacity:.4;pointer-events:none}
+
+/* Tableau tactique — intégration au match (T4) */
+.qbtn-tb{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)}
+.tb-match:empty{display:none}
+.tb-match{margin-top:16px}
+.tb-sec-t{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px}
+.tb-rejouer{flex-shrink:0;font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:99px;padding:4px 10px}
+.tb-add{width:100%;min-height:44px;font-size:13px}
