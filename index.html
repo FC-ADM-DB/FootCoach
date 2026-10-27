@@ -82,6 +82,8 @@
         <div style="font-size:19px;font-weight:600;margin-bottom:3px" id="wname">Bonjour !</div>
         <div style="font-size:13px;color:var(--text2)" id="wsub"></div>
       </div>
+      <!-- Accueil parent (parents.js) : remplace les raccourcis et chiffres en mode parent -->
+      <div id="pa-home" class="pa-only"></div>
       <div class="srow">
         <div class="sc"><div class="sn" id="sj">—</div><div class="sl">Joueurs</div></div>
         <div class="sc"><div class="sn" id="sm">—</div><div class="sl">Matchs</div></div>
@@ -404,6 +406,15 @@
     </div>
   </div>
 
+  <!-- FICHE DE MATCH PARENT (parents.js, lecture seule) -->
+  <div class="mo" id="modal-parent-match">
+    <div class="modal">
+      <div class="mh"></div>
+      <div id="pa-match"></div>
+      <div class="mfoot"><button class="bcan" onclick="paFermerMatch()">Fermer</button></div>
+    </div>
+  </div>
+
   <!-- TEAM SWITCHER -->
   <div class="tsw" id="tsw" onclick="closeTsw(event)">
     <div class="tsw-sheet">
@@ -478,6 +489,7 @@
         <div class="pm" id="pm-modal"></div>
         <button class="bsec" onclick="clearPoste()" style="margin-top:6px;font-size:12px;padding:5px 10px">Aucun poste</button>
       </div>
+      <div class="fg" id="p-parents"></div>
       <div class="mfoot">
         <button class="bcan" onclick="closeModal('modal-player')">Annuler</button>
         <button class="bp" id="btn-sp" onclick="savePlayer()">Ajouter</button>
@@ -601,5 +613,6 @@
 <script src="reseau.js"></script>
 <script src="plateforme.js"></script>
 <script src="tableau.js"></script>
+<script src="parents.js"></script>
 </body>
 </html>
