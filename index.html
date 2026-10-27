@@ -289,6 +289,14 @@
   </div>
 
   <!-- STATS -->
+  <!-- MESSAGES (messages.js) -->
+  <div class="page" id="page-messages">
+    <div class="pc">
+      <div class="sh"><span class="st" id="msg-titre">Messages</span></div>
+      <div id="msg-content"></div>
+    </div>
+  </div>
+
   <div class="page" id="page-stats">
     <div class="pc">
       <div class="sh"><span class="st">Statistiques</span></div>
@@ -308,6 +316,7 @@
     </button>
     <button class="ni active" onclick="goPage('home')" id="nav-home"><span class="ni-icon">🏠</span><span class="ni-lbl">Accueil</span></button>
     <button class="ni" onclick="goPage('match')" id="nav-match"><span class="ni-icon">⚽</span><span class="ni-lbl">Matchs</span></button>
+    <button class="ni" onclick="goPage('messages')" id="nav-messages"><span class="ni-icon">💬<b class="ni-badge" id="msg-badge" style="display:none"></b></span><span class="ni-lbl">Messages</span></button>
     <button class="ni" onclick="goPage('players')" id="nav-players"><span class="ni-icon">👥</span><span class="ni-lbl">Effectif</span></button>
     <button class="ni" onclick="goPage('stats')" id="nav-stats"><span class="ni-icon">📊</span><span class="ni-lbl">Stats</span></button>
     <!-- iPad/PC uniquement (pied de barre latérale) : compte -->
@@ -614,5 +623,6 @@
 <script src="plateforme.js"></script>
 <script src="tableau.js"></script>
 <script src="parents.js"></script>
+<script src="messages.js"></script>
 </body>
 </html>

@@ -139,6 +139,23 @@ do $a3$ declare arthur uuid; lina uuid; begin
      where m.team_id = md5('demo-reh-braives/U10A')::uuid and p.team_id = m.team_id and p.prenom in ('Arthur','Lina','Noé','Jade','Victor','Zoé','Louis','Mila');
 end $a3$;
 
+-- ------------------------------------------------------------------ MESSAGERIE (A4, si installée)
+-- Messages signés par David (encadrement) et Claire (parent d'Arthur) : on se fait passer
+-- pour eux le temps de l'insertion (l'auteur est imposé par la base).
+do $a4$ declare arthur uuid; equipe uuid := md5('demo-reh-braives/U10A')::uuid; begin
+  if to_regclass('public.messages') is null then return; end if;
+  select id into arthur from public.players where team_id = equipe and prenom = 'Arthur';
+  perform set_config('request.jwt.claims', json_build_object('sub', md5('david@demo.footcoach')::uuid)::text, true);
+  insert into public.messages (team_id, player_id, texte) values
+    (equipe, null, 'Bonjour à tous ! Samedi contre Hannut : rendez-vous 9h15 au terrain, maillot blanc. Pensez aux gourdes 💧');
+  insert into public.messages (team_id, player_id, texte) values
+    (equipe, arthur, 'Bonjour Claire, Arthur a très bien joué samedi : 2 buts ! Il peut garder ce rythme 👍');
+  perform set_config('request.jwt.claims', json_build_object('sub', md5('parent@demo.footcoach')::uuid)::text, true);
+  insert into public.messages (team_id, player_id, texte) values
+    (equipe, arthur, 'Merci beaucoup ! Il arrivera peut-être 10 minutes en retard samedi.');
+  perform set_config('request.jwt.claims', '', true);
+end $a4$;
+
 -- ------------------------------------------------------------------ ANNONCES (publiées par les CQ)
 -- Distances depuis Braives (≈) : Hannut 7 km · Burdinne 6 · Waremme 8 · Verlaine 12 · Wanze 12 · Huy 14 · Amay 14
 insert into public.annonces (id, team_id, type, lieu, format, duree_mt, categories, niveaux, zone, distance_km, message, statut, cree_par, valide_par, publiee_le)

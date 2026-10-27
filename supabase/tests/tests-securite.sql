@@ -479,6 +479,58 @@ insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[A3] prénoms d''une équipe', 'refusé', pg_temp.essai($q$select 1 from equipe_prenoms('10000000-0000-4000-a000-0000000000a1')$q$)),
  ('Visiteur', '[A3] voit les liens parent', '0', pg_temp.essai($q$select 1 from parent_enfants$q$));
 reset role;
+
+-- ============================================================= MESSAGERIE (A4)
+-- Groupe équipe A, discussion de Léo (enfant de Parent A), discussion de Zoé.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[A4] lit le groupe de son équipe', '1', pg_temp.essai($q$select 1 from messages where player_id is null$q$)),
+ ('Parent A', '[A4] lit la discussion de son enfant', '1', pg_temp.essai($q$select 1 from messages where player_id = '30000000-0000-4000-a000-0000000000a1'$q$)),
+ ('Parent A', '[A4] lit la discussion d''un autre enfant', '0', pg_temp.essai($q$select 1 from messages where player_id = '30000000-0000-4000-a000-0000000000a2'$q$)),
+ ('Parent A', '[A4] écrit dans le groupe de son équipe', '1', pg_temp.essai($q$insert into messages(team_id, texte) values ('10000000-0000-4000-a000-0000000000a1', 'Merci !')$q$)),
+ ('Parent A', '[A4] écrit dans la discussion de son enfant', '1', pg_temp.essai($q$insert into messages(team_id, player_id, texte) values ('10000000-0000-4000-a000-0000000000a1', '30000000-0000-4000-a000-0000000000a1', 'Bien noté')$q$)),
+ ('Parent A', '[A4] écrit dans la discussion d''un autre enfant', 'refusé', pg_temp.essai($q$insert into messages(team_id, player_id, texte) values ('10000000-0000-4000-a000-0000000000a1', '30000000-0000-4000-a000-0000000000a2', 'intrus')$q$)),
+ ('Parent A', '[A4] écrit pour un enfant en se trompant d''équipe', 'refusé', pg_temp.essai($q$insert into messages(team_id, player_id, texte) values ('10000000-0000-4000-a000-0000000000b1', '30000000-0000-4000-a000-0000000000a1', 'x')$q$)),
+ ('Parent A', '[A4] écrit dans le groupe d''une autre équipe', 'refusé', pg_temp.essai($q$insert into messages(team_id, texte) values ('10000000-0000-4000-a000-0000000000b1', 'intrus')$q$)),
+ ('Parent A', '[A4] signe au nom de l''entraîneur (auteur forcé → remplacé)', '1', pg_temp.essai($q$with i as (insert into messages(team_id, texte, auteur) values ('10000000-0000-4000-a000-0000000000a1', 'faux', '00000000-0000-4000-a000-000000000001') returning auteur, auteur_role) select 1 from i where auteur = auth.uid() and auteur_role = 'parent'$q$)),
+ ('Parent A', '[A4] message vide', 'refusé', pg_temp.essai($q$insert into messages(team_id, texte) values ('10000000-0000-4000-a000-0000000000a1', '   ')$q$)),
+ ('Parent A', '[A4] supprime un message de l''encadrement', '0', pg_temp.essai($q$delete from messages where id = '80000000-0000-4000-a000-000000000001'$q$)),
+ ('Parent A', '[A4] modifie un message', '0', pg_temp.essai($q$update messages set texte = 'modifié' where id = '80000000-0000-4000-a000-000000000001'$q$)),
+ ('Parent A', '[A4] liste de ses discussions (groupe + Léo)', '2', pg_temp.essai($q$select 1 from mes_fils()$q$)),
+ ('Parent A', '[A4] marque une discussion comme lue', '1', pg_temp.essai($q$select marquer_lu('10000000-0000-4000-a000-0000000000a1', '30000000-0000-4000-a000-0000000000a1')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach A', '[A4] lit toutes les discussions de son équipe', '3', pg_temp.essai($q$select 1 from messages$q$)),
+ ('Coach A', '[A4] écrit aux parents de Zoé', '1', pg_temp.essai($q$insert into messages(team_id, player_id, texte) values ('10000000-0000-4000-a000-0000000000a1', '30000000-0000-4000-a000-0000000000a2', 'Bonjour')$q$)),
+ ('Coach A', '[A4] supprime un message (modération)', '1', pg_temp.essai($q$delete from messages where id = '80000000-0000-4000-a000-000000000002'$q$)),
+ ('Coach A', '[A4] voit les lectures des autres', '0', pg_temp.essai($q$select 1 from messages_lus where profile_id <> auth.uid()$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000006","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coord A', '[A4] lit les discussions des équipes de son club', '3', pg_temp.essai($q$select 1 from messages$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ B', '[A4] lit les messages du club A', '0', pg_temp.essai($q$select 1 from messages$q$)),
+ ('CQ B', '[A4] écrit dans le groupe de l''équipe A', 'refusé', pg_temp.essai($q$insert into messages(team_id, texte) values ('10000000-0000-4000-a000-0000000000a1', 'pub')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000004","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Externe', '[A4] lit des messages', '0', pg_temp.essai($q$select 1 from messages$q$)),
+ ('Externe', '[A4] liste de discussions', '0', pg_temp.essai($q$select 1 from mes_fils()$q$));
+reset role;
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[A4] lit des messages', '0', pg_temp.essai($q$select 1 from messages$q$)),
+ ('Visiteur', '[A4] liste de discussions', 'refusé', pg_temp.essai($q$select 1 from mes_fils()$q$));
+reset role;
 select set_config('request.jwt.claims', '', false);
 
 select n, qui, test, attendu, obtenu, case when attendu = obtenu then 'OK' else 'ÉCHEC' end as resultat
