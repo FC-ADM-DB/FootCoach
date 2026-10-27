@@ -303,6 +303,13 @@ function tbTraitsUp(){
   if(bouge){
     const nv={x:a[0],y:a[1]};
     if(suiv&&tbDist(suiv.ballon,et.ballon)<0.5)suiv.ballon={...nv};
+    // Étapes précédentes où le ballon n'a pas encore servi (même place, pas de passe) :
+    // il y est placé aussi, sinon la lecture le faisait glisser jusqu'au passeur.
+    for(let j=tbEtapeIdx-1;j>=0;j--){
+      const e=tb.etat.etapes[j];
+      if(tbDist(e.ballon,et.ballon)>=0.5||e.traits.some(x=>x.type==='passe'))break;
+      e.ballon={...nv};
+    }
     et.ballon=nv;
   }
   if(suiv)tbSuivreFleches(et,suiv,[t]);
