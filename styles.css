@@ -772,3 +772,11 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .pr-td{font-size:11px;color:var(--text3);margin-top:2px}
 .pr-ct{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
 .pr-ctb{min-width:40px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:0 8px}
+.pr-hist{max-height:42vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px}
+.pr-bulle{max-width:85%;align-self:flex-start;background:var(--bg3);border:1px solid var(--border);border-radius:14px 14px 14px 4px;padding:6px 10px}
+.pr-bulle.nous{align-self:flex-end;background:var(--green-bg);border-color:var(--green-border);border-radius:14px 14px 4px 14px}
+.pr-ba{font-size:11px;font-weight:700;color:var(--text2)}
+.pr-bt{font-size:14px;white-space:pre-wrap;word-break:break-word}
+.pr-hist .pr-tour{align-self:stretch}
+.pr-msg-nb{font-size:12.5px;font-weight:700;color:var(--blue)}
+.pr-coord{width:100%;margin-top:12px;font-size:13px;min-height:40px}

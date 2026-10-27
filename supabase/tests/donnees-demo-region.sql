@@ -209,6 +209,8 @@ do $c2$ declare v_an uuid := md5('an-reh-u10a')::uuid; v_p uuid := md5('prop-han
   insert into public.proposition_tours (proposition_id, cote, action, jour, heure, lieu, message, auteur, auteur_nom)
   values (v_p, 'proposant', 'proposition', current_date + 11, '10:30', 'proposant',
           'Bonjour ! On vous reçoit volontiers sur notre synthétique, goûter offert après le match.', md5('cq.hannut@demo.footcoach')::uuid, 'Marc L.');
+  insert into public.proposition_tours (proposition_id, cote, action, message, auteur, auteur_nom, created_at)
+  values (v_p, 'proposant', 'message', 'Si 10h30 est trop tôt pour vous, on peut aussi jouer à 11h.', md5('cq.hannut@demo.footcoach')::uuid, 'Marc L.', now() + interval '1 minute');
   update public.profiles set telephone = '0470 12 34 56' where id = md5('cq.hannut@demo.footcoach')::uuid;
 end $c2$;
 

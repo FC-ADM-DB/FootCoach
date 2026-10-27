@@ -6,12 +6,14 @@
 // proposition_creer / proposition_agir (machine à états, droits vérifiés par la base) :
 // le coordinateur/CQ décide ; un entraîneur/délégué prépare une suggestion qu'il valide.
 // Accord : match créé dans le calendrier des deux équipes.
+// Communication entre clubs : d'abord par MESSAGE dans l'application (proposition_message,
+// non-lus par proposition) ; email / téléphone seulement sur demande (« Afficher les coordonnées »).
 
 const PR_STATUTS={a_valider:['pgr','À envoyer'],envoyee:['pb','Envoyée'],contre:['pb','Contre-proposition'],acceptee:['pg','✓ Acceptée'],refusee:['pr','Refusée'],annulee:['pgr','Annulée']};
-const PR_ACTIONS={proposition:'a proposé',envoyer:'a envoyé la proposition',contre:'a fait une contre-proposition',accepter:'a accepté',refuser:'a refusé',annuler:'a annulé'};
+const PR_ACTIONS={message:'',proposition:'a proposé',envoyer:'a envoyé la proposition',contre:'a fait une contre-proposition',accepter:'a accepté',refuser:'a refusé',annuler:'a annulé'};
 const PR_SUGG={accepter:'accepter',refuser:'refuser',contre:'contre-proposer'};
-let prListe=[],prOuverte=null,prCompteT=null;
-const prAFaire=p=>p.decide?(p.a_moi||!!p.suggestion):(p.a_moi&&!p.suggestion);
+let prListe=[],prOuverte=null,prCompteT=null,prDetailT=null,prCoordVisibles=false;
+const prAFaire=p=>(p.non_lus||0)>0||(p.decide?(p.a_moi||!!p.suggestion):(p.a_moi&&!p.suggestion));
 const prLieuTxt=(lieu,cote)=>lieu===cote?'🏠 Chez nous':'✈️ Chez eux';
 const prQuand=p=>`${fmtJour(p.jour)}${p.heure?' · '+fmtHeure(p.heure):''}`;
 
@@ -83,20 +85,43 @@ async function prRenderListe(){
       <div class="rs-top"><div style="flex:1;min-width:0"><div class="rs-club">${p.cote==='proposant'?'Envoyée à':'Reçue de'} ${esc(autreClub)}</div>
         <div class="rs-sub">${esc(autreEq)} ↔ ${esc(monEq)} · ${esc(AN_TYPES[p.annonce_type]||'')}</div></div><span class="pill ${cl}">${lbl}</span></div>
       <div class="rs-line">📅 ${esc(prQuand(p))} · ${prLieuTxt(p.lieu,p.cote)}</div>
-      ${todo?`<div class="pr-todo">${p.suggestion&&p.decide?'💡 Suggestion à valider':p.statut==='a_valider'?(p.decide?'➤ À envoyer':'⏳ En attente de ton coordinateur'):'👉 À vous de répondre'}</div>`:''}
+      ${p.non_lus?`<div class="pr-msg-nb">💬 ${p.non_lus} nouveau${p.non_lus>1?'x':''} message${p.non_lus>1?'s':''}</div>`:''}
+      ${todo&&!(p.non_lus&&!(p.decide?(p.a_moi||p.suggestion):(p.a_moi&&!p.suggestion)))?`<div class="pr-todo">${p.suggestion&&p.decide?'💡 Suggestion à valider':p.statut==='a_valider'?(p.decide?'➤ À envoyer':'⏳ En attente de ton coordinateur'):'👉 À vous de répondre'}</div>`:''}
     </div>`;};
   const enCours=prListe.filter(p=>['a_valider','envoyee','contre'].includes(p.statut)),finies=prListe.filter(p=>!enCours.includes(p));
   body.innerHTML=(prListe.length?'':`<div class="empty"><div class="empty-i">🤝</div><div class="empty-t">Aucune proposition</div><div class="empty-s">Ouvre une annonce et touche « Proposer un match ».</div></div>`)+
     (enCours.length?`<div class="tb-sec-t">En cours</div>`+enCours.map(carte).join(''):'')+
     (finies.length?`<div class="tb-sec-t" style="margin-top:14px">Terminées</div>`+finies.slice(0,20).map(carte).join(''):'');
 }
-async function prOuvrir(id){
+async function prOuvrir(id,silencieux){
   prOuverte=prListe.find(p=>p.id===id);if(!prOuverte)return;
-  document.getElementById('prop-body').innerHTML='<div class="spin"></div>';openModal('modal-prop');
+  if(!silencieux){prCoordVisibles=false;document.getElementById('prop-body').innerHTML='<div class="spin"></div>';openModal('modal-prop');}
+  const saisie=document.getElementById('prm-texte')?.value||'';
   const [t,c]=await Promise.all([
     sb.from('proposition_tours').select('*').eq('proposition_id',id).order('created_at'),
     sb.rpc('proposition_contacts',{p_id:id})]);
+  if(prOuverte?.id!==id)return;
   prRenderDetail(t.data||[],c.data||[]);
+  const ta=document.getElementById('prm-texte');if(ta&&saisie)ta.value=saisie;
+  const h=document.getElementById('pr-hist');if(h)h.scrollTop=h.scrollHeight;
+  // Fiche ouverte = messages lus
+  if(prOuverte.non_lus){await sb.rpc('proposition_lu',{p_id:id});prOuverte.non_lus=0;prMajCompte();}
+  clearInterval(prDetailT);
+  prDetailT=setInterval(async()=>{
+    if(!document.getElementById('modal-prop')?.classList.contains('open')||prOuverte?.id!==id){clearInterval(prDetailT);prDetailT=null;return;}
+    if(document.activeElement?.id==='prc-msg'||document.getElementById('pr-contre')?.innerHTML)return;   // contre-proposition en cours de saisie
+    await prMajCompte();prOuverte=prListe.find(p=>p.id===id)||prOuverte;
+    if(prOuverte.non_lus)prOuvrir(id,true);
+  },10000);
+}
+async function prEnvoyerMessage(){
+  const p=prOuverte,ta=document.getElementById('prm-texte');if(!p||!ta)return;
+  const texte=ta.value.trim();if(!texte)return;
+  const btn=document.getElementById('prm-env');btn.disabled=true;
+  const{error}=await sb.rpc('proposition_message',{p_id:p.id,p_texte:texte});
+  btn.disabled=false;
+  if(error)return showToast(error.message.replace(/^.*?:\s*/,''),'err');
+  ta.value='';prOuvrir(p.id,true);
 }
 function prRenderDetail(tours,contacts){
   const p=prOuverte,[cl,lbl]=PR_STATUTS[p.statut]||['pgr',p.statut];
@@ -104,7 +129,9 @@ function prRenderDetail(tours,contacts){
   const nous=c=>c===p.cote;
   const sugg=tours.filter(t=>t.en_attente).at(-1);
   const hist=tours.filter(t=>!t.en_attente&&!t.ecartee);
-  const tourTxt=t=>`<div class="pr-tour${nous(t.cote)?' nous':''}"><div class="pr-tq"><b>${esc(t.auteur_nom||'?')}</b> (${nous(t.cote)?'nous':esc(autreClub)}) ${PR_ACTIONS[t.action]||t.action}
+  const tourTxt=t=>t.action==='message'?`<div class="pr-bulle${nous(t.cote)?' nous':''}"><div class="pr-ba">${esc(t.auteur_nom||'?')} · ${nous(t.cote)?'nous':esc(autreClub)}</div>
+      <div class="pr-bt">${esc(t.message||'')}</div><div class="pr-td">${new Date(t.created_at).toLocaleString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div></div>`
+    :`<div class="pr-tour${nous(t.cote)?' nous':''}"><div class="pr-tq"><b>${esc(t.auteur_nom||'?')}</b> (${nous(t.cote)?'nous':esc(autreClub)}) ${PR_ACTIONS[t.action]||t.action}
       ${t.jour&&['proposition','contre'].includes(t.action)?` : ${esc(prQuand(t))} · ${prLieuTxt(t.lieu,p.cote)}`:''}</div>
       ${t.message?`<div class="pr-tm">${esc(t.message)}</div>`:''}<div class="pr-td">${new Date(t.created_at).toLocaleString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div></div>`;
   const enCours=['a_valider','envoyee','contre'].includes(p.statut);
@@ -127,11 +154,16 @@ function prRenderDetail(tours,contacts){
     <div class="mt">${p.cote==='proposant'?'Proposition à':'Proposition de'} ${esc(autreClub)}</div>
     <div class="pr-head"><span class="pill ${cl}">${lbl}</span><span>📅 ${esc(prQuand(p))}</span><span>${prLieuTxt(p.lieu,p.cote)}</span></div>
     ${actions}
-    ${contacts.length?`<div class="tb-sec-t" style="margin-top:14px">Contacts ${esc(autreClub)}</div>${contacts.map(c=>`<div class="pr-ct"><div style="flex:1;min-width:0"><b>${esc(c.nom)}</b> <span class="rs-sub">· ${c.role==='cq'?'CQ':'Coordinateur'}</span></div>
+    <div class="tb-sec-t" style="margin-top:14px">Échanges avec ${esc(autreClub)}</div>
+    <div class="pr-hist" id="pr-hist">${hist.map(tourTxt).join('')}</div>
+    ${p.statut==='a_valider'?'<div class="rs-line">Les messages seront possibles une fois la proposition envoyée.</div>'
+      :`<div class="msg-saisie"><textarea class="fi" id="prm-texte" rows="1" maxlength="1000" placeholder="Écrire à ${esc(autreClub)}…" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,110)+'px'"></textarea>
+      <button class="bp msg-env" id="prm-env" onclick="prEnvoyerMessage()" aria-label="Envoyer">➤</button></div>`}
+    ${contacts.length?(prCoordVisibles?`<div class="tb-sec-t" style="margin-top:14px">Coordonnées ${esc(autreClub)}</div>${contacts.map(c=>`<div class="pr-ct"><div style="flex:1;min-width:0"><b>${esc(c.nom)}</b> <span class="rs-sub">· ${c.role==='cq'?'CQ':'Coordinateur'}</span></div>
       ${c.telephone?`<a class="bsec pr-ctb" href="tel:${esc(c.telephone.replace(/[^+\d]/g,''))}">📞</a><a class="bsec pr-ctb" href="https://wa.me/${esc(c.telephone.replace(/[^\d]/g,'').replace(/^0/,'32'))}" target="_blank" rel="noopener">💬</a>`:''}
-      ${c.email?`<a class="bsec pr-ctb" href="mailto:${esc(c.email)}">✉️</a>`:''}</div>`).join('')}`:''}
-    ${UP&&!UP.telephone?`<div class="rs-line" style="margin-top:8px">💡 Ajoute ton téléphone dans <a href="#" onclick="event.preventDefault();closeModal('modal-prop');ouvrirProfil()">Mon profil</a> pour que l'autre club puisse t'appeler.</div>`:''}
-    <div class="tb-sec-t" style="margin-top:14px">Historique</div>${hist.map(tourTxt).join('')}
+      ${c.email?`<a class="bsec pr-ctb" href="mailto:${esc(c.email)}">✉️</a>`:''}</div>`).join('')}`
+      :`<button class="bsec pr-coord" onclick="prCoordVisibles=true;prOuvrir('${p.id}',true)">📇 Afficher les coordonnées (téléphone, email)</button>`):''}
+    ${prCoordVisibles&&UP&&!UP.telephone?`<div class="rs-line" style="margin-top:8px">💡 Ajoute ton téléphone dans <a href="#" onclick="event.preventDefault();closeModal('modal-prop');ouvrirProfil()">Mon profil</a> pour que l'autre club puisse t'appeler.</div>`:''}
     <div class="mfoot"><button class="bcan" onclick="closeModal('modal-prop')">Fermer</button></div>`;
 }
 function prFormContre(){
