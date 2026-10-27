@@ -5,6 +5,9 @@
 -- ============================================================================
 begin;
 drop function if exists public.mes_propositions();
+drop function if exists public.proposition_lu(uuid);
+drop function if exists public.proposition_message(uuid, text);
+drop table if exists public.proposition_lus;
 drop function if exists public.proposition_contacts(uuid);
 drop function if exists public.proposition_agir(uuid, text, date, time, text, text);
 drop function if exists public.proposition_creer(uuid, uuid, date, time, text, text);

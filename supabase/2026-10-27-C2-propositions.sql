@@ -13,7 +13,9 @@
 -- prépare une SUGGESTION (tour en attente) que son coordinateur/CQ valide ou écarte.
 -- Toutes les actions passent par proposition_creer / proposition_agir (aucune écriture
 -- directe dans les tables). Contacts (nom, email, téléphone) des coordinateurs/CQ de
--- l'autre club visibles dès qu'une proposition est envoyée.
+-- l'autre club visibles dès qu'une proposition est envoyée (affichés à la demande : le
+-- moyen de communication prioritaire est le message dans l'application,
+-- proposition_message, avec compteur de non-lus par proposition).
 -- Testé sur la base de test (supabase/tests/tests-securite.sql).
 -- Annulation : 2026-10-27-C2-propositions-ANNULER.sql
 -- ============================================================================
@@ -53,7 +55,7 @@ create table if not exists public.proposition_tours (
   id uuid primary key default extensions.uuid_generate_v4(),
   proposition_id uuid not null references public.propositions(id) on delete cascade,
   cote text not null check (cote in ('annonceur', 'proposant')),
-  action text not null check (action in ('proposition', 'envoyer', 'contre', 'accepter', 'refuser', 'annuler')),
+  action text not null,
   jour date,
   heure time,
   lieu text check (lieu in ('annonceur', 'proposant')),
@@ -65,6 +67,22 @@ create table if not exists public.proposition_tours (
   created_at timestamptz not null default now()
 );
 create index if not exists proposition_tours_prop_idx on public.proposition_tours (proposition_id, created_at);
+-- Actions possibles (« message » = message libre entre les deux clubs, sans changer l'état)
+alter table public.proposition_tours drop constraint if exists proposition_tours_action_check;
+alter table public.proposition_tours add constraint proposition_tours_action_check
+  check (action in ('proposition', 'envoyer', 'contre', 'accepter', 'refuser', 'annuler', 'message'));
+
+-- Dernière lecture d'une proposition par personne (messages non lus)
+create table if not exists public.proposition_lus (
+  profile_id uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  proposition_id uuid not null references public.propositions(id) on delete cascade,
+  lu_jusqua timestamptz not null default now(),
+  primary key (profile_id, proposition_id)
+);
+alter table public.proposition_lus enable row level security;
+drop policy if exists "Lus propositions personnels" on public.proposition_lus;
+create policy "Lus propositions personnels" on public.proposition_lus for all to authenticated
+  using (profile_id = auth.uid()) with check (profile_id = auth.uid());
 alter table public.proposition_tours enable row level security;
 
 -- ------------------------------------------------------------ VISIBILITÉ
@@ -214,6 +232,31 @@ begin
   return 'acceptee';
 end $$;
 
+-- ------------------------------------------------------------ MESSAGES ENTRE CLUBS
+-- Tout l'encadrement des deux équipes peut écrire (pas de validation : simple échange),
+-- sauf tant que la proposition n'est pas envoyée (l'autre club ne la voit pas encore).
+create or replace function public.proposition_message(p_id uuid, p_texte text)
+  returns void language plpgsql security definer set search_path = public as
+$$ declare v_cote text;
+begin
+  if auth.uid() is null then raise exception 'Connexion requise'; end if;
+  v_cote := prop_cote(p_id);
+  if v_cote is null then raise exception 'Accès refusé'; end if;
+  if char_length(trim(coalesce(p_texte, ''))) not between 1 and 1000 then raise exception 'Message vide ou trop long'; end if;
+  if exists (select 1 from propositions where id = p_id and statut = 'a_valider') then
+    raise exception 'La proposition n''est pas encore envoyée';
+  end if;
+  insert into proposition_tours (proposition_id, cote, action, message, auteur, auteur_nom)
+  values (p_id, v_cote, 'message', trim(p_texte), auth.uid(), prop_nom_moi());
+  insert into proposition_lus (profile_id, proposition_id, lu_jusqua) values (auth.uid(), p_id, now())
+    on conflict (profile_id, proposition_id) do update set lu_jusqua = now();
+end $$;
+
+create or replace function public.proposition_lu(p_id uuid) returns void
+  language sql security invoker set search_path = public as
+$$ insert into proposition_lus (profile_id, proposition_id, lu_jusqua) values (auth.uid(), p_id, now())
+   on conflict (profile_id, proposition_id) do update set lu_jusqua = now() $$;
+
 -- ------------------------------------------------------------ CONTACTS ET LISTES
 -- Coordinateurs / CQ de l'AUTRE club (proposition envoyée uniquement)
 create or replace function public.proposition_contacts(p_id uuid)
@@ -228,11 +271,12 @@ $$ select c.nom, pr.prenom || ' ' || pr.nom, cm.role, pr.email, pr.telephone
     order by cm.role desc, pr.prenom $$;
 
 -- Propositions visibles, avec noms des clubs / équipes et ce qu'il reste à faire pour moi
+drop function if exists public.mes_propositions();   -- colonnes ajoutées (rejouable)
 create or replace function public.mes_propositions()
   returns table(id uuid, annonce_id uuid, cote text, statut text, jour date, heure time, lieu text,
                 annonce_type text, club_annonceur text, equipe_annonceur text, club_proposant text, equipe_proposante text,
                 equipe_annonceur_id uuid, equipe_proposante_id uuid, decide boolean, a_moi boolean, suggestion text,
-                match_id uuid, updated_at timestamptz)
+                match_id uuid, updated_at timestamptz, non_lus int)
   language sql stable security definer set search_path = public as
 $$ select p.id, p.annonce_id, prop_cote(p.id), p.statut, p.jour, p.heure, p.lieu, an.type,
           ca.nom, ta.nom, cp.nom, tp.nom, p.equipe_annonceur, p.equipe_proposante,
@@ -241,7 +285,10 @@ $$ select p.id, p.annonce_id, prop_cote(p.id), p.statut, p.jour, p.heure, p.lieu
           (select t.action from proposition_tours t where t.proposition_id = p.id and t.en_attente and t.cote = prop_cote(p.id)
             order by t.created_at desc limit 1),
           case prop_cote(p.id) when 'annonceur' then p.match_annonceur else p.match_proposant end,
-          p.updated_at
+          p.updated_at,
+          (select count(*)::int from proposition_tours t where t.proposition_id = p.id and not t.en_attente
+             and t.cote <> prop_cote(p.id)
+             and t.created_at > coalesce((select l.lu_jusqua from proposition_lus l where l.profile_id = auth.uid() and l.proposition_id = p.id), '-infinity'))
      from propositions p
      join annonces an on an.id = p.annonce_id
      join teams ta on ta.id = p.equipe_annonceur join clubs ca on ca.id = p.club_annonceur
@@ -252,10 +299,12 @@ $$ select p.id, p.annonce_id, prop_cote(p.id), p.statut, p.jour, p.heure, p.lieu
 revoke execute on function public.prop_cote(uuid), public.prop_nom_moi(),
   public.proposition_creer(uuid, uuid, date, time, text, text),
   public.proposition_agir(uuid, text, date, time, text, text),
-  public.proposition_contacts(uuid), public.mes_propositions() from public, anon;
+  public.proposition_contacts(uuid), public.mes_propositions(),
+  public.proposition_message(uuid, text), public.proposition_lu(uuid) from public, anon;
 grant execute on function public.prop_cote(uuid), public.prop_nom_moi(),
   public.proposition_creer(uuid, uuid, date, time, text, text),
   public.proposition_agir(uuid, text, date, time, text, text),
-  public.proposition_contacts(uuid), public.mes_propositions() to authenticated;
+  public.proposition_contacts(uuid), public.mes_propositions(),
+  public.proposition_message(uuid, text), public.proposition_lu(uuid) to authenticated;
 
 commit;

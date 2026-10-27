@@ -555,7 +555,11 @@ insert into r (qui, test, attendu, obtenu) values
  ('CQ B', '[C2] contacts de l''autre club (CQ + coordinateur A)', '2', pg_temp.essai($q$select 1 from proposition_contacts('90000000-0000-4000-a000-000000000001')$q$)),
  ('CQ B', '[C2] envoie la proposition préparée', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000002', 'envoyer') = 'envoyee'$q$)),
  ('CQ B', '[C2] annule sa proposition', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'annuler') = 'annulee'$q$)),
- ('CQ B', '[C2] liste « mes propositions »', '2', pg_temp.essai($q$select 1 from mes_propositions()$q$));
+ ('CQ B', '[C2] liste « mes propositions »', '2', pg_temp.essai($q$select 1 from mes_propositions()$q$)),
+ ('CQ B', '[C2] écrit un message à l''autre club', '1', pg_temp.essai($q$select 1 from (select proposition_message('90000000-0000-4000-a000-000000000001', 'On peut décaler à 11h ?')) x$q$)),
+ ('CQ B', '[C2] message vide', 'refusé', pg_temp.essai($q$select proposition_message('90000000-0000-4000-a000-000000000001', '  ')$q$)),
+ ('CQ B', '[C2] message sur une proposition pas encore envoyée', 'refusé', pg_temp.essai($q$select proposition_message('90000000-0000-4000-a000-000000000002', 'x')$q$)),
+ ('CQ B', '[C2] marque une proposition comme lue', '1', pg_temp.essai($q$select 1 from (select proposition_lu('90000000-0000-4000-a000-000000000001')) x$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
 set role authenticated;
@@ -575,6 +579,7 @@ set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('Délégué A', '[C2] voit la proposition reçue', '1', pg_temp.essai($q$select 1 from propositions$q$)),
  ('Délégué A', '[C2] accepte → suggestion pour le coordinateur', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'accepter') = 'suggestion'$q$)),
+ ('Délégué A', '[C2] écrit un message (sans validation)', '1', pg_temp.essai($q$select 1 from (select proposition_message('90000000-0000-4000-a000-000000000001', 'Bonjour')) x$q$)),
  ('Délégué A', '[C2] valide une suggestion', 'refusé', pg_temp.essai($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'valider_suggestion')$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000006","role":"authenticated"}', false);
@@ -595,6 +600,7 @@ insert into r (qui, test, attendu, obtenu) values
  ('Externe', '[C2] voit les propositions', '0', pg_temp.essai($q$select 1 from propositions$q$)),
  ('Externe', '[C2] liste « mes propositions »', '0', pg_temp.essai($q$select 1 from mes_propositions()$q$)),
  ('Externe', '[C2] contacts d''une proposition', '0', pg_temp.essai($q$select 1 from proposition_contacts('90000000-0000-4000-a000-000000000001')$q$)),
+ ('Externe', '[C2] écrit un message', 'refusé', pg_temp.essai($q$select proposition_message('90000000-0000-4000-a000-000000000001', 'spam')$q$)),
  ('Externe', '[C2] propose un match', 'refusé', pg_temp.essai($q$select proposition_creer('60000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000a1', current_date + 9, '10:30', 'annonceur')$q$));
 reset role;
 select set_config('request.jwt.claims', '{"role":"anon"}', false);
