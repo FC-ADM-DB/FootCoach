@@ -371,13 +371,14 @@ function tbAnimer(A,B,duree,lect){
   return new Promise(res=>{
     const els=[...document.querySelectorAll('#tb-pions .tb-pion')];
     const pos=(et,id)=>id==='ballon'?et.ballon:et.pions.find(p=>p.id===id);
+    const ballon=tbTrajetBallon(A,B);
     const t0=performance.now();
     const frame=now=>{
       if(lect.stop)return res();
       const k=tbEase(Math.min(1,(now-t0)/duree));
       for(const el of els){
         const a=pos(A,el.dataset.id),b=pos(B,el.dataset.id);if(!a||!b)continue;
-        const s=tbToScreen(a.x+(b.x-a.x)*k,a.y+(b.y-a.y)*k);
+        const s=el.dataset.id==='ballon'?(q=>tbToScreen(q.x,q.y))(ballon(k)):tbToScreen(a.x+(b.x-a.x)*k,a.y+(b.y-a.y)*k);
         el.style.left=s.x+'%';el.style.top=s.y+'%';
       }
       if(k<1)requestAnimationFrame(frame);else res();
@@ -465,7 +466,7 @@ function tbSuivreFleches(src,dst,traits){
   const intact=(a,b)=>b&&tbDist(a,b)<0.5;
   const bout=t=>({x:t.pts[t.pts.length-1][0],y:t.pts[t.pts.length-1][1]});
   const dep=t=>({x:t.pts[0][0],y:t.pts[0][1]});
-  const passeDuBallon=src.traits.some(t=>t.type==='passe'&&tbDist(dep(t),src.ballon)<TB_SEUIL+2);
+  const passes=src.traits.filter(t=>t.type==='passe');
   let n=0;
   for(const t of traits.filter(t=>t.type==='course')){
     const a=dep(t);
@@ -474,13 +475,35 @@ function tbSuivreFleches(src,dst,traits){
     const q=dst.pions.find(x=>x.id===p.id),b=bout(t);
     if(!intact(p,q))continue;
     // Conduite de balle : le ballon garde le même écart avec le joueur
-    if(!passeDuBallon&&tbDist(src.ballon,p)<TB_SEUIL&&intact(src.ballon,dst.ballon))
+    if(!passes.length&&tbDist(src.ballon,p)<TB_SEUIL&&intact(src.ballon,dst.ballon))
       dst.ballon={x:tbClamp(+(b.x+src.ballon.x-p.x).toFixed(1)),y:tbClamp(+(b.y+src.ballon.y-p.y).toFixed(1))};
     q.x=b.x;q.y=b.y;n++;
   }
-  for(const t of traits.filter(t=>t.type==='passe')){
-    if(tbDist(dep(t),src.ballon)>=TB_SEUIL+2||!intact(src.ballon,dst.ballon))continue;
-    const b=bout(t);dst.ballon={x:b.x,y:b.y};n++;
+  // Passes : le ballon suit les pointillés, dans l'ordre où ils ont été tracés (une-deux
+  // possible) et finit au bout de la dernière passe. Pas besoin de partir pile du ballon.
+  if(passes.length&&traits.some(t=>t.type==='passe')){
+    const fins=passes.slice(0,-1).map(bout);   // ballon déjà placé par une passe précédente
+    if(intact(src.ballon,dst.ballon)||fins.some(f=>intact(f,dst.ballon))){
+      const b=bout(passes[passes.length-1]);dst.ballon={x:b.x,y:b.y};n++;
+    }
   }
   return n;
+}
+// Trajet du ballon pendant la lecture A → B : le long des pointillés de A quand le ballon
+// finit au bout de la dernière passe, sinon en ligne droite.
+function tbTrajetBallon(A,B){
+  const passes=A.traits.filter(t=>t.type==='passe');
+  const pt=p=>({x:p[0],y:p[1]});
+  let P=[A.ballon,B.ballon];
+  if(passes.length&&tbDist(pt(passes[passes.length-1].pts.at(-1)),B.ballon)<0.5)
+    P=[A.ballon,...passes.flatMap(t=>[pt(t.pts[0]),pt(t.pts.at(-1))])];
+  P=P.filter((p,i)=>!i||tbDist(p,P[i-1])>0.3);
+  const L=[0];for(let i=1;i<P.length;i++)L.push(L[i-1]+tbDist(P[i],P[i-1]));
+  const tot=L[L.length-1];
+  return k=>{
+    if(!tot)return P[0];
+    const d=k*tot;let i=1;while(i<P.length-1&&L[i]<d)i++;
+    const seg=L[i]-L[i-1]||1,f=Math.max(0,Math.min(1,(d-L[i-1])/seg));
+    return{x:P[i-1].x+(P[i].x-P[i-1].x)*f,y:P[i-1].y+(P[i].y-P[i-1].y)*f};
+  };
 }
