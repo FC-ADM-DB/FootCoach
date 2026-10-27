@@ -21,14 +21,17 @@ const ptDate=d=>d?new Date(d).toLocaleDateString('fr-BE',{day:'numeric',month:'s
 async function renderPlateforme(){
   const el=document.getElementById('plateforme-content');
   if(!isPlatformAdmin){el.innerHTML=`<div class="empty"><div class="empty-i">🔒</div><div class="empty-t">Réservé à l'administrateur FootCoach</div></div>`;return;}
+  if(ptView==='nouveau')return ptRenderCreation();
   if(ptView)return ptRenderFiche(ptView);
   el.innerHTML='<div class="spin"></div>';
   const [st,cl]=await Promise.all([sb.rpc('admin_stats'),sb.rpc('admin_clubs')]);
   if(st.error||cl.error){el.innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Gestion des clubs indisponible</div><div class="empty-s">${esc((st.error||cl.error).message)}</div></div>`;return;}
   const s=st.data?.[0]||{};ptClubs=cl.data||[];
-  const tile=(n,l,c)=>`<div class="pt-tile${c?' '+c:''}"><div class="pt-n">${n??'—'}</div><div class="pt-l">${l}</div></div>`;
+  // Chiffres en une ligne de petites pastilles (les grandes tuiles prenaient trop de place)
+  const tile=(n,l,c)=>`<span class="pt-stat${c?' '+c:''}"><b>${n??'—'}</b> ${l}</span>`;
   const tab=(k,l)=>`<button class="${ptTab===k?'on':''}" onclick="ptTab='${k}';renderPlateforme()">${l}</button>`;
-  el.innerHTML=`<div class="pt-tiles">${tile(s.clubs,'Clubs')}${tile(s.clubs_verifies,'Vérifiés')}${tile(s.clubs_en_attente,'À vérifier',s.clubs_en_attente?'warn':'')}${tile(s.equipes,'Équipes')}${tile(s.utilisateurs,'Utilisateurs')}${tile(s.annonces_publiees,'Annonces')}</div>
+  el.innerHTML=`<div class="pt-stats">${tile(s.clubs,'clubs')}${tile(s.clubs_verifies,'vérifiés')}${s.clubs_en_attente?tile(s.clubs_en_attente,'à vérifier','warn'):''}${tile(s.equipes,'équipes')}${tile(s.utilisateurs,'utilisateurs')}${tile(s.annonces_publiees,'annonces')}</div>
+    <button class="bp pt-new" onclick="ptView='nouveau';renderPlateforme()">+ Créer un club</button>
     <div class="rs-tabs">${tab('attente',`À vérifier${s.clubs_en_attente?` <span class="rs-count">${s.clubs_en_attente}</span>`:''}`)}${tab('clubs','Tous les clubs')}${tab('niveaux','Niveaux')}</div>
     <div id="pt-body"></div>`;
   if(ptTab==='niveaux')return ptRenderNiveaux();
@@ -226,4 +229,56 @@ async function ptRetirerMembre(id,club){
   if(error)return showToast(/au moins un CQ/i.test(error.message)?'Un club doit garder au moins un CQ : nomme d\'abord un autre CQ':error.message,'err');
   if(!data?.length)return showToast('Retrait refusé','err');
   showToast('Rôle retiré','ok');ptRenderFiche(club);
+}
+
+// ------------------------------------------------------------ CRÉATION D'UN CLUB
+// Passe par create_club() (même fonction que pour un CQ) : l'admin en devient CQ le temps
+// de la création ; si l'email du vrai CQ est donné, il est nommé CQ et l'admin se retire.
+function ptRenderCreation(){
+  const el=document.getElementById('plateforme-content');
+  el.innerHTML=`<button class="bsec logo-btn" style="margin-bottom:12px" onclick="ptView=null;renderPlateforme()">← Tous les clubs</button>
+  <div class="card">
+    <div class="club-sec">Nouveau club</div>
+    <div class="fg"><label class="fl">Nom *</label><input class="fi" id="pn-nom" placeholder="ex : RFC Hannut"></div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Province</label><select class="sel" id="pn-prov"><option value="">—</option>${refs.provinces.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Matricule</label><input class="fi" id="pn-mat" inputmode="numeric"></div>
+    </div>
+    <div class="fg"><label class="fl">Adresse du terrain *</label><input class="fi" id="pn-adr" placeholder="rue, n°, code postal, commune"></div>
+    <div class="fg"><label class="fl">Email du CQ (compte FootCoach existant)</label><input class="fi" id="pn-cq" type="email" placeholder="facultatif — sinon tu restes CQ provisoire">
+      <div style="font-size:11px;color:var(--text3);margin-top:5px">Le CQ peut aussi être nommé plus tard depuis la fiche du club.</div></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0 12px"><input type="checkbox" id="pn-verif" checked> Marquer le club comme vérifié</label>
+    <button class="bp" id="pn-ok" onclick="ptCreerClub()">Créer le club</button>
+  </div>`;
+  document.getElementById('pn-nom').focus();
+}
+async function ptCreerClub(){
+  const g=x=>document.getElementById(x);
+  const nom=g('pn-nom').value.trim(),adr=g('pn-adr').value.trim(),email=g('pn-cq').value.trim().toLowerCase();
+  if(!nom)return showToast('Nom du club obligatoire','err');
+  if(!adr)return showToast('Adresse du terrain obligatoire','err');
+  const btn=g('pn-ok');btn.disabled=true;btn.textContent='Création…';
+  const fin=()=>{btn.disabled=false;btn.textContent='Créer le club';};
+  // CQ vérifié AVANT la création : pas de club créé à moitié pour une faute de frappe
+  let cq=null;
+  if(email){
+    const r=await sb.rpc('find_profile_by_email',{e:email});
+    cq=Array.isArray(r.data)?r.data[0]:r.data;
+    if(!cq){fin();return showToast('Aucun compte FootCoach avec cet email','err');}
+  }
+  const{data:id,error}=await sb.rpc('create_club',{p_nom:nom,p_province_id:parseInt(g('pn-prov').value)||null,p_matricule:g('pn-mat').value.trim()||null,p_adresse:adr});
+  if(error){fin();return showToast(/matricule|unique|duplicate/i.test(error.message)?'Ce matricule est déjà utilisé par un autre club':error.message,'err');}
+  const msgs=[];
+  const pos=await geocodeAdresse(adr);   // sans bloquer : la position peut être corrigée dans la fiche
+  const upd=pos?{lat:pos.lat,lng:pos.lng}:{};
+  if(g('pn-verif').checked)upd.verifie=true;
+  if(Object.keys(upd).length){const u=await sb.from('clubs').update(upd).eq('id',id);if(u.error)msgs.push('mise à jour : '+u.error.message);}
+  if(!pos)msgs.push('adresse introuvable sur la carte');
+  if(cq&&cq.id!==U.id){
+    const a=await sb.from('club_members').insert({club_id:id,profile_id:cq.id,role:'cq'}).select('id');
+    if(a.error||!a.data?.length)msgs.push('CQ non nommé');
+    else await sb.from('club_members').delete().eq('club_id',id).eq('profile_id',U.id);   // l'admin se retire
+  }
+  showToast(`Club « ${nom} » créé`+(msgs.length?' — '+msgs.join(', '):''),msgs.length?'err':'ok');
+  ptView=id;renderPlateforme();
 }

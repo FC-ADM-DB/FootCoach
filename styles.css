@@ -697,3 +697,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   .tb-et{padding:0}
   .tb-et.lire{grid-column:1/-1;padding:0}
 }
+
+/* Gestion des clubs — chiffres compacts + création */
+.pt-stats{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.pt-stat{font-size:12px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:99px;padding:3px 9px;white-space:nowrap}
+.pt-stat b{color:var(--text);font-family:var(--mono)}
+.pt-stat.warn{border-color:var(--amber-border);background:var(--amber-bg);color:var(--amber)}
+.pt-stat.warn b{color:var(--amber)}
+.pt-new{margin:0 0 12px}
