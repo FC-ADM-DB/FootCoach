@@ -89,7 +89,7 @@ async function prRenderListe(){
       ${todo&&!(p.non_lus&&!(p.decide?(p.a_moi||p.suggestion):(p.a_moi&&!p.suggestion)))?`<div class="pr-todo">${p.suggestion&&p.decide?'💡 Suggestion à valider':p.statut==='a_valider'?(p.decide?'➤ À envoyer':'⏳ En attente de ton coordinateur'):'👉 À vous de répondre'}</div>`:''}
     </div>`;};
   const enCours=prListe.filter(p=>['a_valider','envoyee','contre'].includes(p.statut)),finies=prListe.filter(p=>!enCours.includes(p));
-  body.innerHTML=(prListe.length?'':`<div class="empty"><div class="empty-i">🤝</div><div class="empty-t">Aucune proposition</div><div class="empty-s">Ouvre une annonce et touche « Proposer un match ».</div></div>`)+
+  body.innerHTML=(myClubs.length?'<button class="bsec pr-cal" onclick="ouvrirCalendrier()">📅 Calendrier du club (toutes les équipes)</button>':'')+(prListe.length?'':`<div class="empty"><div class="empty-i">🤝</div><div class="empty-t">Aucune proposition</div><div class="empty-s">Ouvre une annonce et touche « Proposer un match ».</div></div>`)+
     (enCours.length?`<div class="tb-sec-t">En cours</div>`+enCours.map(carte).join(''):'')+
     (finies.length?`<div class="tb-sec-t" style="margin-top:14px">Terminées</div>`+finies.slice(0,20).map(carte).join(''):'');
 }
@@ -102,6 +102,7 @@ async function prOuvrir(id,silencieux){
     sb.rpc('proposition_contacts',{p_id:id})]);
   if(prOuverte?.id!==id)return;
   prRenderDetail(t.data||[],c.data||[]);
+  if(prOuverte.decide&&typeof calJourClub==='function')calJourClub(prOuverte);   // planning du club ce jour-là
   const ta=document.getElementById('prm-texte');if(ta&&saisie)ta.value=saisie;
   const h=document.getElementById('pr-hist');if(h)h.scrollTop=h.scrollHeight;
   // Fiche ouverte = messages lus
@@ -153,6 +154,7 @@ function prRenderDetail(tours,contacts){
   document.getElementById('prop-body').innerHTML=`
     <div class="mt">${p.cote==='proposant'?'Proposition à':'Proposition de'} ${esc(autreClub)}</div>
     <div class="pr-head"><span class="pill ${cl}">${lbl}</span><span>📅 ${esc(prQuand(p))}</span><span>${prLieuTxt(p.lieu,p.cote)}</span></div>
+    ${p.decide&&enCours?'<div id="pr-jour-club"></div>':''}
     ${actions}
     <div class="tb-sec-t" style="margin-top:14px">Échanges avec ${esc(autreClub)}</div>
     <div class="pr-hist" id="pr-hist">${hist.map(tourTxt).join('')}</div>

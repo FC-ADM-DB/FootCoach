@@ -39,6 +39,7 @@ from (values
   ('cq.huy@demo.footcoach',       'Isabelle', 'Mathieu'),
   ('cq.amay@demo.footcoach',      'Pierre',   'Lambrecht'),
   ('cq.burdinne@demo.footcoach',  'Valérie',  'Hardy'),
+  ('coach.reh@demo.footcoach',    'Thomas',   'Coach'),     -- entraîneur U10A REH (sans rôle club : il suggère, David valide)
   ('parent@demo.footcoach',       'Claire',   'Parent')     -- maman d'Arthur (U10A), accès parent (A3)
 ) as u(email, prenom, nom);
 
@@ -103,7 +104,8 @@ from (values
 insert into public.team_members (team_id, profile_id, role) values
   (md5('demo-reh-braives/U10A')::uuid, md5('david@demo.footcoach')::uuid, 'entraineur'),
   (md5('demo-reh-braives/U9')::uuid,   md5('david@demo.footcoach')::uuid, 'entraineur'),
-  (md5('demo-hannut/U10')::uuid,       md5('coach.hannut@demo.footcoach')::uuid, 'entraineur');
+  (md5('demo-hannut/U10')::uuid,       md5('coach.hannut@demo.footcoach')::uuid, 'entraineur'),
+  (md5('demo-reh-braives/U10A')::uuid, md5('coach.reh@demo.footcoach')::uuid, 'entraineur');
 
 -- Quelques joueurs FICTIFS dans U10A (démo) pour tester convocations / Live
 insert into public.players (team_id, prenom, nom, numero_poste, date_naissance)
