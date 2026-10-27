@@ -320,7 +320,18 @@ function tbTraitsUp(){
     }
     et.ballon=nv;
   }
-  if(suiv)tbSuivreFleches(et,suiv,[t]);
+  if(suiv){
+    const avant={...suiv.ballon};
+    tbSuivreFleches(et,suiv,[t]);
+    // Le ballon de l'étape suivante a changé : les étapes d'après où il n'avait pas servi
+    // (même place, aucune passe avant) le reçoivent aussi
+    if(tbDist(avant,suiv.ballon)>=0.5)
+      for(let j=tbEtapeIdx+2;j<tb.etat.etapes.length;j++){
+        const e=tb.etat.etapes[j],p=tb.etat.etapes[j-1];
+        if(tbDist(e.ballon,avant)>=0.5||p.traits.some(x=>x.type==='passe'))break;
+        e.ballon={...suiv.ballon};
+      }
+  }
   bouge?tbRender():tbRenderTraits();tbSauver();
 }
 document.addEventListener('DOMContentLoaded',()=>{
@@ -512,23 +523,23 @@ function tbSuivreFleches(src,dst,traits){
     q.x=b.x;q.y=b.y;n++;
   }
   // Passes : le ballon suit les pointillés, dans l'ordre où ils ont été tracés (une-deux
-  // possible) et finit au bout de la dernière passe. Pas besoin de partir pile du ballon.
+  // possible) et finit au bout de la dernière passe. Le ballon étant placé automatiquement,
+  // les passes font toujours foi (avant, un ballon déjà placé ailleurs dans l'étape suivante
+  // bloquait le déplacement : la passe de l'étape 1 n'était pas jouée à la lecture).
   if(passes.length&&traits.some(t=>t.type==='passe')){
-    const fins=passes.slice(0,-1).map(bout);   // ballon déjà placé par une passe précédente
-    if(intact(src.ballon,dst.ballon)||fins.some(f=>intact(f,dst.ballon))){
-      const b=bout(passes[passes.length-1]);dst.ballon={x:b.x,y:b.y};n++;
-    }
+    const b=bout(passes[passes.length-1]);
+    if(!intact(b,dst.ballon)){dst.ballon={x:b.x,y:b.y};n++;}
   }
   return n;
 }
-// Trajet du ballon pendant la lecture A → B : le long des pointillés de A quand le ballon
-// finit au bout de la dernière passe, sinon en ligne droite.
+// Trajet du ballon pendant la lecture A → B : le long des pointillés de A s'il y en a,
+// sinon en ligne droite.
 function tbTrajetBallon(A,B){
   const passes=A.traits.filter(t=>t.type==='passe');
   const pt=p=>({x:p[0],y:p[1]});
   let P=[A.ballon,B.ballon];
-  if(passes.length&&tbDist(pt(passes[passes.length-1].pts.at(-1)),B.ballon)<0.5)
-    P=[A.ballon,...passes.flatMap(t=>[pt(t.pts[0]),pt(t.pts.at(-1))])];
+  // Toujours le long des passes de A ; si le ballon de B est ailleurs, il le rejoint ensuite
+  if(passes.length)P=[A.ballon,...passes.flatMap(t=>[pt(t.pts[0]),pt(t.pts.at(-1))]),B.ballon];
   P=P.filter((p,i)=>!i||tbDist(p,P[i-1])>0.3);
   const L=[0];for(let i=1;i<P.length;i++)L.push(L[i-1]+tbDist(P[i],P[i-1]));
   const tot=L[L.length-1];
