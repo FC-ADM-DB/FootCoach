@@ -50,30 +50,16 @@ function tbNouvelEtat(fmt,matchLayout,assign,nFesti){
 }
 
 // ------------------------------------------------------------ OUVERTURE
-// Liste des tableaux du match ouvert, avec création d'un nouveau
-async function openTableauxMatch(){
-  if(!CM||!CT)return showToast('Ouvre d\'abord un match','err');
-  if(!isAdmin)return showToast('Réservé à l\'encadrement','err');
-  const box=document.getElementById('tb-liste');box.innerHTML='<div class="spin"></div>';
-  openModal('modal-tableaux');
-  const{data,error}=await sb.from('tableaux').select('id,titre,phase,periode,updated_at').eq('match_id',CM.id).order('updated_at',{ascending:false});
-  const def=CM.statut==='termine'?'apres':CM.statut==='en_cours'?'pause':'avant';
-  box.innerHTML=(error?'<div class="rs-warn">Tableaux indisponibles (hors ligne ?)</div>':'')+
-    ((data||[]).map(t=>`<button class="tb-item" onclick="closeModal('modal-tableaux');openTableau('${t.id}')">
-      <span class="pill pb">${esc(TB_PHASES[t.phase])}${t.phase==='pause'&&t.periode?' '+t.periode:''}</span>
-      <span class="tb-item-t">${esc(t.titre||'Sans titre')}</span><span class="acc-arrow">›</span></button>`).join('')||'<div class="rs-line" style="margin-bottom:8px">Aucun tableau pour ce match.</div>')+
-    `<div class="tb-new">${['avant','pause','apres'].map(p=>`<button class="${p===def?'bp':'bsec'}" onclick="closeModal('modal-tableaux');nouveauTableau('${p}')">+ ${TB_PHASES[p]}</button>`).join('')}</div>`;
-}
 function nouveauTableau(phase){
   const fmt=CT.format;
   // À la pause : composition DU MOMENT (assignment / posteLayout du match ouvert)
   const live=CM&&Object.keys(assignment||{}).length;
-  tb={id:tbUuid(),team_id:CT.id,match_id:CM?.id||null,phase,periode:phase==='pause'?(halfN||1):null,
+  tb={id:tbUuid(),team_id:CT.id,match_id:CM?.id||null,phase,periode:phase==='pause'?tbPeriode():null,
       titre:'',format:fmt,version:0,
       etat:tbNouvelEtat(fmt,live?posteLayout?.portrait:null,live?assignment:null,formatHasLive(fmt)?0:3)};
   tbOuvrirEcran();tbSauver();
 }
-async function openTableau(id){
+async function openTableau(id,lire){
   // Copie locale d'abord (hors ligne), sinon la base
   const loc=tbLireLocal(id);
   let row=null;
@@ -86,6 +72,7 @@ async function openTableau(id){
   tb.etat.terrain={adversaires:true,libelles:'prenoms',...(tb.etat.terrain||{})};tb.etat.consignes=tb.etat.consignes||[];
   tb.etat.etapes.forEach(e=>{e.pions=e.pions||[];e.ballon=e.ballon||{x:50,y:50};e.traits=e.traits||[];});
   tbOuvrirEcran();
+  if(lire&&tb.etat.etapes.length>1)tbLire();   // « ▶ Rejouer » depuis le Bilan
 }
 
 // ------------------------------------------------------------ ÉCRAN
@@ -99,8 +86,9 @@ function tbOuvrirEcran(){
 }
 function fermerTableau(){
   tbStop();
-  tbSauver(true);
+  const envoi=tbSauver(true);
   document.getElementById('tb-screen').style.display='none';
+  tbMajMatch();envoi?.then(()=>tbMajMatch());   // titre / nouveau tableau visibles dans la liste
 }
 function tbRender(){
   if(!tb)return;
@@ -197,14 +185,16 @@ function tbSauver(immediat){
   try{localStorage.setItem(tbCle(tb.id),JSON.stringify({...row,version:tb.version,local:true}));}catch(e){}
   tbEtat='attente';tbMajStatut();
   clearTimeout(tbSaveT);
+  const cur=tb;
   const envoi=async()=>{
     const{data,error}=await sb.from('tableaux').upsert(row).select('version').single();
-    if(error){tbEtat='attente';tbMajStatut();return;}
-    tb.version=data.version;tbEtat='ok';
-    try{localStorage.removeItem(tbCle(tb.id));}catch(e){}
-    tbMajStatut();
+    if(error){if(tb===cur){tbEtat='attente';tbMajStatut();}return;}
+    cur.version=data.version;
+    try{localStorage.removeItem(tbCle(cur.id));}catch(e){}
+    if(tb===cur){tbEtat='ok';tbMajStatut();}
   };
-  if(immediat)envoi();else tbSaveT=setTimeout(envoi,700);
+  if(immediat)return envoi();
+  tbSaveT=setTimeout(envoi,700);
 }
 function tbMajStatut(){
   const el=document.getElementById('tb-statut');if(!el)return;
@@ -379,3 +369,70 @@ function tbAnimer(A,B,duree,lect){
     requestAnimationFrame(frame);
   });
 }
+
+// ============ T4 : INTÉGRATION AU MATCH ============
+// Avant : section « Tableaux tactiques » sous les convocations.
+// Pause : bouton « ⏸ Tableau » dans la barre du chrono, visible quand le chrono est arrêté
+//   (mi-temps, arrêt de jeu) ; reprend le tableau de cette pause s'il existe, sinon en crée
+//   un avec la composition du moment.
+// Après : dans le Bilan, chaque tableau peut être rejoué (▶) + tableau d'analyse.
+// Encadrement seulement (isAdmin) : les parents et spectateurs ne voient rien.
+// Pause en cours : « Mi-temps » passe déjà halfN à 2, la pause est donc celle de la 1re période
+const tbPeriode=()=>halfTimePending?Math.max(1,halfN-1):(halfN||1);
+const tbLibelle=t=>TB_PHASES[t.phase]+(t.phase==='pause'&&t.periode?' '+t.periode:'');
+// Tableaux du match : base + copies locales pas encore envoyées (hors ligne, ou juste créées)
+async function tbTableauxMatch(matchId){
+  let rows=[],horsLigne=false;
+  try{const{data,error}=await sb.from('tableaux').select('id,titre,phase,periode,updated_at,etat').eq('match_id',matchId).order('created_at');
+    if(error)horsLigne=true;else rows=data||[];}catch(e){horsLigne=true;}
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith('fc_tb_'))continue;
+    const l=JSON.parse(localStorage.getItem(k)||'null');if(!l||l.match_id!==matchId)continue;
+    const j=rows.findIndex(r=>r.id===l.id);
+    if(j<0)rows.push({...l,local:true});else rows[j]={...rows[j],...l,local:true};}}catch(e){}
+  return{rows,horsLigne};
+}
+let tbMajJeton=0;
+async function tbMajMatch(){
+  const conv=document.getElementById('tb-match-conv'),res=document.getElementById('tb-match-res');
+  tbMajPause();
+  if(!conv||!res)return;
+  if(!CM||!isAdmin){conv.innerHTML='';res.innerHTML='';return;}
+  const vis=id=>document.getElementById(id)?.style.display!=='none';
+  if(!vis('tab-conv')&&!vis('tab-res'))return;
+  const jeton=++tbMajJeton,matchId=CM.id;
+  const{rows,horsLigne}=await tbTableauxMatch(matchId);
+  if(jeton!==tbMajJeton||CM?.id!==matchId)return;   // réponse arrivée après un changement de match
+  const ligne=(t,lire)=>{const n=t.etat?.etapes?.length||1;
+    return `<button class="tb-item" onclick="openTableau('${t.id}'${lire&&n>1?',true':''})">
+      <span class="pill pb">${esc(tbLibelle(t))}</span>
+      <span class="tb-item-t">${esc(t.titre||'Sans titre')}</span>
+      ${t.local?'<span title="Pas encore envoyé">⏳</span>':''}
+      ${lire&&n>1?`<span class="tb-rejouer">▶ ${n} étapes</span>`:'<span class="acc-arrow">›</span>'}</button>`;};
+  const titre='<div class="tb-sec-t">📋 Tableaux tactiques</div>';
+  const warn=horsLigne?'<div class="rs-line" style="margin-bottom:6px">Hors ligne : seuls les tableaux de cet appareil sont affichés.</div>':'';
+  const fini=CM.statut==='termine';
+  conv.innerHTML=titre+warn+rows.map(t=>ligne(t,false)).join('')+
+    `<button class="bsec tb-add" onclick="nouveauTableau('avant')">+ Préparer un tableau</button>`;
+  res.innerHTML=titre+warn+(rows.length?rows.map(t=>ligne(t,true)).join(''):'<div class="rs-line" style="margin-bottom:6px">Aucun tableau pour ce match.</div>')+
+    `<button class="bsec tb-add" onclick="nouveauTableau('${fini?'apres':'avant'}')">+ ${fini?'Tableau d\'analyse':'Préparer un tableau'}</button>`;
+}
+// Bouton de la pause : seulement chrono arrêté, match commencé et pas terminé
+function tbMajPause(){
+  const b=document.getElementById('btn-tb-pause');if(!b)return;
+  b.style.display=CM&&isAdmin&&matchStarted&&!chronoOn&&CM.statut!=='termine'?'':'none';
+}
+async function tbOuvrirPause(){
+  if(!CM)return;
+  const p=tbPeriode(),matchId=CM.id;
+  const{rows}=await tbTableauxMatch(matchId);
+  const ex=rows.filter(t=>t.phase==='pause'&&t.periode===p).pop();
+  if(ex)openTableau(ex.id);else nouveauTableau('pause');
+}
+// Mise à jour à chaque changement d'onglet, et quand le bouton Start/Pause du chrono change
+// (chrono lancé ou arrêté, ici ou depuis un autre appareil)
+(function(){
+  const sw=switchTab;
+  switchTab=function(t){const r=sw.apply(this,arguments);tbMajMatch();return r;};
+  const src=document.getElementById('btn-chrono');
+  if(src&&window.MutationObserver)new MutationObserver(tbMajPause).observe(src,{childList:true,characterData:true,subtree:true});
+})();
