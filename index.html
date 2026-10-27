@@ -371,6 +371,8 @@
     <div class="tb-tools">
       <button class="tb-btn tb-tog" id="tb-adv" onclick="tbToggleAdv()">👥 Adversaires</button>
       <button class="tb-btn" id="tb-lib" onclick="tbToggleLib()">Aa Prénoms</button>
+      <button class="tb-btn" id="tb-mod" onclick="tbEnregistrerModele()">★ Modèle</button>
+      <button class="tb-btn" onclick="tbExporter()">⤴ Image</button>
       <div class="tb-festi" id="tb-festi"><button class="tb-btn" onclick="tbFesti(-1)" aria-label="Un joueur de moins">−</button><span>joueurs</span><button class="tb-btn" onclick="tbFesti(1)" aria-label="Un joueur de plus">+</button></div>
     </div>
     <div class="tb-field">
@@ -391,6 +393,14 @@
       <button class="tb-btn" id="tb-undo" onclick="tbAnnuler()" aria-label="Annuler">↶</button>
       <button class="tb-btn" id="tb-redo" onclick="tbRetablir()" aria-label="Rétablir">↷</button>
       <button class="tb-btn" onclick="tbEffacerTraits()" aria-label="Effacer les tracés">🗑</button>
+    </div>
+  </div>
+  <div class="mo" id="modal-tb-nouveau">
+    <div class="modal">
+      <div class="mh"></div>
+      <div class="mt">Nouveau tableau</div>
+      <div id="tb-nouveau-liste"></div>
+      <div class="mfoot"><button class="bcan" onclick="closeModal('modal-tb-nouveau')">Annuler</button></div>
     </div>
   </div>
 

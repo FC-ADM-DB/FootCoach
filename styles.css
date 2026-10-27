@@ -674,3 +674,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .tb-sec-t{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px}
 .tb-rejouer{flex-shrink:0;font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:99px;padding:4px 10px}
 .tb-add{width:100%;min-height:44px;font-size:13px}
+
+/* Tableau tactique — modèles (T5) */
+.tb-mod-l{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.tb-mod-l .tb-item{margin:0;flex:1;min-width:0}
