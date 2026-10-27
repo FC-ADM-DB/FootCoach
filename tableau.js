@@ -240,7 +240,19 @@ function tbRenderTraits(){
   const px=([x,y])=>{const s=tbToScreen(x,y);return[s.x*W/100,s.y*H/100];};
   const fl=Math.max(9,Math.min(W,H)*0.035);   // taille de la pointe de flèche
   const traits=[...tbEtape().traits,...(tbTrace?[tbTrace]:[])];
-  svg.innerHTML=traits.map(t=>{
+  // Étape 2 et suivantes : les flèches de l'étape d'avant restent visibles en gris, sans
+  // zone de toucher (la gomme ne peut pas les effacer d'ici) ; masquées pendant la lecture.
+  const prec=!tbLecture&&tbEtapeIdx>0?tb.etat.etapes[tbEtapeIdx-1]?.traits||[]:[];
+  const fantome=prec.map(t=>{
+    const P=t.pts.map(px),d='M'+P.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L');
+    let tete='';
+    if(t.type!=='crayon'&&P.length>1){
+      const [x1,y1]=P[P.length-2],[x2,y2]=P[P.length-1],a=Math.atan2(y2-y1,x2-x1);
+      tete=`<polygon points="${x2},${y2} ${x2-fl*Math.cos(a-0.45)},${y2-fl*Math.sin(a-0.45)} ${x2-fl*Math.cos(a+0.45)},${y2-fl*Math.sin(a+0.45)}" fill="#cbd5e1"/>`;
+    }
+    return `<g class="tb-fantome" opacity=".35"><path d="${d}" fill="none" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"${t.type==='passe'?' stroke-dasharray="8 7"':''}/>${tete}</g>`;
+  }).join('');
+  svg.innerHTML=fantome+traits.map(t=>{
     const P=t.pts.map(px),c=TB_COUL[t.type]||'#fff',w=t.type==='crayon'?3:3.5;
     const d='M'+P.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L');
     let tete='';
@@ -282,7 +294,9 @@ function tbTraitsUp(){
   const a=t.pts[0],b=t.pts[t.pts.length-1];
   // Trait trop court (simple toucher) : ignoré
   if(t.type==='crayon'?t.pts.length<3:Math.hypot(b[0]-a[0],b[1]-a[1])<3){tbRenderTraits();return;}
-  tbSnap();tbEtape().traits.push(t);tbRenderTraits();tbSauver();
+  tbSnap();tbEtape().traits.push(t);
+  const suiv=tb.etat.etapes[tbEtapeIdx+1];if(suiv)tbSuivreFleches(tbEtape(),suiv,[t]);
+  tbRenderTraits();tbSauver();
 }
 document.addEventListener('DOMContentLoaded',()=>{
   const svg=document.getElementById('tb-traits');if(!svg)return;
@@ -321,9 +335,11 @@ function tbAllerEtape(i){if(tbLecture)return;tbEtapeIdx=i;tbRender();}
 function tbAjouterEtape(){
   const E=tb.etat.etapes;if(E.length>=TB_MAX_ETAPES)return showToast(`${TB_MAX_ETAPES} étapes maximum`,'err');
   tbSnap();
-  const copie=JSON.parse(JSON.stringify(tbEtape()));copie.traits=[];   // mêmes positions, sans flèches
+  const src=tbEtape(),copie=JSON.parse(JSON.stringify(src));copie.traits=[];   // mêmes positions, sans flèches
+  const n=tbSuivreFleches(src,copie,src.traits);
   E.splice(tbEtapeIdx+1,0,copie);tbEtapeIdx++;
-  tbRender();tbSauver();showToast(`Étape ${tbEtapeIdx+1} : déplace les joueurs`,'ok');
+  tbRender();tbSauver();
+  showToast(n?`Étape ${tbEtapeIdx+1} : les joueurs ont suivi leurs flèches`:`Étape ${tbEtapeIdx+1} : déplace les joueurs`,'ok');
 }
 function tbSupprEtape(){
   const E=tb.etat.etapes;if(E.length<=1)return;
@@ -436,3 +452,35 @@ async function tbOuvrirPause(){
   const src=document.getElementById('btn-chrono');
   if(src&&window.MutationObserver)new MutationObserver(tbMajPause).observe(src,{childList:true,characterData:true,subtree:true});
 })();
+
+// ============ FLÈCHES → ÉTAPE SUIVANTE ============
+// Une flèche qui part d'un pion décrit son déplacement : dans l'étape suivante, le pion est
+// placé au bout de la flèche (course = trait plein), le ballon au bout d'une passe (pointillés).
+// Un joueur qui court avec le ballon à ses pieds (sans passe) l'emmène avec lui.
+// On ne touche pas à un pion déjà déplacé à la main dans l'étape suivante.
+const TB_SEUIL=8;                                       // rayon de « départ depuis le pion » (% du terrain)
+const tbDist=(a,b)=>Math.hypot(a.x-b.x,(a.y-b.y)*1.4); // y corrigé : le terrain est 1,4× plus long que large
+function tbSuivreFleches(src,dst,traits){
+  const vis=p=>p.camp==='nous'||tb.etat.terrain.adversaires;
+  const intact=(a,b)=>b&&tbDist(a,b)<0.5;
+  const bout=t=>({x:t.pts[t.pts.length-1][0],y:t.pts[t.pts.length-1][1]});
+  const dep=t=>({x:t.pts[0][0],y:t.pts[0][1]});
+  const passeDuBallon=src.traits.some(t=>t.type==='passe'&&tbDist(dep(t),src.ballon)<TB_SEUIL+2);
+  let n=0;
+  for(const t of traits.filter(t=>t.type==='course')){
+    const a=dep(t);
+    const p=src.pions.filter(vis).map(p=>({p,d:tbDist(p,a)})).filter(o=>o.d<TB_SEUIL).sort((x,y)=>x.d-y.d)[0]?.p;
+    if(!p)continue;
+    const q=dst.pions.find(x=>x.id===p.id),b=bout(t);
+    if(!intact(p,q))continue;
+    // Conduite de balle : le ballon garde le même écart avec le joueur
+    if(!passeDuBallon&&tbDist(src.ballon,p)<TB_SEUIL&&intact(src.ballon,dst.ballon))
+      dst.ballon={x:tbClamp(+(b.x+src.ballon.x-p.x).toFixed(1)),y:tbClamp(+(b.y+src.ballon.y-p.y).toFixed(1))};
+    q.x=b.x;q.y=b.y;n++;
+  }
+  for(const t of traits.filter(t=>t.type==='passe')){
+    if(tbDist(dep(t),src.ballon)>=TB_SEUIL+2||!intact(src.ballon,dst.ballon))continue;
+    const b=bout(t);dst.ballon={x:b.x,y:b.y};n++;
+  }
+  return n;
+}
