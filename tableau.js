@@ -242,19 +242,7 @@ function tbRenderTraits(){
   const px=([x,y])=>{const s=tbToScreen(x,y);return[s.x*W/100,s.y*H/100];};
   const fl=Math.max(9,Math.min(W,H)*0.035);   // taille de la pointe de flèche
   const traits=[...tbEtape().traits,...(tbTrace?[tbTrace]:[])];
-  // Étape 2 et suivantes : les flèches de l'étape d'avant restent visibles en gris, sans
-  // zone de toucher (la gomme ne peut pas les effacer d'ici) ; masquées pendant la lecture.
-  const prec=!tbLecture&&tbEtapeIdx>0?tb.etat.etapes[tbEtapeIdx-1]?.traits||[]:[];
-  const fantome=prec.map(t=>{
-    const P=t.pts.map(px),d='M'+P.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L');
-    let tete='';
-    if(t.type!=='crayon'&&P.length>1){
-      const [x1,y1]=P[P.length-2],[x2,y2]=P[P.length-1],a=Math.atan2(y2-y1,x2-x1);
-      tete=`<polygon points="${x2},${y2} ${x2-fl*Math.cos(a-0.45)},${y2-fl*Math.sin(a-0.45)} ${x2-fl*Math.cos(a+0.45)},${y2-fl*Math.sin(a+0.45)}" fill="#cbd5e1"/>`;
-    }
-    return `<g class="tb-fantome" opacity=".35"><path d="${d}" fill="none" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"${t.type==='passe'?' stroke-dasharray="8 7"':''}/>${tete}</g>`;
-  }).join('');
-  svg.innerHTML=fantome+traits.map(t=>{
+  svg.innerHTML=traits.map(t=>{
     const P=t.pts.map(px),c=TB_COUL[t.type]||'#fff',w=t.type==='crayon'?3:3.5;
     const d='M'+P.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L');
     let tete='';
