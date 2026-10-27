@@ -1032,6 +1032,13 @@ function startChronoInterval(){
 function toggleChrono(){
   if(CM?.statut==='termine') return showToast('Ce match est terminé.','err');
   const btn=document.getElementById('btn-chrono');
+  // Coup d'envoi : l'onglet Live est accessible directement par le fil d'étapes, sans
+  // passer par « Démarrer le match » (qui vérifie les convocations) — on pouvait donc
+  // lancer un match sans aucun joueur convoqué. Même contrôle ici.
+  if(!chronoOn&&!matchStarted){
+    const maxOn=formatPlayers(CT?.format),n=players.filter(p=>convs[p.id]==='present').length;
+    if(n<maxOn){showToast(`Convoque au moins ${maxOn} joueurs avant de démarrer (${n} présent${n>1?'s':''})`,'err');switchTab('conv');return;}
+  }
   if(!chronoOn){
     if(halfTimePending){
       // Le vrai reset de mi-temps a lieu ici (pas au clic sur "Mi-temps") : freezeTimes()
