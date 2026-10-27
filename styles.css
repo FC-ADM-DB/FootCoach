@@ -612,3 +612,88 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .pt-team{padding:10px 0;border-top:1px solid var(--border)}
 .pt-team:first-of-type{border-top:none}
 .pt-mb{font-size:13px;padding:4px 0 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+
+/* ============ TABLEAU TACTIQUE (tableau.js) ============ */
+.tb-screen{position:fixed;inset:0;z-index:260;background:var(--bg);flex-direction:column;padding:calc(var(--st) + 6px) 8px calc(var(--sb) + 8px)}
+.tb-top{display:flex;align-items:center;gap:8px}
+.tb-head{flex:1;min-width:0;display:flex;flex-direction:column}
+.tb-titre{background:none;border:none;color:var(--text);font-family:var(--font);font-size:16px;font-weight:700;padding:4px 0;outline:none;min-width:0}
+.tb-phase{font-size:11px;color:var(--text2);font-weight:600}
+.tb-statut{font-size:11px;color:var(--green);font-weight:600;flex-shrink:0}
+.tb-statut.attente{color:var(--amber)}
+.tb-btn{min-height:44px;min-width:44px;padding:0 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0}
+.tb-tog.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
+.tb-tools{display:flex;gap:6px;margin:8px 0;overflow-x:auto;flex-shrink:0}
+.tb-festi{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2)}
+.tb-field{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+.tb-wrap{margin:0 auto;max-width:none;aspect-ratio:auto}
+.tb-wrap.landscape{margin:0 auto;height:auto;aspect-ratio:auto}
+.tb-pions{position:absolute;inset:0;touch-action:none}
+.tb-pion{position:absolute;transform:translate(-50%,-50%);width:var(--tbp,38px);height:var(--tbp,38px);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-size:calc(var(--tbp,38px)*.4);font-weight:700;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 2px 6px rgba(0,0,0,.45);outline:none;z-index:2}
+.tb-pion::before{content:'';position:absolute;inset:min(-3px,calc((var(--tbp,38px) - 44px)/2));border-radius:50%}     /* cible ≥ 44 px */
+.tb-pion.nous{background:var(--green);color:#0a1628;border:2px solid #fff}
+.tb-pion.eux{background:var(--red);color:#fff;border:2px solid rgba(255,255,255,.7);width:calc(var(--tbp,38px)*.9);height:calc(var(--tbp,38px)*.9);font-size:calc(var(--tbp,38px)*.35)}
+.tb-pion.ballon{background:none;box-shadow:none;font-size:calc(var(--tbp,38px)*.63);width:calc(var(--tbp,38px)*.84);height:calc(var(--tbp,38px)*.84);z-index:3}
+.tb-pion:focus-visible{box-shadow:0 0 0 3px var(--amber)}
+.tb-pion.drag{cursor:grabbing;transform:translate(-50%,-50%) scale(1.15);z-index:5}
+.tb-nom{position:absolute;top:100%;margin-top:2px;font-family:var(--font);font-size:10px;font-weight:700;color:var(--text);background:rgba(10,22,40,.75);padding:0 4px;border-radius:4px;white-space:nowrap}
+.tb-item{display:flex;align-items:center;gap:8px;width:100%;min-height:48px;padding:0 10px;margin-bottom:6px;border-radius:var(--rsm);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:var(--font);font-size:14px;cursor:pointer;text-align:left}
+.tb-item-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.tb-new{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tb-new button{flex:1;min-height:44px;width:auto;margin:0;font-size:13px}
+
+/* Tableau tactique — outils de dessin (T2) */
+.tb-traits{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;touch-action:none;z-index:1}
+.tb-traits.actif{pointer-events:auto;cursor:crosshair}
+.tb-traits .tb-hit{pointer-events:stroke}
+.tb-pions{z-index:2}
+.tb-pions.inactif,.tb-pions.inactif .tb-pion{pointer-events:none}
+.tb-bar{display:flex;align-items:center;gap:5px;justify-content:center;flex-wrap:nowrap;overflow-x:auto;padding-top:8px;flex-shrink:0}
+.tb-bar .tb-btn{font-size:18px;padding:0;width:46px}
+.tb-bar .tb-btn.on{background:var(--green-bg);border-color:var(--green-border);box-shadow:inset 0 0 0 1px var(--green)}
+.tb-bar .tb-btn:disabled{opacity:.35}
+.tb-sep{width:1px;height:28px;background:var(--border2);margin:0 3px;flex-shrink:0}
+@media (max-width:420px){.tb-bar .tb-btn{width:40px;min-width:40px;font-size:16px}.tb-bar{gap:3px}}
+
+/* Tableau tactique — étapes et lecture (T3) */
+.tb-etapes{display:flex;align-items:center;gap:5px;overflow-x:auto;padding-top:8px;flex-shrink:0;justify-content:center}
+.tb-et{min-width:40px;min-height:40px;padding:0 10px;border-radius:99px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0}
+.tb-et.on{background:var(--green);border-color:var(--green);color:#0a1628}
+.tb-et.plus{color:var(--green);border-style:dashed}
+.tb-et.lire{background:var(--blue-bg);border-color:var(--blue-border);color:var(--blue);padding:0 14px}
+.tb-et.lire.on{background:var(--amber);border-color:var(--amber);color:#0a1628}
+.tb-et:disabled{opacity:.4}
+.tb-screen.lecture .tb-pions,.tb-screen.lecture .tb-pion,.tb-screen.lecture .tb-traits{pointer-events:none}
+.tb-screen.lecture .tb-bar{opacity:.4;pointer-events:none}
+
+/* Tableau tactique — intégration au match (T4) */
+.qbtn-tb{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)}
+.tb-match:empty{display:none}
+.tb-match{margin-top:16px}
+.tb-sec-t{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px}
+.tb-rejouer{flex-shrink:0;font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:99px;padding:4px 10px}
+.tb-add{width:100%;min-height:44px;font-size:13px}
+
+/* Tableau tactique — modèles (T5) */
+.tb-mod-l{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.tb-mod-l .tb-item{margin:0;flex:1;min-width:0}
+
+/* Tableau tactique — téléphone en paysage (peu de hauteur) : les barres passent sur les
+   côtés (outils de dessin à gauche, étapes à droite), titre et options sur une seule ligne
+   en haut ; le terrain prend toute la hauteur restante. */
+@media (orientation:landscape) and (max-height:560px){
+  .tb-screen:not([style*="none"]){display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr);column-gap:10px;row-gap:4px;
+    padding:calc(var(--st) + 4px) max(8px,env(safe-area-inset-right)) calc(var(--sb) + 4px) max(8px,env(safe-area-inset-left))}
+  .tb-top{grid-area:1/1/2/3;min-width:0;max-width:42vw}
+  .tb-titre{font-size:15px;padding:2px 0}
+  .tb-tools{grid-area:1/2/2/4;justify-self:end;margin:0;max-width:56vw}
+  .tb-tools .tb-btn{min-height:38px;padding:0 10px;font-size:13px}
+  .tb-field{grid-area:2/2/3/3}
+  .tb-bar{grid-area:2/1/3/2;display:grid;grid-template-columns:repeat(2,42px);grid-auto-rows:42px;gap:4px;align-content:center;padding:0;overflow-y:auto}
+  .tb-bar .tb-btn{width:42px;min-width:42px;min-height:42px;font-size:16px}
+  .tb-bar .tb-sep{grid-column:1/-1;width:auto;height:1px;margin:2px 0;align-self:center}
+  .tb-etapes{grid-area:2/3/3/4;display:grid;grid-template-columns:repeat(2,40px);grid-auto-rows:40px;gap:4px;align-content:center;justify-content:center;padding:0;overflow-y:auto}
+  .tb-etapes .tb-sep{grid-column:1/-1;width:auto;height:1px;margin:2px 0;align-self:center}
+  .tb-et{padding:0}
+  .tb-et.lire{grid-column:1/-1;padding:0}
+}

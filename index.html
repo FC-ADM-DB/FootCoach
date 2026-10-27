@@ -148,6 +148,7 @@
           <div style="margin:10px 0 8px;font-size:12px;color:var(--text2)">Définis la disponibilité avant le match</div>
           <div id="conv-list"></div>
           <div id="start-match-area" style="margin-top:12px"></div>
+          <div id="tb-match-conv" class="tb-match"></div>
         </div>
         <!-- LIVE -->
         <div id="tab-live" style="display:none">
@@ -164,6 +165,7 @@
               <div style="flex:1"></div>
               <button class="qbtn qbtn-goal" onclick="openQuickGoalPicker(false)">⚽ But</button>
               <button class="qbtn qbtn-conc" onclick="openQuickGoalPicker(true)">🔴</button>
+              <button id="btn-tb-pause" onclick="tbOuvrirPause()" class="qbtn qbtn-tb" style="display:none" aria-label="Tableau tactique de la pause">⏸ Tableau</button>
               <button onclick="switchHalf()" class="qbtn">Mi-temps</button>
               <button id="btn-chrono" onclick="toggleChrono()" class="qbtn qbtn-chrono">▶ Start</button>
             </div>
@@ -233,6 +235,7 @@
         <div id="tab-res" style="display:none;padding:12px 13px 20px">
           <button class="tl-link" onclick="switchTab('tl')">📈 Voir la timeline, les buts et les remplacements →</button>
           <div id="resume-content"></div>
+          <div id="tb-match-res" class="tb-match"></div>
         </div>
       </div>
     </div>
@@ -355,6 +358,49 @@
       <div class="mt">Refuser l'annonce</div>
       <div class="fg"><label class="fl">Raison (visible par l'entraîneur)</label><textarea class="fi" id="refus-txt" rows="3" placeholder="ex : ce week-end le terrain est pris par les U12"></textarea></div>
       <div class="mfoot"><button class="bcan" onclick="closeModal('modal-refus')">Annuler</button><button class="bp" onclick="anRefusOk()">Refuser</button></div>
+    </div>
+  </div>
+
+  <!-- TABLEAU TACTIQUE (tableau.js) -->
+  <div class="tb-screen" id="tb-screen" style="display:none">
+    <div class="tb-top">
+      <button class="tb-btn" onclick="fermerTableau()" aria-label="Fermer">←</button>
+      <div class="tb-head"><input class="tb-titre" id="tb-titre" placeholder="Titre (ex : sortie de balle)" maxlength="80" oninput="tbSauver()"><span class="tb-phase" id="tb-phase"></span></div>
+      <span class="tb-statut" id="tb-statut"></span>
+    </div>
+    <div class="tb-tools">
+      <button class="tb-btn tb-tog" id="tb-adv" onclick="tbToggleAdv()">👥 Adversaires</button>
+      <button class="tb-btn" id="tb-lib" onclick="tbToggleLib()">Aa Prénoms</button>
+      <button class="tb-btn" id="tb-mod" onclick="tbEnregistrerModele()">★ Modèle</button>
+      <button class="tb-btn" onclick="tbExporter()">⤴ Image</button>
+      <div class="tb-festi" id="tb-festi"><button class="tb-btn" onclick="tbFesti(-1)" aria-label="Un joueur de moins">−</button><span>joueurs</span><button class="tb-btn" onclick="tbFesti(1)" aria-label="Un joueur de plus">+</button></div>
+    </div>
+    <div class="tb-field">
+      <div class="terrain-wrap tb-wrap" id="tb-wrap">
+        <svg class="terrain-svg" id="tb-svg" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg class="tb-traits" id="tb-traits" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="tb-pions" id="tb-pions"></div>
+      </div>
+    </div>
+    <div class="tb-etapes" id="tb-etapes" role="toolbar" aria-label="Étapes"></div>
+    <div class="tb-bar" role="toolbar" aria-label="Outils du tableau">
+      <button class="tb-btn" data-outil="deplacer" onclick="tbChoisirOutil('deplacer')" aria-label="Déplacer les pions">✋</button>
+      <button class="tb-btn" data-outil="course" onclick="tbChoisirOutil('course')" aria-label="Flèche de course">➜</button>
+      <button class="tb-btn" data-outil="passe" onclick="tbChoisirOutil('passe')" aria-label="Flèche de passe">⇢</button>
+      <button class="tb-btn" data-outil="crayon" onclick="tbChoisirOutil('crayon')" aria-label="Crayon">✏️</button>
+      <button class="tb-btn" data-outil="gomme" onclick="tbChoisirOutil('gomme')" aria-label="Gomme : toucher un tracé">🧽</button>
+      <span class="tb-sep"></span>
+      <button class="tb-btn" id="tb-undo" onclick="tbAnnuler()" aria-label="Annuler">↶</button>
+      <button class="tb-btn" id="tb-redo" onclick="tbRetablir()" aria-label="Rétablir">↷</button>
+      <button class="tb-btn" onclick="tbEffacerTraits()" aria-label="Effacer les tracés">🗑</button>
+    </div>
+  </div>
+  <div class="mo" id="modal-tb-nouveau">
+    <div class="modal">
+      <div class="mh"></div>
+      <div class="mt">Nouveau tableau</div>
+      <div id="tb-nouveau-liste"></div>
+      <div class="mfoot"><button class="bcan" onclick="closeModal('modal-tb-nouveau')">Annuler</button></div>
     </div>
   </div>
 
@@ -554,5 +600,6 @@
 <script src="app.js"></script>
 <script src="reseau.js"></script>
 <script src="plateforme.js"></script>
+<script src="tableau.js"></script>
 </body>
 </html>
