@@ -193,6 +193,25 @@ select md5(c.cle)::uuid, current_date + c.j, c.debut::time, c.fin::time from (va
 insert into public.annonce_cibles (annonce_id, team_id)
 values (md5('an-burdinne-u10')::uuid, md5('demo-reh-braives/U10A')::uuid);
 
+-- ------------------------------------------------------------------ PROPOSITIONS (C2, si installé)
+-- Annonce de REH Braives U10A + proposition reçue de RFC Hannutois U10 (à traiter par
+-- David), signée par Marc (CQ Hannut).
+do $c2$ declare v_an uuid := md5('an-reh-u10a')::uuid; v_p uuid := md5('prop-hannut-reh')::uuid; begin
+  if to_regclass('public.propositions') is null then return; end if;
+  insert into public.annonces (id, team_id, type, lieu, format, duree_mt, categories, zone, message, statut, cree_par, valide_par, publiee_le)
+  values (v_an, md5('demo-reh-braives/U10A')::uuid, 'amical', 'indifferent', '8v8', 30, '{U10}', 'belgique',
+          'On cherche un amical en novembre, chez nous ou chez vous.', 'publiee', md5('david@demo.footcoach')::uuid, md5('david@demo.footcoach')::uuid, now() - interval '2 days');
+  insert into public.annonce_creneaux (annonce_id, jour, heure_debut, heure_fin) values
+    (v_an, current_date + 11, '10:00', '12:00'), (v_an, current_date + 18, '10:00', '12:00');
+  insert into public.propositions (id, annonce_id, equipe_annonceur, club_annonceur, equipe_proposante, club_proposant, statut, jour, heure, lieu, cree_par)
+  values (v_p, v_an, md5('demo-reh-braives/U10A')::uuid, md5('demo-reh-braives')::uuid, md5('demo-hannut/U10')::uuid, md5('demo-hannut')::uuid,
+          'envoyee', current_date + 11, '10:30', 'proposant', md5('cq.hannut@demo.footcoach')::uuid);
+  insert into public.proposition_tours (proposition_id, cote, action, jour, heure, lieu, message, auteur, auteur_nom)
+  values (v_p, 'proposant', 'proposition', current_date + 11, '10:30', 'proposant',
+          'Bonjour ! On vous reçoit volontiers sur notre synthétique, goûter offert après le match.', md5('cq.hannut@demo.footcoach')::uuid, 'Marc L.');
+  update public.profiles set telephone = '0470 12 34 56' where id = md5('cq.hannut@demo.footcoach')::uuid;
+end $c2$;
+
 -- Résumé
 select c.nom as club, c.verifie,
        (select count(*) from public.teams t where t.club_id = c.id) as equipes,

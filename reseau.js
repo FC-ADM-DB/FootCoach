@@ -13,6 +13,7 @@ const AN_STATUTS={brouillon:['pgr','Brouillon'],a_valider:['pb','À valider'],re
 const AN_ZONES={belgique:'Toute la Belgique',province:'Ma province',distance:'Distance maximale',equipes:'Équipes choisies'};
 
 let rsTab='annonces',rsTeamId=null,rsFiltres={cat:'',type:'',compat:false},rsMine=[];
+let rsAnnonces={};   // annonces affichées, par id (formulaire de proposition, propositions.js)
 // Formulaire d'annonce en cours d'édition
 let anEdit=null,anCreneaux=[],anCats=new Set(),anNivs=new Set(),anCibles=new Set(),anEquipesReseau=null;
 
@@ -36,8 +37,10 @@ async function renderReseauPage(){
   rsMine=data||[];
   const nVal=rsMine.filter(a=>a.statut==='a_valider'&&isClubStaff(a.club_id)).length;
   const tab=(k,l)=>`<button class="${rsTab===k?'on':''}" onclick="rsTab='${k}';renderReseauPage()">${l}</button>`;
-  el.innerHTML=`<div class="rs-tabs">${tab('annonces','Annonces')}${tab('mine','Mes annonces')}${canVal?tab('valider',`À valider${nVal?` <span class="rs-count">${nVal}</span>`:''}`):''}</div><div id="rs-body"><div class="spin"></div></div>`;
+  const nProp=typeof prListe!=='undefined'?prListe.filter(prAFaire).length:0;
+  el.innerHTML=`<div class="rs-tabs">${tab('annonces','Annonces')}${tab('propositions',`Propositions${nProp?` <span class="rs-count">${nProp}</span>`:''}`)}${tab('mine','Mes annonces')}${canVal?tab('valider',`À valider${nVal?` <span class="rs-count">${nVal}</span>`:''}`):''}</div><div id="rs-body"><div class="spin"></div></div>`;
   if(rsTab==='annonces')return rsRenderAnnonces();
+  if(rsTab==='propositions')return typeof prRenderListe==='function'?prRenderListe():null;
   rsRenderMine(rsTab==='valider');
 }
 
@@ -82,6 +85,7 @@ function rsCarte(a,T){
   const auj=todayIso();
   const cr=a.creneaux.filter(c=>c.jour>=auj&&c.statut==='libre');
   const logo=safeLogo({logo:a.club_logo});
+  rsAnnonces[a.id]=a;
   return `<div class="card rs-card">
     <div class="rs-top"><div class="rs-logo">${logo?`<img class="team-logo" src="${logo}" alt="">`:'🏟'}</div>
       <div style="flex:1;min-width:0"><div class="rs-club">${esc(a.club_nom)}</div><div class="rs-sub">${esc([a.province,a.distance_club!=null?'à '+a.distance_club+' km':''].filter(Boolean).join(' · '))}</div></div>
@@ -92,7 +96,7 @@ function rsCarte(a,T){
     ${cr.length?`<div class="rs-chips">${cr.map(c=>`<span>${esc(creneauTxt(c))}</span>`).join('')}</div>`:''}
     ${a.message?`<div class="rs-msg">${esc(a.message)}</div>`:''}
     ${a.raisons.length?`<div class="rs-warn">⚠️ Hors critères pour ${esc(T.nom)} : ${esc(a.raisons.join(' ; '))}</div>`:`<div class="rs-ok">✓ Compatible avec ${esc(T?.nom||'ton équipe')}</div>`}
-    <button class="bsec rs-prop" disabled title="Disponible à l'étape suivante">🤝 Proposer un match <small>(bientôt)</small></button>
+    <button class="bp rs-prop" onclick="prOuvrirForm('${a.id}')">🤝 Proposer un match</button>
   </div>`;
 }
 

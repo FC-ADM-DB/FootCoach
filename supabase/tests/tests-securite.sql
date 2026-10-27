@@ -28,6 +28,13 @@ exception when others then
   return 'refusé';
 end $$;
 
+-- Accepte une proposition puis compte les matchs « TEST Club B » visibles (C2)
+create or replace function pg_temp.accepter_compter(p uuid) returns bigint language plpgsql as $f$
+begin
+  perform public.proposition_agir(p, 'accepter');
+  return (select count(*) from public.matches where adversaire like 'TEST Club B%');
+end $f$;
+
 -- Crée un club puis compte, dans une requête SUIVANTE, si l'appelant en est CQ
 -- (dans une même requête, la ligne tout juste créée n'est pas encore visible).
 create or replace function pg_temp.creer_club_et_verifier_cq() returns int language plpgsql as $$
@@ -530,6 +537,71 @@ set role anon;
 insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[A4] lit des messages', '0', pg_temp.essai($q$select 1 from messages$q$)),
  ('Visiteur', '[A4] liste de discussions', 'refusé', pg_temp.essai($q$select 1 from mes_fils()$q$));
+reset role;
+
+-- ============================================================= PROPOSITIONS (C2)
+-- P1 : équipe B → annonce AN1 de l'équipe A, envoyée (suggestion « accepter » du délégué A en attente).
+-- P2 : équipe B → AN2, préparée « à valider » (pas encore envoyée).
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ B', '[C2] propose un match sur une annonce visible', '1', pg_temp.essai($q$select 1 from (select proposition_creer('60000000-0000-4000-a000-000000000006', '10000000-0000-4000-a000-0000000000b1', current_date + 9, '10:30', 'annonceur', 'Dispo samedi')) x$q$)),
+ ('CQ B', '[C2] 2e proposition sur la même annonce', 'refusé', pg_temp.essai($q$select proposition_creer('60000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000b1', current_date + 9, '10:30', 'annonceur')$q$)),
+ ('CQ B', '[C2] propose pour une équipe qu''il n''encadre pas', 'refusé', pg_temp.essai($q$select proposition_creer('60000000-0000-4000-a000-000000000006', '10000000-0000-4000-a000-0000000000a1', current_date + 9, '10:30', 'annonceur')$q$)),
+ ('CQ B', '[C2] propose une date passée', 'refusé', pg_temp.essai($q$select proposition_creer('60000000-0000-4000-a000-000000000006', '10000000-0000-4000-a000-0000000000b1', current_date - 1, '10:30', 'annonceur')$q$)),
+ ('CQ B', '[C2] voit ses propositions (P1, P2)', '2', pg_temp.essai($q$select 1 from propositions$q$)),
+ ('CQ B', '[C2] ne voit pas la suggestion en attente de l''autre club', '1', pg_temp.essai($q$select 1 from proposition_tours where proposition_id = '90000000-0000-4000-a000-000000000001'$q$)),
+ ('CQ B', '[C2] accepte alors que c''est à l''annonceur de répondre', 'refusé', pg_temp.essai($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'accepter')$q$)),
+ ('CQ B', '[C2] contacts de l''autre club (CQ + coordinateur A)', '2', pg_temp.essai($q$select 1 from proposition_contacts('90000000-0000-4000-a000-000000000001')$q$)),
+ ('CQ B', '[C2] envoie la proposition préparée', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000002', 'envoyer') = 'envoyee'$q$)),
+ ('CQ B', '[C2] annule sa proposition', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'annuler') = 'annulee'$q$)),
+ ('CQ B', '[C2] liste « mes propositions »', '2', pg_temp.essai($q$select 1 from mes_propositions()$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach A', '[C2] voit les propositions reçues (pas celle à valider)', '1', pg_temp.essai($q$select 1 from propositions$q$)),
+ ('Coach A', '[C2] voit l''historique d''une proposition à valider', '0', pg_temp.essai($q$select 1 from proposition_tours where proposition_id = '90000000-0000-4000-a000-000000000002'$q$)),
+ ('Coach A', '[C2] voit l''historique avec la suggestion de son délégué', '2', pg_temp.essai($q$select 1 from proposition_tours where proposition_id = '90000000-0000-4000-a000-000000000001'$q$)),
+ ('Coach A', '[C2] accepte : match créé dans son calendrier', '1', pg_temp.essai($q$select 1 where pg_temp.accepter_compter('90000000-0000-4000-a000-000000000001') = 1$q$)),
+ ('Coach A', '[C2] contre-propose', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'contre', current_date + 14, '11:00', 'proposant', 'Plutôt le 14 ?') = 'contre'$q$)),
+ ('Coach A', '[C2] refuse', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'refuser') = 'refusee'$q$)),
+ ('Coach A', '[C2] envoie une proposition de l''autre club', 'refusé', pg_temp.essai($q$select proposition_agir('90000000-0000-4000-a000-000000000002', 'envoyer')$q$)),
+ ('Coach A', '[C2] contacts de l''autre club (CQ B)', '1', pg_temp.essai($q$select 1 from proposition_contacts('90000000-0000-4000-a000-000000000001')$q$)),
+ ('Coach A', '[C2] écrit directement dans les propositions', '0', pg_temp.essai($q$update propositions set statut = 'acceptee' where id = '90000000-0000-4000-a000-000000000001'$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Délégué A', '[C2] voit la proposition reçue', '1', pg_temp.essai($q$select 1 from propositions$q$)),
+ ('Délégué A', '[C2] accepte → suggestion pour le coordinateur', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'accepter') = 'suggestion'$q$)),
+ ('Délégué A', '[C2] valide une suggestion', 'refusé', pg_temp.essai($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'valider_suggestion')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000006","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coord A', '[C2] valide la suggestion du délégué (accord)', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'valider_suggestion') = 'acceptee'$q$)),
+ ('Coord A', '[C2] écarte la suggestion du délégué', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'ecarter_suggestion') = 'ecartee'$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[C2] voit les propositions', '0', pg_temp.essai($q$select 1 from propositions$q$)),
+ ('Parent A', '[C2] accepte une proposition', 'refusé', pg_temp.essai($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'accepter')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000004","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Externe', '[C2] voit les propositions', '0', pg_temp.essai($q$select 1 from propositions$q$)),
+ ('Externe', '[C2] liste « mes propositions »', '0', pg_temp.essai($q$select 1 from mes_propositions()$q$)),
+ ('Externe', '[C2] contacts d''une proposition', '0', pg_temp.essai($q$select 1 from proposition_contacts('90000000-0000-4000-a000-000000000001')$q$)),
+ ('Externe', '[C2] propose un match', 'refusé', pg_temp.essai($q$select proposition_creer('60000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000a1', current_date + 9, '10:30', 'annonceur')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[C2] voit les propositions', '0', pg_temp.essai($q$select 1 from propositions$q$)),
+ ('Visiteur', '[C2] liste « mes propositions »', 'refusé', pg_temp.essai($q$select 1 from mes_propositions()$q$));
 reset role;
 select set_config('request.jwt.claims', '', false);
 

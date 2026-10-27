@@ -190,6 +190,23 @@ do $a4$ begin
     $c$;
   end if;
 end $a4$;
+-- Propositions (C2, si en place) : P1 envoyée par l'équipe B sur AN1 (avec une
+-- suggestion « accepter » du délégué A en attente), P2 préparée « à valider » sur AN2.
+do $c2$ begin
+  if to_regclass('public.propositions') is not null then
+    execute $c$
+      insert into public.propositions (id, annonce_id, equipe_annonceur, club_annonceur, equipe_proposante, club_proposant, statut, jour, heure, lieu) values
+        ('90000000-0000-4000-a000-000000000001', '60000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000a1', '50000000-0000-4000-a000-0000000000a1',
+         '10000000-0000-4000-a000-0000000000b1', '50000000-0000-4000-a000-0000000000b1', 'envoyee', current_date + 10, '10:00', 'annonceur'),
+        ('90000000-0000-4000-a000-000000000002', '60000000-0000-4000-a000-000000000002', '10000000-0000-4000-a000-0000000000a1', '50000000-0000-4000-a000-0000000000a1',
+         '10000000-0000-4000-a000-0000000000b1', '50000000-0000-4000-a000-0000000000b1', 'a_valider', current_date + 12, '14:00', 'proposant');
+      insert into public.proposition_tours (proposition_id, cote, action, jour, heure, lieu, en_attente, auteur) values
+        ('90000000-0000-4000-a000-000000000001', 'proposant', 'proposition', current_date + 10, '10:00', 'annonceur', false, '00000000-0000-4000-a000-000000000003'),
+        ('90000000-0000-4000-a000-000000000001', 'annonceur', 'accepter', null, null, null, true, '00000000-0000-4000-a000-000000000002'),
+        ('90000000-0000-4000-a000-000000000002', 'proposant', 'proposition', current_date + 12, '14:00', 'proposant', false, '00000000-0000-4000-a000-000000000003');
+    $c$;
+  end if;
+end $c2$;
 -- Tableau tactique (si la table existe) : TB1 pour l'équipe A, match A, avant le match
 do $tb$ begin
   if to_regclass('public.tableaux') is not null then

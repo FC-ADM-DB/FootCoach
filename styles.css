@@ -558,7 +558,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .rs-msg{font-size:13px;color:var(--text);background:var(--bg3);border-radius:var(--rsm);padding:8px 10px;white-space:pre-line}
 .rs-ok{font-size:12.5px;color:var(--green);font-weight:600}
 .rs-warn{font-size:12.5px;color:var(--amber);font-weight:500}
-.rs-prop{min-height:42px;font-size:13px;opacity:.6}
+.rs-prop{min-height:42px;font-size:13px;width:100%;margin:2px 0 0}
 .rs-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
 .rs-acts button{min-height:38px;padding:0 12px;font-size:13px}
 .rs-act{width:auto;margin:0}
@@ -755,3 +755,20 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .msg-saisie{display:flex;gap:6px;align-items:flex-end;margin-top:8px}
 .msg-saisie textarea{flex:1;resize:none;min-height:44px;max-height:120px;margin:0}
 .msg-env{width:48px;min-height:44px;margin:0;padding:0;font-size:18px;flex-shrink:0}
+
+/* Propositions de match (C2) */
+.umenu-badge{margin-left:auto;background:var(--red);color:#fff;border-radius:99px;min-width:20px;height:20px;line-height:20px;text-align:center;font-size:11px;padding:0 6px}
+.pr-card{cursor:pointer}
+.pr-card.todo{border-color:var(--amber-border)}
+.pr-todo{font-size:12.5px;font-weight:700;color:var(--amber)}
+.pr-cr span{cursor:pointer}
+.pr-cr span.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
+.pr-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;margin-bottom:10px}
+.pr-sugg{background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--rsm);padding:10px;font-size:13px;margin-bottom:10px}
+.pr-tour{border-left:3px solid var(--blue-border);padding:4px 0 6px 10px;margin-bottom:6px}
+.pr-tour.nous{border-left-color:var(--green-border)}
+.pr-tq{font-size:13px}
+.pr-tm{font-size:13px;color:var(--text2);white-space:pre-wrap;margin-top:3px;font-style:italic}
+.pr-td{font-size:11px;color:var(--text3);margin-top:2px}
+.pr-ct{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.pr-ctb{min-width:40px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:0 8px}
