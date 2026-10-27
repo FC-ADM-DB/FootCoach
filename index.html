@@ -352,7 +352,8 @@
       <div class="umenu-head"><div class="umenu-name js-user-name"></div><div class="umenu-role js-user-role"></div></div>
       <a class="umenu-item" id="umenu-scores" href="scores.html" target="_blank" rel="noopener" onclick="closeUserMenu()" style="text-decoration:none"><span>🏆</span><span>Page publique des scores</span></a>
       <button class="umenu-item pa-cache" onclick="closeUserMenu();goPage('club')"><span>🏟</span><span>Mon club</span></button>
-      <button class="umenu-item pa-cache" onclick="closeUserMenu();goPage('reseau')"><span>🤝</span><span>Trouver un match</span></button>
+      <button class="umenu-item pa-cache" onclick="closeUserMenu();goPage('reseau')"><span>🤝</span><span>Trouver un match</span><b class="umenu-badge" id="umenu-prop-badge" style="display:none"></b></button>
+      <button class="umenu-item" onclick="closeUserMenu();ouvrirProfil()"><span>👤</span><span>Mon profil</span></button>
       <a class="umenu-item" id="umenu-demo" href="https://foot-coach-git-demo-fc-adm-dbs-projects.vercel.app" target="_blank" rel="noopener" onclick="closeUserMenu()" style="display:none;text-decoration:none"><span>🧪</span><span>Lien de démo</span></a>
       <button class="umenu-item" id="umenu-plateforme" onclick="closeUserMenu();goPage('plateforme')" style="display:none"><span>🛡</span><span>Gestion des clubs</span></button>
       <button class="umenu-item" id="umenu-admin" onclick="closeUserMenu();goAdmin()" style="display:none"><span>🛠</span><span>Membres &amp; accès</span></button>
@@ -421,6 +422,23 @@
       <div class="mh"></div>
       <div id="pa-match"></div>
       <div class="mfoot"><button class="bcan" onclick="paFermerMatch()">Fermer</button></div>
+    </div>
+  </div>
+
+  <!-- PROPOSITION DE MATCH (propositions.js) -->
+  <div class="mo" id="modal-prop"><div class="modal" id="prop-body"></div></div>
+  <!-- MON PROFIL -->
+  <div class="mo" id="modal-profil">
+    <div class="modal">
+      <div class="mh"></div>
+      <div class="mt">Mon profil</div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Prénom</label><input class="fi" id="pf-prenom"></div>
+        <div class="fg"><label class="fl">Nom</label><input class="fi" id="pf-nom"></div>
+      </div>
+      <div class="fg"><label class="fl">Téléphone <span style="color:var(--text3);font-weight:400">(facultatif)</span></label><input class="fi" id="pf-tel" type="tel" placeholder="0470 12 34 56" maxlength="30">
+        <div style="font-size:11px;color:var(--text3);margin-top:5px">Visible uniquement par les coordinateurs des clubs avec qui tu échanges une proposition de match.</div></div>
+      <div class="mfoot"><button class="bcan" onclick="closeModal('modal-profil')">Annuler</button><button class="bp" onclick="enregistrerProfil()">Enregistrer</button></div>
     </div>
   </div>
 
@@ -624,5 +642,6 @@
 <script src="tableau.js"></script>
 <script src="parents.js"></script>
 <script src="messages.js"></script>
+<script src="propositions.js"></script>
 </body>
 </html>
