@@ -834,3 +834,15 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .prd-eq{text-align:left;background:none;border:none;border-bottom:1px solid var(--border);padding:10px 12px;color:var(--text);font-family:var(--font);font-size:13.5px;cursor:pointer;min-height:42px}
 .prd-eq span{color:var(--text3);font-size:12px}
 .prd-eq.on{background:var(--green-bg);box-shadow:inset 3px 0 0 var(--green)}
+/* Trouver un match : en-tête compact */
+.rs-filters{gap:6px;margin-bottom:10px}
+.rs-ligne{display:flex;gap:6px;align-items:center}
+.rs-ligne>.sel,.rs-ligne>.fi{flex:1;min-width:0;margin:0}
+.rs-mini{width:auto;flex-shrink:0;min-height:40px;padding:0 12px;margin:0;font-size:13px;white-space:nowrap}
+.rs-mini.actif{border-color:var(--green-border);color:var(--green)}
+.rs-mini .rs-count{margin-left:2px}
+.rs-panneau{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg2)}
+.rs-panneau .frow{gap:6px}
+.rs-nb{font-size:12px;color:var(--text3);font-weight:600}
+.pr-actions{margin-bottom:10px}
+.pr-actions .rs-mini{flex:1}

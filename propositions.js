@@ -150,7 +150,7 @@ async function prRenderListe(){
       ${todo&&!(p.non_lus&&!(p.decide?(p.a_moi||p.suggestion):(p.a_moi&&!p.suggestion)))?`<div class="pr-todo">${p.suggestion&&p.decide?'💡 Suggestion à valider':p.statut==='a_valider'?(p.decide?'➤ À envoyer':'⏳ En attente de ton coordinateur'):'👉 À vous de répondre'}</div>`:''}
     </div>`;};
   const enCours=prListe.filter(p=>['a_valider','envoyee','contre'].includes(p.statut)),finies=prListe.filter(p=>!enCours.includes(p));
-  body.innerHTML='<button class="bp pr-cal" onclick="prOuvrirDirect()">🤝 Proposer un match à une équipe</button>'+(myClubs.length?'<button class="bsec pr-cal" onclick="ouvrirCalendrier()">📅 Calendrier du club (toutes les équipes)</button>':'')+(prListe.length?'':`<div class="empty"><div class="empty-i">🤝</div><div class="empty-t">Aucune proposition</div><div class="empty-s">Ouvre une annonce et touche « Proposer un match », ou propose directement à une équipe.</div></div>`)+
+  body.innerHTML='<div class="rs-ligne pr-actions"><button class="bsec rs-mini" onclick="prOuvrirDirect()">🤝 Proposer un match</button>'+(myClubs.length?'<button class="bsec rs-mini" onclick="ouvrirCalendrier()">📅 Calendrier</button>':'')+'</div>'+(prListe.length?'':`<div class="empty"><div class="empty-i">🤝</div><div class="empty-t">Aucune proposition</div><div class="empty-s">Ouvre une annonce et touche « Proposer un match », ou propose directement à une équipe.</div></div>`)+
     (enCours.length?`<div class="tb-sec-t">En cours</div>`+enCours.map(carte).join(''):'')+
     (finies.length?`<div class="tb-sec-t" style="margin-top:14px">Terminées</div>`+finies.slice(0,20).map(carte).join(''):'');
 }
