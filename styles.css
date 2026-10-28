@@ -880,3 +880,10 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .ni-side{display:none}
 @media (min-width:900px) and (min-height:501px){.ni-side:not([style*="none"]){display:flex}}
 body.parent-mode .ni-side.pa-cache{display:none!important}
+/* Calendrier : « lundi 2 novembre » (seule la 1re lettre en majuscule), jours vides compacts, colonnes égales */
+.cal-jh{text-transform:none}
+.cal-jd::first-letter{text-transform:uppercase}
+.cal-jd .cal-vide{font-style:normal;font-weight:500;font-size:12px;color:var(--text3)}
+.cal-jour{padding:4px 10px}
+.cal{table-layout:fixed}
+.cal thead th:first-child,.cal tbody th{width:90px}
