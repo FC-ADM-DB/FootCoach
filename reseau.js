@@ -12,7 +12,12 @@ const AN_LIEUX={domicile:'Chez nous',exterieur:'Chez eux',indifferent:'Chez nous
 const AN_STATUTS={brouillon:['pgr','Brouillon'],a_valider:['pb','À valider'],refusee:['pr','Refusée'],publiee:['pg','Publiée'],cloturee:['pgr','Clôturée']};
 const AN_ZONES={belgique:'Toute la Belgique',province:'Ma province',distance:'Distance maximale',equipes:'Équipes choisies'};
 
-let rsTab='annonces',rsTeamId=null,rsFiltres={cat:'',type:'',compat:false},rsMine=[];
+let rsTab='annonces',rsTeamId=null,rsMine=[],rsDonnees=[];
+// Filtres de recherche (mémorisés sur l'appareil, simple confort)
+const RS_FILTRES0={cat:'',type:'',compat:false,q:'',periode:'',date:'',jsem:'',lieu:'',format:'',niveau:'',km:'',tri:'date'};
+let rsFiltres={...RS_FILTRES0};
+try{Object.assign(rsFiltres,JSON.parse(localStorage.getItem('fc_rs_filtres')||'{}'));}catch(e){}
+const rsGarderFiltres=()=>{try{localStorage.setItem('fc_rs_filtres',JSON.stringify(rsFiltres));}catch(e){}};
 let rsAnnonces={};   // annonces affichées, par id (formulaire de proposition, propositions.js)
 // Formulaire d'annonce en cours d'édition
 let anEdit=null,anCreneaux=[],anCats=new Set(),anNivs=new Set(),anCibles=new Set(),anEquipesReseau=null;
@@ -49,28 +54,88 @@ async function rsRenderAnnonces(){
   const body=document.getElementById('rs-body');
   const st=rsStaffTeams(),T=rsTeam(rsTeamId);
   const verifie=!!T?.clubs?.verifie;
-  const opt=(v,l,cur)=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(l)}</option>`;
+  const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?'selected':''}>${esc(l)}</option>`;
+  const sel=(k,items,tout)=>`<select class="sel" onchange="rsFiltre('${k}',this.value)">${opt('',tout,rsFiltres[k])}${items.map(([v,l])=>opt(v,l,rsFiltres[k])).join('')}</select>`;
   const head=`<div class="rs-filters">
     <label class="rs-lbl">Pour l'équipe<select class="sel" onchange="rsTeamId=this.value;rsRenderAnnonces()">${st.map(t=>opt(t.id,t.nom+' ('+t.categorie+')',rsTeamId)).join('')}</select></label>
+    <input class="fi" type="search" placeholder="🔎 Club ou équipe…" value="${esc(rsFiltres.q)}" oninput="rsFiltres.q=this.value;rsGarderFiltres();rsFiltrer()">
     <div class="frow">
-      <select class="sel" onchange="rsFiltres.cat=this.value;rsRenderAnnonces()">${opt('','Toutes catégories',rsFiltres.cat)}${refs.categories.map(c=>opt(c.code,c.libelle,rsFiltres.cat)).join('')}</select>
-      <select class="sel" onchange="rsFiltres.type=this.value;rsRenderAnnonces()">${opt('','Tous types',rsFiltres.type)}${Object.entries(AN_TYPES).map(([k,l])=>opt(k,l,rsFiltres.type)).join('')}</select>
+      ${sel('periode',[['7','7 prochains jours'],['we','Prochain week-end'],['15','2 prochaines semaines'],['30','30 prochains jours'],['date','Date précise…']],'Toutes les dates')}
+      ${sel('jsem',[['6','Samedi'],['0','Dimanche'],['3','Mercredi'],['sem','En semaine (lun–ven)']],'Tous les jours')}
     </div>
-    <label class="tm-new-toggle" style="margin:0"><input type="checkbox" ${rsFiltres.compat?'checked':''} onchange="rsFiltres.compat=this.checked;rsRenderAnnonces()"> Compatibles avec ${esc(T?.nom||'mon équipe')} seulement</label>
+    ${rsFiltres.periode==='date'?`<input class="fi" type="date" min="${todayIso()}" value="${esc(rsFiltres.date)}" onchange="rsFiltre('date',this.value)">`:''}
+    <details class="rs-plus" ${rsNbFiltres()?'open':''}><summary>Plus de filtres<span id="rs-nbf"></span></summary>
+      <div class="rs-plus-in">
+        <div class="frow">
+          ${sel('cat',refs.categories.map(c=>[c.code,c.libelle]),'Toutes catégories')}
+          ${sel('type',Object.entries(AN_TYPES),'Tous types')}
+        </div>
+        <div class="frow">
+          ${sel('lieu',[['chez_nous','Chez nous'],['chez_eux','Chez eux']],'Lieu : peu importe')}
+          ${sel('format',refs.formats.map(f=>[f.code,f.libelle]),'Tous formats')}
+        </div>
+        <div class="frow">
+          ${sel('niveau',refs.niveaux.map(n=>[n.id,n.libelle]),'Tous niveaux')}
+          ${sel('km',[['10','≤ 10 km'],['20','≤ 20 km'],['30','≤ 30 km'],['50','≤ 50 km'],['100','≤ 100 km']],'Toutes distances')}
+        </div>
+        <label class="tm-new-toggle" style="margin:0"><input type="checkbox" ${rsFiltres.compat?'checked':''} onchange="rsFiltre('compat',this.checked)"> Compatibles avec ${esc(T?.nom||'mon équipe')} seulement</label>
+        <button class="bsec" style="min-height:38px;font-size:13px" onclick="rsFiltres={...RS_FILTRES0};rsGarderFiltres();rsRenderAnnonces()">Réinitialiser les filtres</button>
+      </div></details>
+    <div class="rs-tri"><span id="rs-nb"></span>
+      <select class="sel" onchange="rsFiltre('tri',this.value)">${opt('date','Trier : date la plus proche',rsFiltres.tri)}${opt('distance','Trier : distance',rsFiltres.tri)}${opt('club','Trier : club (A–Z)',rsFiltres.tri)}</select></div>
   </div>`;
   if(!verifie){body.innerHTML=head+`<div class="empty"><div class="empty-i">⏳</div><div class="empty-t">Club pas encore vérifié</div><div class="empty-s">Le club doit être vérifié par FootCoach pour voir et publier des annonces.</div></div>`;return;}
-  body.innerHTML=head+'<div class="spin"></div>';
+  body.innerHTML=head+'<div id="rs-list"><div class="spin"></div></div>';
   const{data,error}=await sb.rpc('annonces_reseau',{p_team:rsTeamId});
-  if(error){body.innerHTML=head+`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Annonces indisponibles</div></div>`;return;}
+  if(error){document.getElementById('rs-list').innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Annonces indisponibles</div></div>`;return;}
+  rsDonnees=(data||[]).filter(a=>!a.mon_club);
+  rsFiltrer();
+}
+// Changement d'un filtre à liste (la période change l'en-tête : champ « date précise »)
+function rsFiltre(k,v){rsFiltres[k]=v;rsGarderFiltres();if(k==='periode')rsRenderAnnonces();else rsFiltrer();}
+const rsNbFiltres=()=>['cat','type','lieu','format','niveau','km','compat'].filter(k=>rsFiltres[k]).length;
+const rsIso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+// Créneau retenu par les filtres de date : libre, pas passé, dans la période, bon jour
+function rsCrOk(c){
   const auj=todayIso();
-  let list=(data||[]).filter(a=>!a.mon_club)
-    // annonces dont tous les créneaux sont passés : masquées
-    .filter(a=>!a.creneaux.length||a.creneaux.some(c=>c.jour>=auj&&c.statut==='libre'))
-    .filter(a=>!rsFiltres.type||a.type===rsFiltres.type)
-    .filter(a=>!rsFiltres.cat||!a.categories.length||a.categories.includes(rsFiltres.cat));
-  list=list.map(a=>({...a,raisons:rsRaisons(a,T)}));
-  if(rsFiltres.compat)list=list.filter(a=>!a.raisons.length);
-  body.innerHTML=head+(list.length?list.map(a=>rsCarte(a,T)).join(''):`<div class="empty"><div class="empty-i">🔎</div><div class="empty-t">Aucune annonce pour l'instant</div><div class="empty-s">Publie la tienne dans « Mes annonces ».</div></div>`);
+  if(c.jour<auj||c.statut!=='libre')return false;
+  const f=rsFiltres,j=new Date(c.jour+'T12:00').getDay();
+  const dansJours=n=>{const x=new Date();x.setDate(x.getDate()+n);return c.jour<=rsIso(x);};
+  if(f.periode==='7'&&!dansJours(7))return false;
+  if(f.periode==='15'&&!dansJours(14))return false;
+  if(f.periode==='30'&&!dansJours(30))return false;
+  if(f.periode==='we'){   // samedi + dimanche qui viennent (ou celui en cours)
+    const x=new Date(),sam=new Date(x);sam.setDate(x.getDate()+(x.getDay()===0?-1:6-x.getDay()));
+    const dim=new Date(sam);dim.setDate(sam.getDate()+1);
+    if(c.jour<rsIso(sam)||c.jour>rsIso(dim))return false;}
+  if(f.periode==='date'&&f.date&&c.jour!==f.date)return false;
+  if(f.jsem==='sem'?(j===0||j===6):(f.jsem!==''&&j!==+f.jsem))return false;
+  return true;
+}
+function rsFiltrer(){
+  const el=document.getElementById('rs-list');if(!el)return;
+  const T=rsTeam(rsTeamId),f=rsFiltres,q=(f.q||'').trim().toLowerCase();
+  const dateFiltree=!!(f.periode||f.jsem);
+  let list=rsDonnees
+    // annonces sans créneau à venir (ou hors période / jour choisis) : masquées
+    .filter(a=>a.creneaux.length?a.creneaux.some(rsCrOk):!dateFiltree)
+    .filter(a=>!q||(a.club_nom+' '+a.equipe+' '+a.equipe_categorie+' '+(a.province||'')).toLowerCase().includes(q))
+    .filter(a=>!f.type||a.type===f.type)
+    .filter(a=>!f.cat||!a.categories.length||a.categories.includes(f.cat))
+    // lieu vu de mon côté : « chez nous » = l'annonceur accepte de se déplacer
+    .filter(a=>!f.lieu||a.lieu==='indifferent'||a.lieu===(f.lieu==='chez_nous'?'exterieur':'domicile'))
+    .filter(a=>!f.format||!a.format||a.format===f.format)
+    .filter(a=>!f.niveau||a.equipe_niveau===+f.niveau)
+    .filter(a=>!f.km||(a.distance_club!=null&&+a.distance_club<=+f.km));
+  list=list.map(a=>({...a,raisons:rsRaisons(a,T),prochain:a.creneaux.filter(rsCrOk).map(c=>c.jour+(c.heure_debut||'')).sort()[0]||'9999'}));
+  if(f.compat)list=list.filter(a=>!a.raisons.length);
+  list.sort(f.tri==='distance'?(x,y)=>(x.distance_club??1e9)-(y.distance_club??1e9)
+    :f.tri==='club'?(x,y)=>x.club_nom.localeCompare(y.club_nom):(x,y)=>x.prochain.localeCompare(y.prochain));
+  const nb=document.getElementById('rs-nb');if(nb)nb.textContent=`${list.length} annonce${list.length>1?'s':''}`;
+  const nf=document.getElementById('rs-nbf');if(nf){const n=rsNbFiltres();nf.innerHTML=n?` <span class="rs-count">${n}</span>`:'';}
+  el.innerHTML=list.length?list.map(a=>rsCarte(a,T)).join('')
+    :rsDonnees.length?`<div class="empty"><div class="empty-i">🔎</div><div class="empty-t">Aucune annonce avec ces filtres</div><div class="empty-s">Élargis la période ou réinitialise les filtres.</div></div>`
+    :`<div class="empty"><div class="empty-i">🔎</div><div class="empty-t">Aucune annonce pour l'instant</div><div class="empty-s">Publie la tienne dans « Mes annonces ».</div></div>`;
 }
 // Pourquoi une annonce ne correspond pas à mon équipe (aucune règle imposée :
 // l'annonce reste visible avec la raison, le coordinateur décide)
@@ -82,8 +147,7 @@ function rsRaisons(a,T){
   return r;
 }
 function rsCarte(a,T){
-  const auj=todayIso();
-  const cr=a.creneaux.filter(c=>c.jour>=auj&&c.statut==='libre');
+  const cr=a.creneaux.filter(rsCrOk);   // seulement les créneaux qui correspondent aux filtres
   const logo=safeLogo({logo:a.club_logo});
   rsAnnonces[a.id]=a;
   return `<div class="card rs-card">
