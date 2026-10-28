@@ -846,3 +846,4 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .rs-nb{font-size:12px;color:var(--text3);font-weight:600}
 .pr-actions{margin-bottom:10px}
 .pr-actions .rs-mini{flex:1}
+.qb-badge.cal-badge{background:var(--amber);color:var(--bg)}
