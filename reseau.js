@@ -25,6 +25,9 @@ let anEdit=null,anCreneaux=[],anCats=new Set(),anNivs=new Set(),anCibles=new Set
 // Équipes que j'encadre ET rattachées à un club (seules elles peuvent publier)
 const rsStaffTeams=()=>teams.filter(t=>t.club_id&&isTeamStaff(t));
 const rsTeam=id=>teams.find(t=>t.id===id);
+// « Toutes les équipes » (CQ / coordinateur) : les équipes des clubs que je gère
+const rsTous=()=>rsTeamId==='tous'&&myClubs.length>0;
+const rsEquipesClub=()=>rsStaffTeams().filter(t=>isClubStaff(t.club_id));
 const fmtJour=j=>{const d=new Date(j+'T00:00');return d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'});};
 const fmtHeure=h=>h?String(h).slice(0,5):'';
 const creneauTxt=c=>`${fmtJour(c.jour)}${c.debut||c.heure_debut?' '+fmtHeure(c.debut||c.heure_debut):''}${c.fin||c.heure_fin?'–'+fmtHeure(c.fin||c.heure_fin):''}`;
@@ -35,7 +38,7 @@ async function renderReseauPage(){
   const el=document.getElementById('reseau-content');
   const st=rsStaffTeams();
   if(!st.length){el.innerHTML=`<div class="empty"><div class="empty-i">🤝</div><div class="empty-t">Réservé à l'encadrement</div><div class="empty-s">Il faut encadrer une équipe rattachée à un club (page Mon club).</div></div>`;return;}
-  if(!rsTeamId||!st.some(t=>t.id===rsTeamId))rsTeamId=(st.find(t=>t.id===CT?.id)||st[0]).id;
+  if(!rsTeamId||!(st.some(t=>t.id===rsTeamId)||rsTous()))rsTeamId=(st.find(t=>t.id===CT?.id)||st[0]).id;
   const canVal=myClubs.length>0;
   // Annonces de mes équipes / de mon club (pour « Mes annonces » et le compteur « À valider »)
   const{data}=await sb.from('annonces').select('*,annonce_creneaux(*)').in('team_id',st.map(t=>t.id)).order('created_at',{ascending:false});
@@ -52,15 +55,15 @@ async function renderReseauPage(){
 // ------------------------------------------------------------ ONGLET « ANNONCES »
 async function rsRenderAnnonces(){
   const body=document.getElementById('rs-body');
-  const st=rsStaffTeams(),T=rsTeam(rsTeamId);
-  const verifie=!!T?.clubs?.verifie;
+  const st=rsStaffTeams(),T=rsTeam(rsTeamId),tous=rsTous();
+  const verifie=tous?rsEquipesClub().some(t=>t.clubs?.verifie):!!T?.clubs?.verifie;
   const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?'selected':''}>${esc(l)}</option>`;
   const sel=(k,items,tout)=>`<select class="sel" onchange="rsFiltre('${k}',this.value)">${opt('',tout,rsFiltres[k])}${items.map(([v,l])=>opt(v,l,rsFiltres[k])).join('')}</select>`;
   // En-tête compact sur une ligne : équipe, « Proposer », « Filtres » (recherche comprise, panneau replié)
   const n=rsNbFiltres();
   const head=`<div class="rs-filters">
     <div class="rs-ligne">
-      <select class="sel" onchange="rsTeamId=this.value;rsRenderAnnonces()" aria-label="Pour l'équipe">${st.map(t=>opt(t.id,t.nom+' ('+t.categorie+')',rsTeamId)).join('')}</select>
+      <select class="sel" onchange="rsTeamId=this.value;rsRenderAnnonces()" aria-label="Pour l'équipe">${myClubs.length?opt('tous','Toutes les équipes du club',rsTeamId):''}${st.map(t=>opt(t.id,t.nom+' ('+t.categorie+')',rsTeamId)).join('')}</select>
       ${verifie?'<button class="bsec rs-mini" onclick="prOuvrirDirect()">🤝 Proposer</button>':''}
       <button class="bsec rs-mini${n?' actif':''}" id="rs-btnf" onclick="rsPanneau=!rsPanneau;rsRenderAnnonces()" aria-expanded="${rsPanneau}">⚙️ Filtres${n?` <span class="rs-count">${n}</span>`:''}</button>
     </div>
@@ -84,7 +87,7 @@ async function rsRenderAnnonces(){
         ${sel('niveau',refs.niveaux.map(n=>[n.id,n.libelle]),'Tous niveaux')}
         ${sel('km',[['10','≤ 10 km'],['20','≤ 20 km'],['30','≤ 30 km'],['50','≤ 50 km'],['100','≤ 100 km']],'Toutes distances')}
       </div>
-      <label class="tm-new-toggle" style="margin:0;min-height:30px"><input type="checkbox" ${rsFiltres.compat?'checked':''} onchange="rsFiltre('compat',this.checked)"> Compatibles avec ${esc(T?.nom||'mon équipe')} seulement</label>
+      <label class="tm-new-toggle" style="margin:0;min-height:30px"><input type="checkbox" ${rsFiltres.compat?'checked':''} onchange="rsFiltre('compat',this.checked)"> Compatibles avec ${tous?'au moins une de nos équipes':esc(T?.nom||'mon équipe')} seulement</label>
       <div class="rs-ligne">
         <select class="sel" onchange="rsFiltre('tri',this.value)" aria-label="Tri">${opt('date','Tri : date la plus proche',rsFiltres.tri)}${opt('distance','Tri : distance',rsFiltres.tri)}${opt('club','Tri : club (A–Z)',rsFiltres.tri)}</select>
         ${n?'<button class="bsec rs-mini" onclick="rsFiltres={...RS_FILTRES0};rsGarderFiltres();rsRenderAnnonces()">Effacer</button>':''}
@@ -94,9 +97,12 @@ async function rsRenderAnnonces(){
   </div>`;
   if(!verifie){body.innerHTML=head+`<div class="empty"><div class="empty-i">⏳</div><div class="empty-t">Club pas encore vérifié</div><div class="empty-s">Le club doit être vérifié par FootCoach pour voir et publier des annonces.</div></div>`;return;}
   body.innerHTML=head+'<div id="rs-list"><div class="spin"></div></div>';
-  const{data,error}=await sb.rpc('annonces_reseau',{p_team:rsTeamId});
-  if(error){document.getElementById('rs-list').innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Annonces indisponibles</div></div>`;return;}
-  rsDonnees=(data||[]).filter(a=>!a.mon_club);
+  // Toutes les équipes : une lecture par équipe (une annonce peut cibler une équipe précise), fusionnées
+  const ids=tous?rsEquipesClub().filter(t=>t.clubs?.verifie).map(t=>t.id):[rsTeamId];
+  const res=await Promise.all(ids.map(id=>sb.rpc('annonces_reseau',{p_team:id})));
+  if(res.some(x=>x.error)){document.getElementById('rs-list').innerHTML=`<div class="empty"><div class="empty-i">⚠️</div><div class="empty-t">Annonces indisponibles</div></div>`;return;}
+  const vues=new Map();res.forEach(x=>(x.data||[]).forEach(a=>{if(!vues.has(a.id))vues.set(a.id,a);}));
+  rsDonnees=[...vues.values()].filter(a=>!a.mon_club);
   rsFiltrer();
 }
 // Depuis le calendrier du club : annonces pour cette équipe, ce jour-là, dans la tranche
@@ -146,7 +152,10 @@ function rsFiltrer(){
     .filter(a=>!f.format||!a.format||a.format===f.format)
     .filter(a=>!f.niveau||a.equipe_niveau===+f.niveau)
     .filter(a=>!f.km||(a.distance_club!=null&&+a.distance_club<=+f.km));
-  list=list.map(a=>({...a,raisons:rsRaisons(a,T),prochain:a.creneaux.filter(rsCrOk).map(c=>c.jour+(c.heure_debut||'')).sort()[0]||'9999'}));
+  // Toutes les équipes : compatible si au moins une de nos équipes correspond
+  const eqs=rsTous()?rsEquipesClub():null;
+  list=list.map(a=>{const compatibles=eqs?eqs.filter(t=>!rsRaisons(a,t).length):null;
+    return {...a,compatibles,raisons:eqs?(compatibles.length?[]:['aucune de nos équipes ne correspond (catégorie, format ou niveau)']):rsRaisons(a,T),prochain:a.creneaux.filter(rsCrOk).map(c=>c.jour+(c.heure_debut||'')).sort()[0]||'9999'};});
   if(f.compat)list=list.filter(a=>!a.raisons.length);
   list.sort(f.tri==='distance'?(x,y)=>(x.distance_club??1e9)-(y.distance_club??1e9)
     :f.tri==='club'?(x,y)=>x.club_nom.localeCompare(y.club_nom):(x,y)=>x.prochain.localeCompare(y.prochain));
@@ -178,7 +187,8 @@ function rsCarte(a,T){
     <div class="rs-line">🎯 Catégories : ${esc(a.categories.join(', ')||'toutes')} · Niveaux : ${esc(a.niveaux.map(nivLabel).join(', ')||'tous')}</div>
     ${cr.length?`<div class="rs-chips">${cr.map(c=>`<span>${esc(creneauTxt(c))}</span>`).join('')}</div>`:''}
     ${a.message?`<div class="rs-msg">${esc(a.message)}</div>`:''}
-    ${a.raisons.length?`<div class="rs-warn">⚠️ Hors critères pour ${esc(T.nom)} : ${esc(a.raisons.join(' ; '))}</div>`:`<div class="rs-ok">✓ Compatible avec ${esc(T?.nom||'ton équipe')}</div>`}
+    ${a.compatibles?(a.compatibles.length?`<div class="rs-ok">✓ Compatible avec : ${esc(a.compatibles.map(t=>t.nom).join(', '))}</div>`:`<div class="rs-warn">⚠️ ${esc(a.raisons[0])}</div>`)
+      :a.raisons.length?`<div class="rs-warn">⚠️ Hors critères pour ${esc(T.nom)} : ${esc(a.raisons.join(' ; '))}</div>`:`<div class="rs-ok">✓ Compatible avec ${esc(T?.nom||'ton équipe')}</div>`}
     <button class="bp rs-prop" onclick="prOuvrirForm('${a.id}')">🤝 Proposer un match</button>
   </div>`;
 }
