@@ -847,3 +847,36 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .pr-actions{margin-bottom:10px}
 .pr-actions .rs-mini{flex:1}
 .qb-badge.cal-badge{background:var(--amber);color:var(--bg)}
+/* ---- Retours du test (2026-10-28) ---- */
+/* Listes déroulantes : petite flèche (elles ressemblaient à du texte) */
+.sel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238a97b5' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;background-size:12px 8px;padding-right:32px}
+/* Onglets de Trouver un match : sur deux lignes plutôt que cachés à droite */
+.rs-tabs{flex-wrap:wrap;overflow:visible}
+.rs-tabs button{min-height:36px;padding:0 12px;font-size:13px}
+/* Bouton « Proposer un match » des annonces : moins massif */
+.rs-prop{align-self:flex-end;width:auto;min-height:38px;padding:0 16px;font-size:13px;margin-top:2px}
+/* Lien « voir la semaine » lisible sur fond sombre */
+.pr-jc a{color:var(--green);font-weight:600;text-decoration:none}
+/* Calendrier : 7 jours tiennent sur iPad ; liste par jour sur téléphone */
+.cal{min-width:600px}
+.cal td{min-width:72px}
+.cal-titre{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-nav .bsec{padding:0 9px}
+.cal-liste{display:none}
+@media (max-width:640px){
+  .cal-wrap{display:none}
+  .cal-liste{display:flex;flex-direction:column;gap:8px}
+}
+.cal-jour{border:1px solid var(--border);border-radius:var(--r);background:var(--bg2);padding:8px 10px}
+.cal-jour.we{background:var(--bg3)}
+.cal-jour.auj{box-shadow:inset 0 0 0 2px var(--green-border)}
+.cal-jh{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;text-transform:capitalize;min-height:30px}
+.cal-add-j{width:34px;height:30px;border-radius:8px;border:1px dashed var(--border2);background:none;color:var(--text2);font-size:17px;cursor:pointer;padding:0}
+.cal-l-eq{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.cal-l-nom{font-size:12px;font-weight:700;min-width:48px;padding-top:4px}
+.cal-l-its{flex:1;min-width:0}
+.cal-vide{font-size:12px;color:var(--text3);padding:2px 0}
+/* Barre latérale iPad / PC : accès directs */
+.ni-side{display:none}
+@media (min-width:900px) and (min-height:501px){.ni-side:not([style*="none"]){display:flex}}
+body.parent-mode .ni-side.pa-cache{display:none!important}

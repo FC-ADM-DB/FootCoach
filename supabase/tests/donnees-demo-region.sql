@@ -149,7 +149,7 @@ do $a4$ declare arthur uuid; equipe uuid := md5('demo-reh-braives/U10A')::uuid; 
   select id into arthur from public.players where team_id = equipe and prenom = 'Arthur';
   perform set_config('request.jwt.claims', json_build_object('sub', md5('david@demo.footcoach')::uuid)::text, true);
   insert into public.messages (team_id, player_id, texte) values
-    (equipe, null, 'Bonjour à tous ! Samedi contre Hannut : rendez-vous 9h15 au terrain, maillot blanc. Pensez aux gourdes 💧');
+    (equipe, null, 'Bonjour à tous ! Dimanche contre Hannut : rendez-vous 9h15 au terrain, maillot blanc. Pensez aux gourdes 💧');
   insert into public.messages (team_id, player_id, texte) values
     (equipe, arthur, 'Bonjour Claire, Arthur a très bien joué samedi : 2 buts ! Il peut garder ce rythme 👍');
   perform set_config('request.jwt.claims', json_build_object('sub', md5('parent@demo.footcoach')::uuid)::text, true);

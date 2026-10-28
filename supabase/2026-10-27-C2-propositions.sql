@@ -184,7 +184,11 @@ begin
 
   -- Suggestion d'un entraîneur : le coordinateur/CQ l'applique ou l'écarte
   if p_action in ('valider_suggestion', 'ecarter_suggestion') then
-    if not v_decide then raise exception 'Réservé au coordinateur ou au CQ du club'; end if;
+    -- Le coordinateur/CQ valide ou écarte ; l'entraîneur peut seulement RETIRER sa propre suggestion
+    if not v_decide and not (p_action = 'ecarter_suggestion' and exists (select 1 from proposition_tours
+         where proposition_id = p_id and cote = v_cote and en_attente and auteur = auth.uid())) then
+      raise exception 'Réservé au coordinateur ou au CQ du club';
+    end if;
     select * into t from proposition_tours where proposition_id = p_id and cote = v_cote and en_attente
       order by created_at desc limit 1;
     if not found then raise exception 'Aucune suggestion en attente'; end if;

@@ -12,6 +12,13 @@
 
 const PR_STATUTS={a_valider:['pgr','À envoyer'],envoyee:['pb','Envoyée'],contre:['pb','Contre-proposition'],acceptee:['pg','✓ Acceptée'],refusee:['pr','Refusée'],annulee:['pgr','Annulée']};
 const PR_ACTIONS={message:'',proposition:'a proposé',envoyer:'a envoyé la proposition',contre:'a fait une contre-proposition',accepter:'a accepté',refuser:'a refusé',annuler:'a annulé'};
+// Statut affiché selon le côté : « Envoyée » sur une proposition REÇUE prêtait à confusion
+function prStatut(p){
+  if(p.statut==='envoyee')return p.cote==='annonceur'?['pb','Reçue']:['pb','Envoyée'];
+  if(p.statut==='contre')return p.cote==='proposant'?['pb','Contre-proposition reçue']:['pb','Contre-proposition envoyée'];
+  return PR_STATUTS[p.statut]||['pgr',p.statut];
+}
+let prChangerSugg=false;   // l'entraîneur veut modifier sa suggestion en attente
 const PR_SUGG={accepter:'accepter',refuser:'refuser',contre:'contre-proposer'};
 let prListe=[],prOuverte=null,prCompteT=null,prDetailT=null,prCoordVisibles=false;
 const prAFaire=p=>(p.non_lus||0)>0||(p.decide?(p.a_moi||!!p.suggestion):(p.a_moi&&!p.suggestion));
@@ -126,7 +133,7 @@ function prDirListe(){
     .filter(e=>prDirect.toutesCat||!T?.categorie||e.categorie===T.categorie)
     .filter(e=>!q||(e.club_nom+' '+e.equipe+' '+e.categorie).toLowerCase().includes(q))
     .sort((a,b)=>a.club_nom.localeCompare(b.club_nom)||a.equipe.localeCompare(b.equipe));
-  el.innerHTML=l.length?l.slice(0,60).map(e=>`<button type="button" class="prd-eq${e.team_id===prDirect.cible?' on':''}" onclick="prDirect.cible='${e.team_id}';prDirListe()"><b>${esc(e.club_nom)}</b> · ${esc(e.equipe)} <span>${esc(e.categorie)}</span></button>`).join('')
+  el.innerHTML=l.length?l.slice(0,60).map(e=>`<button type="button" class="prd-eq${e.team_id===prDirect.cible?' on':''}" onclick="prDirect.cible='${e.team_id}';prDirListe()"><b>${esc(e.club_nom)}</b> · ${esc(e.equipe)} <span>${esc(rsCat(e.equipe,e.categorie).slice(3))}</span></button>`).join('')
     :`<div class="rs-line" style="padding:8px">${prEquipes.length?'Aucune équipe trouvée'+(prDirect.toutesCat?'':' dans la catégorie '+esc(T?.categorie||'')):'Aucune autre équipe dans le réseau pour l\'instant (clubs vérifiés).'}</div>`;
 }
 async function prEnvoyerDirect(){
@@ -151,7 +158,7 @@ async function prRenderListe(){
   body.innerHTML='<div class="spin"></div>';
   const n=await prMajCompte();
   if(n===undefined){body.innerHTML='<div class="empty"><div class="empty-i">🤝</div><div class="empty-t">Propositions bientôt disponibles</div></div>';return;}
-  const carte=p=>{const [cl,lbl]=PR_STATUTS[p.statut]||['pgr',p.statut];
+  const carte=p=>{const [cl,lbl]=prStatut(p);
     const autreClub=p.cote==='proposant'?p.club_annonceur:p.club_proposant,autreEq=p.cote==='proposant'?p.equipe_annonceur:p.equipe_proposante;
     const monEq=p.cote==='proposant'?p.equipe_proposante:p.equipe_annonceur;
     const todo=prAFaire(p);
@@ -169,7 +176,7 @@ async function prRenderListe(){
 }
 async function prOuvrir(id,silencieux){
   prOuverte=prListe.find(p=>p.id===id);if(!prOuverte)return;
-  if(!silencieux){prCoordVisibles=false;document.getElementById('prop-body').innerHTML='<div class="spin"></div>';openModal('modal-prop');}
+  if(!silencieux){prCoordVisibles=false;prChangerSugg=false;document.getElementById('prop-body').innerHTML='<div class="spin"></div>';openModal('modal-prop');}
   const saisie=document.getElementById('prm-texte')?.value||'';
   const [t,c]=await Promise.all([
     sb.from('proposition_tours').select('*').eq('proposition_id',id).order('created_at'),
@@ -199,7 +206,7 @@ async function prEnvoyerMessage(){
   ta.value='';prOuvrir(p.id,true);
 }
 function prRenderDetail(tours,contacts){
-  const p=prOuverte,[cl,lbl]=PR_STATUTS[p.statut]||['pgr',p.statut];
+  const p=prOuverte,[cl,lbl]=prStatut(p);
   const autreClub=p.cote==='proposant'?p.club_annonceur:p.club_proposant;
   const nous=c=>c===p.cote;
   const sugg=tours.filter(t=>t.en_attente).at(-1);
@@ -214,15 +221,16 @@ function prRenderDetail(tours,contacts){
   if(enCours){
     if(sugg&&p.decide)actions+=`<div class="pr-sugg">💡 <b>${esc(sugg.auteur_nom||'')}</b> propose de <b>${PR_SUGG[sugg.action]||sugg.action}</b>${sugg.jour?` : ${esc(prQuand(sugg))} · ${prLieuTxt(sugg.lieu,p.cote)}`:''}${sugg.message?`<div class="pr-tm">${esc(sugg.message)}</div>`:''}
       <div class="rs-acts"><button class="bp rs-act" onclick="prAgir('valider_suggestion')">✓ Valider</button><button class="bsec" onclick="prAgir('ecarter_suggestion')">Écarter</button></div></div>`;
-    else if(sugg)actions+=`<div class="pr-sugg">⏳ Ta suggestion (${PR_SUGG[sugg.action]||sugg.action}) attend la validation de ton coordinateur.</div>`;
+    else if(sugg)actions+=`<div class="pr-sugg">⏳ Ta suggestion (${PR_SUGG[sugg.action]||sugg.action}) attend la validation de ton coordinateur.
+      ${prChangerSugg?'':`<div class="rs-acts"><button class="bsec" onclick="prChangerSugg=true;prOuvrir('${p.id}',true)">Changer ma suggestion</button><button class="bsec" onclick="prAgir('ecarter_suggestion')">Retirer</button></div>`}</div>`;
     if(p.statut==='a_valider'&&p.cote==='proposant')
       actions+=`<div class="rs-acts">${p.decide?`<button class="bp rs-act" onclick="prAgir('envoyer')">➤ Envoyer à ${esc(autreClub)}</button>`:'<div class="rs-line">⏳ En attente de ton coordinateur ou CQ.</div>'}<button class="bred" onclick="prAgir('annuler')">Annuler</button></div>`;
-    else if(p.a_moi){
+    else if(p.a_moi&&(!sugg||p.decide||prChangerSugg)){
       const pre=p.decide?'':'Suggérer : ';
       actions+=`<div class="rs-acts"><button class="bp rs-act" onclick="prAgir('accepter')">${pre}✓ Accepter</button>
         <button class="bsec" onclick="prFormContre()">${pre}↔ Autre date</button><button class="bred" onclick="prAgir('refuser')">${pre}Refuser</button></div>
         <div id="pr-contre"></div>`;
-    }else actions+=`<div class="rs-line">⏳ En attente de la réponse de ${esc(autreClub)}.</div>`;
+    }else if(!p.a_moi)actions+=`<div class="rs-line">⏳ En attente de la réponse de ${esc(autreClub)}.</div>`;
     if(p.cote==='proposant'&&p.statut!=='a_valider'&&p.decide)actions+=`<button class="bsec" style="margin-top:6px;font-size:12px" onclick="prAgir('annuler')">Annuler la proposition</button>`;
   }else if(p.statut==='acceptee')actions=`<div class="rs-ok">✓ Match ajouté au calendrier de l'équipe (onglet Matchs).</div>`;
   document.getElementById('prop-body').innerHTML=`
@@ -262,10 +270,11 @@ async function prAgir(action){
     args.p_lieu=document.getElementById('prc-lieu').value;args.p_message=document.getElementById('prc-msg').value.trim()||null;
     if(!args.p_jour)return showToast('Choisis une date','err');
   }
+  prChangerSugg=false;
   const{data,error}=await sb.rpc('proposition_agir',args);
   if(error)return showToast(error.message.replace(/^.*?:\s*/,''),'err');
   showToast({suggestion:'Suggestion envoyée à ton coordinateur',acceptee:'✓ Match ajouté au calendrier des deux équipes',refusee:'Proposition refusée',
-    annulee:'Proposition annulée',envoyee:'Proposition envoyée',contre:'Contre-proposition envoyée',ecartee:'Suggestion écartée'}[data]||'OK','ok');
+    annulee:'Proposition annulée',envoyee:'Proposition envoyée',contre:'Contre-proposition envoyée',ecartee:p.decide?'Suggestion écartée':'Suggestion retirée'}[data]||'OK','ok');
   if(data==='acceptee'&&typeof loadMatches==='function')loadMatches();
   await prMajCompte();
   prOuverte=prListe.find(x=>x.id===p.id);

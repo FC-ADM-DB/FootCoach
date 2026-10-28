@@ -181,7 +181,7 @@ function paRenderMatch(){
     ${m.statut!=='prevu'||live?`<div class="pa-score"><div class="pa-sc">${sn} – ${se}</div>
       ${live?`<div class="pa-live">● ${tl.halfTimePending?'Mi-temps':tl.chronoOn?mm+' · MT '+(tl.halfN||1):'Pause · '+mm}</div>`:'<div class="rs-line">Terminé</div>'}</div>`:''}
     ${enf.map(e=>`<div class="pa-bloc">${paBoutons(m,e)}${(()=>{const s=paTempsJeu(m,e.id);return s!=null&&(live||m.statut==='termine')?`<div class="pa-note">⏱ Temps de jeu de ${esc(e.prenom)} : <b>${Math.round(s/60)} min</b></div>`:'';})()}</div>`).join('')}
-    ${buts.length?`<div class="tb-sec-t" style="margin-top:12px">Buts</div>${buts.map(g=>`<div class="pa-but">${g.adv?'🔴':'⚽'} <span>${Math.floor((g.t||0)/60)}'</span> ${g.adv?esc(m.adversaire):esc(paNomBut(g))}</div>`).join('')}`:''}
+    ${buts.length?`<div class="tb-sec-t" style="margin-top:12px">Buts</div>${buts.map(g=>`<div class="pa-but">${g.adv?'🔴':'⚽'} <span>${butMin(g)}</span> ${g.adv?esc(m.adversaire):esc(paNomBut(g))}</div>`).join('')}`:''}
     ${conv.length?`<div class="tb-sec-t" style="margin-top:12px">Convoqués (${conv.length})</div><div class="pa-conv">${conv.map(n=>`<span>${esc(n)}</span>`).join('')}</div>`:''}`;
 }
 function paFermerMatch(){clearInterval(paTimer);paTimer=null;paMatch=null;closeModal('modal-parent-match');}
