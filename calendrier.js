@@ -15,6 +15,7 @@ function ouvrirCalendrier(jour){
 }
 const calGoPage=goPage;
 goPage=function(name){calGoPage(name);if(name==='calendrier')renderCalendrier();};
+function calAller(iso){calLundi=calDebutSemaine(new Date(iso+'T12:00'));renderCalendrier();}
 function calSemaine(delta){calLundi=new Date(calLundi);calLundi.setDate(calLundi.getDate()+7*delta);renderCalendrier();}
 
 async function renderCalendrier(){
@@ -65,11 +66,17 @@ async function renderCalendrier(){
   // Titre sans l'année quand c'est l'année en cours (le bouton « Aujourd'hui » était coupé sur iPhone)
   const optAn=jours[6].getFullYear()!==new Date().getFullYear()?{year:'numeric'}:{};
   const titre=`${jours[0].toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} – ${jours[6].toLocaleDateString('fr-BE',{day:'numeric',month:'short',...optAn})}`;
+  // Aller loin d'un geste : les 12 prochains mois (1re semaine du mois) + sélecteur de date
+  // sous le titre (semaine par semaine, avril depuis octobre = 25 touches).
+  const auj=new Date(),moisVu=jours[3].getFullYear()*12+jours[3].getMonth();
+  const mois=Array.from({length:12},(_,i)=>new Date(auj.getFullYear(),auj.getMonth()+i,1));
+  const puces=mois.map(d=>`<button class="${d.getFullYear()*12+d.getMonth()===moisVu?'on':''}" onclick="calAller('${calIso(d)}')">${d.toLocaleDateString('fr-BE',{month:'short',...(d.getFullYear()!==auj.getFullYear()?{year:'2-digit'}:{})})}</button>`).join('');
   el.innerHTML=`${clubs.length>1?`<div class="club-chooser">${clubs.map(c=>`<button class="${c.club_id===calClub?'on':''}" onclick="calClub='${c.club_id}';renderCalendrier()">${esc(c.clubs.nom)}</button>`).join('')}</div>`:''}
     <div class="cal-nav"><button class="bsec" onclick="calSemaine(-1)" aria-label="Semaine précédente">‹</button>
-      <div class="cal-titre">${titre}</div>
+      <label class="cal-titre cal-titre-date">${titre} <span aria-hidden="true">📅</span><input type="date" value="${calIso(jours[0])}" onchange="if(this.value)calAller(this.value)" aria-label="Aller à une date"></label>
       <button class="bsec" onclick="calSemaine(1)" aria-label="Semaine suivante">›</button>
       <button class="bsec" onclick="calLundi=calDebutSemaine(new Date());renderCalendrier()">Aujourd'hui</button></div>
+    <div class="cal-mois">${puces}</div>
     <div class="cal-leg"><span class="cal-it dom">🏠 domicile</span><span class="cal-it ext">✈️ extérieur</span><span class="cal-it prop">proposition en cours</span><span class="cal-it libre">📢 annonce publiée</span></div>
     <div class="rs-line" style="margin-bottom:8px">Touche <b>+</b> dans une case pour chercher un adversaire ce jour-là, proposer un match à une équipe ou publier une annonce.</div>
     ${eqs.length?`<div class="cal-wrap"><table class="cal"><thead><tr><th></th>${jours.map(j=>`<th class="${calIso(j)===todayIso()?'auj':''}">${j.toLocaleDateString('fr-BE',{weekday:'short'})}<br><b>${j.getDate()}</b></th>`).join('')}</tr></thead>
