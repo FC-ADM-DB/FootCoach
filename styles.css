@@ -900,7 +900,6 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 /* Passe décisive (2e étape du bouton ⚽ But) */
 .qg-but{font-size:13px;color:var(--text2);padding:0 2px 2px}
 .qg-opt.qg-sans{text-align:center}
-<<<<<<< HEAD
 /* ===== Tournois (tournois.js) ===== */
 .trn-sh{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 6px}
 .trn-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px}
@@ -981,7 +980,6 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .trn-infos{white-space:pre-wrap;font-size:13px;color:var(--text2);background:var(--bg3);border-radius:var(--rsm);padding:8px 10px;margin-top:8px}
 .trn-msgs{display:flex;flex-direction:column;gap:6px;max-height:45vh;overflow:auto;margin-bottom:10px}
 @media (max-width:420px){.trn-3{grid-template-columns:1fr 1fr}}
-=======
 /* Calendrier : aller loin (sélecteur de date sous le titre + puces des 12 prochains mois) */
 .cal-titre-date{position:relative;cursor:pointer;border-radius:var(--rsm);padding:6px 4px}
 .cal-titre-date:hover{background:var(--bg3)}
@@ -989,4 +987,3 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .cal-mois{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding-bottom:2px;-webkit-overflow-scrolling:touch}
 .cal-mois button{flex-shrink:0;min-height:32px;padding:0 11px;border-radius:99px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;text-transform:capitalize}
 .cal-mois button.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
->>>>>>> main
