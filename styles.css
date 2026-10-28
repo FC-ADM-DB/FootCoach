@@ -823,3 +823,9 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .rs-tri{display:flex;align-items:center;gap:8px;justify-content:space-between}
 .rs-tri span{font-size:12.5px;color:var(--text2);font-weight:600;white-space:nowrap}
 .rs-tri .sel{width:auto;flex:0 1 auto}
+/* Tranche horaire (recherche d'annonces, calendrier) */
+.rs-heures{display:flex;align-items:center;gap:6px}
+.rs-heures span{font-size:13px;color:var(--text2)}
+.rs-heures .fi{flex:1;min-width:0}
+.rs-heures .bsec{width:auto;min-height:40px;padding:0 12px;margin:0}
+.cal-choix-b{width:100%;margin-bottom:8px;min-height:46px}
