@@ -216,25 +216,62 @@ do $c2$ declare v_an uuid := md5('an-reh-u10a')::uuid; v_p uuid := md5('prop-han
   update public.profiles set telephone = '0470 12 34 56' where id = md5('cq.hannut@demo.footcoach')::uuid;
 end $c2$;
 
--- Tournoi (C6, si en place) : « Tournoi de Pâques » de REH Braives, publié, deux tableaux
--- (U9 : 6 équipes, 2 poules + demi-finales ; U10 : 5 équipes en mini-championnat).
--- Le programme n'est pas créé ici : il se génère dans l'app (Réglages → Générer).
-do $c6$ declare v_t uuid; v_u9 uuid; v_u10 uuid;
+-- Tournois (C6, si en place)
+-- 1) « Tournoi de Pâques » de REH Braives : publié, inscriptions ouvertes (30 km), deux
+--    tableaux (U9 : 2 poules + demies, 8 places ; U10 : mini-championnat), une demande
+--    d'inscription de Hannut (U9) à traiter, Amay U10 inscrit et accepté.
+-- 2) « Challenge d'Hannut » (RFC Hannutois) : ouvert aux inscriptions, REH peut s'y inscrire.
+-- Les programmes ne sont pas créés ici : ils se génèrent dans l'app (Réglages → Générer).
+do $c6$ declare v_t uuid; v_u9 uuid; v_u10 uuid; v_i uuid; v_h uuid; v_reh uuid; v_han uuid;
 begin
   if to_regclass('public.tournois') is null then return; end if;
-  insert into public.tournois (club_id, nom, jour, lieu, publie, cree_par)
-  values ((select id from public.clubs where slug = 'demo-reh-braives'), 'Tournoi de Pâques', '2027-04-03', 'Stade communal de Braives', true, md5('david@demo.footcoach')::uuid)
+  v_reh := (select id from public.clubs where slug = 'demo-reh-braives');
+  v_han := (select id from public.clubs where slug = 'demo-hannut');
+  insert into public.tournois (club_id, nom, jour, lieu, publie, inscriptions, zone, distance_km, date_limite, frais, frais_par, paiement,
+                               max_par_club, contact, infos, validation_scores, cree_par)
+  values (v_reh, 'Tournoi de Pâques', '2027-04-03', 'Stade communal de Braives', true, true, 'distance', 30, '2027-03-20', 25, 'equipe',
+          'Virement avant le 20 mars (communication : nom du club + catégorie) ou sur place', 2, 'David, 0470 00 00 00',
+          E'Accueil à partir de 8h30, premier match à 9h.
+Matchs de 10 min (U9) et 12 min (U10).
+Buvette et petite restauration sur place. Une médaille pour chaque enfant.',
+          true, md5('david@demo.footcoach')::uuid)
   returning id into v_t;
-  insert into public.tournoi_tableaux (tournoi_id, nom, format, formule, nb_poules, qualifies, duree_match, pause, terrains, terrain1, ordre)
-  values (v_t, 'U9', '5v5', 'poules', 2, 4, 10, 3, 2, 1, 0) returning id into v_u9;
-  insert into public.tournoi_tableaux (tournoi_id, nom, format, formule, nb_poules, qualifies, debut, duree_match, pause, terrains, terrain1, ordre)
-  values (v_t, 'U10', '8v8', 'championnat', 1, 0, '09:30', 12, 3, 2, 3, 1) returning id into v_u10;
+  insert into public.tournoi_tableaux (tournoi_id, nom, format, places, annees, formule, nb_poules, qualifies, duree_match, pause, terrains, terrain1, ordre)
+  values (v_t, 'U9', '5v5', 8, 'nés en 2018', 'poules', 2, 4, 10, 3, 2, 1, 0) returning id into v_u9;
+  insert into public.tournoi_tableaux (tournoi_id, nom, format, places, annees, formule, nb_poules, qualifies, debut, duree_match, pause, terrains, terrain1, ordre)
+  values (v_t, 'U10', '8v8', 6, 'nés en 2017', 'championnat', 1, 0, '09:30', 12, 3, 2, 3, 1) returning id into v_u10;
   insert into public.tournoi_equipes (tableau_id, nom, team_id, ordre) values
-    (v_u9, 'REH Braives U9', md5('demo-reh-braives/U9')::uuid, 0), (v_u9, 'RFC Hannut U9', null, 1), (v_u9, 'Burdinne U9', null, 2),
+    (v_u9, 'REH Braives U9', md5('demo-reh-braives/U9')::uuid, 0), (v_u9, 'Burdinne U9', null, 2),
     (v_u9, 'Wanze U9', null, 3), (v_u9, 'Amay U9', null, 4), (v_u9, 'Waremme U9', null, 5);
   insert into public.tournoi_equipes (tableau_id, nom, team_id, poule, ordre) values
-    (v_u10, 'REH Braives U10A', md5('demo-reh-braives/U10A')::uuid, 'A', 0), (v_u10, 'RFC Hannut U10', null, 'A', 1), (v_u10, 'Burdinne U10', null, 'A', 2),
-    (v_u10, 'Wanze U10', null, 'A', 3), (v_u10, 'Amay U10', null, 'A', 4);
+    (v_u10, 'REH Braives U10A', md5('demo-reh-braives/U10A')::uuid, 'A', 0), (v_u10, 'Burdinne U10', null, 'A', 2),
+    (v_u10, 'Wanze U10', null, 'A', 3);
+  -- Hannut U9 : inscription envoyée, avec un message
+  insert into public.tournoi_inscriptions (tournoi_id, tableau_id, club_id, team_id, nom, statut, cree_par)
+  values (v_t, v_u9, v_han, md5('demo-hannut/U9')::uuid, 'RFC Hannutois U9', 'envoyee', md5('cq.hannut@demo.footcoach')::uuid)
+  returning id into v_i;
+  insert into public.tournoi_messages (inscription_id, cote, texte, auteur, auteur_nom)
+  values (v_i, 'inscrit', 'Bonjour, nous serons là avec 8 joueurs. Le paiement sur place est-il possible ?', md5('cq.hannut@demo.footcoach')::uuid, 'Marc L.');
+  -- Amay U10 : inscription acceptée (équipe dans le tableau, reliée à son club)
+  insert into public.tournoi_inscriptions (tournoi_id, tableau_id, club_id, team_id, nom, statut, cree_par)
+  values (v_t, v_u10, (select id from public.clubs where slug = 'demo-amay'), md5('demo-amay/U10')::uuid, 'Amay U10', 'acceptee', md5('david@demo.footcoach')::uuid)
+  returning id into v_i;
+  insert into public.tournoi_equipes (tableau_id, nom, team_id, inscription_id, poule, ordre)
+  values (v_u10, 'Amay U10', md5('demo-amay/U10')::uuid, v_i, 'A', 4);
+
+  insert into public.tournois (club_id, nom, jour, lieu, publie, inscriptions, zone, date_limite, frais, frais_par, paiement, contact, infos, cree_par)
+  values (v_han, 'Challenge d''Hannut', '2027-05-08', 'Complexe sportif de Hannut (synthétique)', true, true, 'province', '2027-04-25', 3, 'joueur',
+          'Sur place, à l''accueil', 'Marc L. (RFC Hannutois), 0470 12 34 56', E'Tournoi sur synthétique, crampons moulés uniquement.
+Goûter offert après la finale.',
+          md5('cq.hannut@demo.footcoach')::uuid)
+  returning id into v_h;
+  insert into public.tournoi_tableaux (tournoi_id, nom, format, places, formule, nb_poules, qualifies, duree_match, terrains, ordre) values
+    (v_h, 'U9', '5v5', 8, 'poules', 2, 4, 10, 2, 0), (v_h, 'U10', '8v8', 6, 'championnat', 1, 0, 12, 2, 1);
+  insert into public.tournoi_equipes (tableau_id, nom, team_id, ordre)
+  select tb.id, x.nom, x.team, x.o from public.tournoi_tableaux tb
+  join (values ('U9', 'RFC Hannutois U9', md5('demo-hannut/U9')::uuid, 0), ('U9', 'Huy U9', null::uuid, 1), ('U9', 'Landen U9', null, 2),
+               ('U10', 'RFC Hannutois U10', md5('demo-hannut/U10')::uuid, 0), ('U10', 'Huy U10', null, 1)) x(cat, nom, team, o) on x.cat = tb.nom
+  where tb.tournoi_id = v_h;
 end $c6$;
 
 -- Résumé

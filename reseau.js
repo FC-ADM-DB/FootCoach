@@ -51,9 +51,10 @@ async function renderReseauPage(){
   const nVal=rsMine.filter(a=>a.statut==='a_valider'&&isClubStaff(a.club_id)).length;
   const tab=(k,l)=>`<button class="${rsTab===k?'on':''}" onclick="rsTab='${k}';renderReseauPage()">${l}</button>`;
   const nProp=typeof prListe!=='undefined'?prListe.filter(prAFaire).length:0;
-  el.innerHTML=`<div class="rs-tabs">${tab('annonces','Annonces')}${tab('propositions',`Propositions${nProp?` <span class="rs-count">${nProp}</span>`:''}`)}${tab('mine','Mes annonces')}${canVal?tab('valider',`À valider${nVal?` <span class="rs-count">${nVal}</span>`:''}`):''}</div><div id="rs-body"><div class="spin"></div></div>`;
+  el.innerHTML=`<div class="rs-tabs">${tab('annonces','Annonces')}${tab('propositions',`Propositions${nProp?` <span class="rs-count">${nProp}</span>`:''}`)}${typeof trnReseauRender==='function'?tab('tournois',`Tournois${(()=>{const n=(typeof trnInscr!=='undefined'?trnInscr:[]).filter(i=>i.a_traiter&&i.cote==='inscrit').length;return n?` <span class="rs-count">${n}</span>`:''})()}`):''}${tab('mine','Mes annonces')}${canVal?tab('valider',`À valider${nVal?` <span class="rs-count">${nVal}</span>`:''}`):''}</div><div id="rs-body"><div class="spin"></div></div>`;
   if(rsTab==='annonces')return rsRenderAnnonces();
   if(rsTab==='propositions')return typeof prRenderListe==='function'?prRenderListe():null;
+  if(rsTab==='tournois')return trnReseauRender();
   rsRenderMine(rsTab==='valider');
 }
 

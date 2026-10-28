@@ -959,3 +959,24 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .trn-s-foot{flex-wrap:wrap}
 @media (max-width:420px){.trn-2{grid-template-columns:1fr}.trn-cl-l{grid-template-columns:20px 1fr repeat(4,22px) 30px 28px;padding:8px 6px;font-size:12px}}
 #trn-content{max-width:760px}
+/* Tournois : annonce, inscriptions, validation des scores */
+.trn-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.trn-conf{font-size:12px;color:var(--amber,#ffb020);margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.trn-conf .bsec{padding:4px 10px;font-size:12px}
+.trn-libre{color:var(--text3);font-style:italic}
+.trn-annonce{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:13px;margin-bottom:12px}
+.trn-ouv{font-size:14px;margin-top:0}
+.trn-places{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.trn-place{font-size:12px;padding:4px 9px;border-radius:99px;background:var(--green-bg);color:var(--green)}
+.trn-place.plein{background:var(--bg3);color:var(--text3)}
+.trn-clubs{display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto;font-size:13px}
+.trn-ins{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:7px}
+.trn-ins.a-traiter{border-color:var(--amber-border,#ffb02066)}
+.trn-ins-h{display:flex;align-items:flex-start;gap:8px}
+.trn-ins-a{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.trn-ins-a button{min-height:34px}
+.trn-hist{margin-top:10px}
+.trn-hist summary{cursor:pointer;font-size:13px;color:var(--text2);margin-bottom:6px}
+.trn-infos{white-space:pre-wrap;font-size:13px;color:var(--text2);background:var(--bg3);border-radius:var(--rsm);padding:8px 10px;margin-top:8px}
+.trn-msgs{display:flex;flex-direction:column;gap:6px;max-height:45vh;overflow:auto;margin-bottom:10px}
+@media (max-width:420px){.trn-3{grid-template-columns:1fr 1fr}}

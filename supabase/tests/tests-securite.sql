@@ -35,6 +35,26 @@ begin
   return (select count(*) from public.matches where adversaire like 'TEST Club B%');
 end $f$;
 
+-- C6 : saisit un score puis renvoie l'état de confirmation « a=…,b=… » (requête suivante)
+create or replace function pg_temp.score_confirmation(p_m uuid, p_cote text) returns text language plpgsql as $f$
+declare r text;
+begin
+  perform public.tournoi_score(p_m, 1, 0, 'termine', null, p_cote);
+  select 'a=' || confirme_a || ',b=' || confirme_b into r from public.tournoi_matchs where id = p_m;
+  return r;
+end $f$;
+-- C6 : désistement puis acceptation d'une autre équipe → « libres=… » du tableau
+create or replace function pg_temp.desister_puis_accepter(p_des uuid, p_acc uuid) returns text language plpgsql as $f$
+declare tb uuid; r text;
+begin
+  select tableau_id into tb from public.tournoi_inscriptions where id = p_des;
+  perform public.tournoi_inscription_agir(p_des, 'desister');
+  select 'libres=' || count(*) filter (where libre) into r from public.tournoi_equipes where tableau_id = tb;
+  perform public.tournoi_inscription_agir(p_acc, 'accepter');
+  select r || ' puis libres=' || count(*) filter (where libre) || ',equipes=' || count(*) into r from public.tournoi_equipes where tableau_id = tb;
+  return r;
+end $f$;
+
 -- Crée un club puis compte, dans une requête SUIVANTE, si l'appelant en est CQ
 -- (dans une même requête, la ligne tout juste créée n'est pas encore visible).
 create or replace function pg_temp.creer_club_et_verifier_cq() returns int language plpgsql as $$
@@ -624,56 +644,109 @@ insert into r (qui, test, attendu, obtenu) values
  ('Coach A', '[C6] crée un tournoi pour son club', '1', pg_temp.essai($q$insert into tournois (club_id, nom, jour) values ('50000000-0000-4000-a000-0000000000a1', 'Nouveau', current_date)$q$)),
  ('Coach A', '[C6] crée un tournoi pour le club B', 'refusé', pg_temp.essai($q$insert into tournois (club_id, nom, jour) values ('50000000-0000-4000-a000-0000000000b1', 'Pirate', current_date)$q$)),
  ('Coach A', '[C6] ajoute une équipe adverse (nom)', '1', pg_temp.essai($q$insert into tournoi_equipes (tableau_id, nom, poule) values ('a1000000-0000-4000-a000-000000000001', 'Autre FC', 'A')$q$)),
- ('Coach A', '[C6] ajoute une équipe du club B comme « à nous »', 'refusé', pg_temp.essai($q$insert into tournoi_equipes (tableau_id, nom, team_id) values ('a1000000-0000-4000-a000-000000000001', 'X', '10000000-0000-4000-a000-0000000000b1')$q$)),
+ ('Coach A', '[C6] ajoute directement une équipe du club B', 'refusé', pg_temp.essai($q$insert into tournoi_equipes (tableau_id, nom, team_id) values ('a1000000-0000-4000-a000-000000000001', 'X', '10000000-0000-4000-a000-0000000000b1')$q$)),
  ('Coach A', '[C6] modifie l''heure d''un match', '1', pg_temp.essai($q$update tournoi_matchs set heure = '10:00' where id = 'a3000000-0000-4000-a000-000000000001'$q$)),
- ('Coach A', '[C6] saisit un score', '1', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 2, 1, 'termine')) x$q$));
+ ('Coach A', '[C6] saisit un score (table de marque)', '1', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 2, 1, 'termine', null, null)) x$q$)),
+ ('Coach A', '[C6] score table de marque = confirmé des deux côtés', '1', pg_temp.essai($q$select 1 where pg_temp.score_confirmation('a3000000-0000-4000-a000-000000000002', null) = 'a=true,b=true'$q$)),
+ ('Coach A', '[C6] voit les inscriptions de son tournoi (3)', '3', pg_temp.essai($q$select 1 from tournoi_inscriptions$q$)),
+ ('Coach A', '[C6] accepte l''inscription du club B', '1', pg_temp.essai($q$select 1 where tournoi_inscription_agir('a4000000-0000-4000-a000-000000000001', 'accepter') = 'acceptee'$q$)),
+ ('Coach A', '[C6] refuse l''inscription du club B', '1', pg_temp.essai($q$select 1 where tournoi_inscription_agir('a4000000-0000-4000-a000-000000000001', 'refuser') = 'refusee'$q$)),
+ ('Coach A', '[C6] accepte une inscription « à valider »', 'refusé', pg_temp.essai($q$select 1 where tournoi_inscription_agir('a4000000-0000-4000-a000-000000000002', 'accepter') = 'acceptee'$q$)),
+ ('Coach A', '[C6] désistement puis nouvelle équipe : place reprise', '1', pg_temp.essai($q$select 1 where pg_temp.desister_puis_accepter('a4000000-0000-4000-a000-000000000003', 'a4000000-0000-4000-a000-000000000001') = 'libres=1 puis libres=0,equipes=3'$q$)),
+ ('Coach A', '[C6] écrit un message sur une inscription', '1', pg_temp.essai($q$select 1 from (select tournoi_message('a4000000-0000-4000-a000-000000000001', 'Bienvenue')) x$q$)),
+ ('Coach A', '[C6] inscrit son équipe à son propre tournoi', 'refusé', pg_temp.essai($q$select tournoi_inscrire('a1000000-0000-4000-a000-000000000004', '10000000-0000-4000-a000-0000000000a1')$q$)),
+ ('Coach A', '[C6] voit son tournoi dans les annonces', '0', pg_temp.essai($q$select 1 from tournois_reseau()$q$)),
+ ('Coach A', '[C6] « mes inscriptions » : 1 à traiter', '1', pg_temp.essai($q$select 1 from mes_inscriptions() where a_traiter$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000006","role":"authenticated"}', false);
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
- ('Coord A', '[C6] ajoute un tableau', '1', pg_temp.essai($q$insert into tournoi_tableaux (tournoi_id, nom) values ('a0000000-0000-4000-a000-000000000001', 'U11')$q$)),
- ('Coord A', '[C6] publie / dépublie', '1', pg_temp.essai($q$update tournois set publie = false where id = 'a0000000-0000-4000-a000-000000000001'$q$));
+ ('Coord A', '[C6] ajoute un tableau', '1', pg_temp.essai($q$insert into tournoi_tableaux (tournoi_id, nom) values ('a0000000-0000-4000-a000-000000000001', 'U13')$q$)),
+ ('Coord A', '[C6] publie / dépublie', '1', pg_temp.essai($q$update tournois set publie = false where id = 'a0000000-0000-4000-a000-000000000001'$q$)),
+ ('Coord A', '[C6] invite un club (zone clubs)', '1', pg_temp.essai($q$insert into tournoi_cibles (tournoi_id, club_id) values ('a0000000-0000-4000-a000-000000000001', '50000000-0000-4000-a000-0000000000b1')$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('Délégué A', '[C6] voit les tournois du club (2)', '2', pg_temp.essai($q$select 1 from tournois$q$)),
- ('Délégué A', '[C6] voit les matchs du tournoi', '1', pg_temp.essai($q$select 1 from tournoi_matchs$q$)),
- ('Délégué A', '[C6] saisit un score', '1', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 0, 0, 'en_cours')) x$q$)),
+ ('Délégué A', '[C6] voit les matchs du tournoi', '2', pg_temp.essai($q$select 1 from tournoi_matchs$q$)),
+ ('Délégué A', '[C6] saisit un score (table de marque)', '1', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 0, 0, 'en_cours', null, null)) x$q$)),
  ('Délégué A', '[C6] crée un tournoi', 'refusé', pg_temp.essai($q$insert into tournois (club_id, nom, jour) values ('50000000-0000-4000-a000-0000000000a1', 'X', current_date)$q$)),
  ('Délégué A', '[C6] change l''heure d''un match', '0', pg_temp.essai($q$update tournoi_matchs set heure = '11:00' where id = 'a3000000-0000-4000-a000-000000000001'$q$)),
  ('Délégué A', '[C6] ajoute une équipe', 'refusé', pg_temp.essai($q$insert into tournoi_equipes (tableau_id, nom) values ('a1000000-0000-4000-a000-000000000001', 'X')$q$)),
- ('Délégué A', '[C6] supprime le tournoi', '0', pg_temp.essai($q$delete from tournois where id = 'a0000000-0000-4000-a000-000000000001'$q$));
+ ('Délégué A', '[C6] supprime le tournoi', '0', pg_temp.essai($q$delete from tournois where id = 'a0000000-0000-4000-a000-000000000001'$q$)),
+ ('Délégué A', '[C6] voit les inscriptions', '0', pg_temp.essai($q$select 1 from tournoi_inscriptions$q$)),
+ ('Délégué A', '[C6] accepte une inscription', 'refusé', pg_temp.essai($q$select 1 where tournoi_inscription_agir('a4000000-0000-4000-a000-000000000001', 'accepter') = 'acceptee'$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach B', '[C6] voit l''annonce du tournoi (réseau)', '1', pg_temp.essai($q$select 1 from tournois_reseau()$q$)),
+ ('Coach B', '[C6] liste les clubs du réseau (3 vérifiés)', '3', pg_temp.essai($q$select 1 from clubs_reseau()$q$)),
+ ('Coach B', '[C6] l''annonce donne les places (U10 : 3 / 4)', '1', pg_temp.essai($q$select 1 from tournois_reseau() t, jsonb_array_elements(t.tableaux) tb where tb->>'nom' = 'U10' and (tb->>'prises')::int = 3 and (tb->>'places')::int = 4$q$)),
+ ('Coach B', '[C6] lit les tables du tournoi (pas encore accepté)', '0', pg_temp.essai($q$select 1 from tournois$q$)),
+ ('Coach B', '[C6] voit ses inscriptions (2)', '2', pg_temp.essai($q$select 1 from tournoi_inscriptions$q$)),
+ ('Coach B', '[C6] inscrit son équipe (U12)', '1', pg_temp.essai($q$select 1 where tournoi_inscrire('a1000000-0000-4000-a000-000000000004', '10000000-0000-4000-a000-0000000000b1') is not null$q$)),
+ ('Coach B', '[C6] inscrit dans une catégorie complète', 'refusé', pg_temp.essai($q$select tournoi_inscrire('a1000000-0000-4000-a000-000000000003', '10000000-0000-4000-a000-0000000000b1')$q$)),
+ ('Coach B', '[C6] inscrit une équipe d''un autre club', 'refusé', pg_temp.essai($q$select tournoi_inscrire('a1000000-0000-4000-a000-000000000004', '10000000-0000-4000-a000-0000000000a1')$q$)),
+ ('Coach B', '[C6] inscrit deux fois la même équipe', 'refusé', pg_temp.essai($q$select tournoi_inscrire('a1000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000b1')$q$)),
+ ('Coach B', '[C6] envoie l''inscription « à valider »', '1', pg_temp.essai($q$select 1 where tournoi_inscription_agir('a4000000-0000-4000-a000-000000000002', 'envoyer') = 'envoyee'$q$)),
+ ('Coach B', '[C6] annule son inscription envoyée', '1', pg_temp.essai($q$select 1 where tournoi_inscription_agir('a4000000-0000-4000-a000-000000000001', 'annuler') = 'annulee'$q$)),
+ ('Coach B', '[C6] accepte sa propre inscription', 'refusé', pg_temp.essai($q$select 1 where tournoi_inscription_agir('a4000000-0000-4000-a000-000000000001', 'accepter') = 'acceptee'$q$)),
+ ('Coach B', '[C6] écrit un message sur son inscription', '1', pg_temp.essai($q$select 1 from (select tournoi_message('a4000000-0000-4000-a000-000000000001', 'On arrive à 9h')) x$q$)),
+ ('Coach B', '[C6] écrit sur l''inscription d''un autre club', 'refusé', pg_temp.essai($q$select tournoi_message('a4000000-0000-4000-a000-000000000003', 'spam')$q$)),
+ ('Coach B', '[C6] saisit un score (pas inscrit)', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 0, 9, 'termine', null, 'b')) x$q$)),
+ ('Coach B', '[C6] inscrit au tournoi brouillon', 'refusé', pg_temp.essai($q$select tournoi_inscrire((select id from tournoi_tableaux where tournoi_id = 'a0000000-0000-4000-a000-000000000002' limit 1), '10000000-0000-4000-a000-0000000000b1')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000008","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ C', '[C6] lit le tournoi (inscription acceptée)', '1', pg_temp.essai($q$select 1 from tournois$q$)),
+ ('CQ C', '[C6] voit les matchs du tournoi', '2', pg_temp.essai($q$select 1 from tournoi_matchs$q$)),
+ ('CQ C', '[C6] saisit le score de son match (côté b)', '1', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000002', 0, 2, 'termine', null, 'b')) x$q$)),
+ ('CQ C', '[C6] score saisi côté b : à confirmer par A', '1', pg_temp.essai($q$select 1 where pg_temp.score_confirmation('a3000000-0000-4000-a000-000000000002', 'b') = 'a=false,b=true'$q$)),
+ ('CQ C', '[C6] saisit en se disant côté a', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000002', 0, 2, 'termine', null, 'a')) x$q$)),
+ ('CQ C', '[C6] saisit un match où il ne joue pas', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 0, 2, 'termine', null, 'b')) x$q$)),
+ ('CQ C', '[C6] saisit sans côté (table de marque)', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000002', 0, 2, 'termine', null, null)) x$q$)),
+ ('CQ C', '[C6] confirme le score côté b', '1', pg_temp.essai($q$select 1 from (select tournoi_score_confirmer('a3000000-0000-4000-a000-000000000002', 'b')) x$q$)),
+ ('CQ C', '[C6] confirme à la place de l''équipe A', 'refusé', pg_temp.essai($q$select tournoi_score_confirmer('a3000000-0000-4000-a000-000000000002', 'a')$q$)),
+ ('CQ C', '[C6] se désiste', '1', pg_temp.essai($q$select 1 where tournoi_inscription_agir('a4000000-0000-4000-a000-000000000003', 'desister') = 'desistee'$q$)),
+ ('CQ C', '[C6] modifie un match directement', '0', pg_temp.essai($q$update tournoi_matchs set score_a = 9 where id = 'a3000000-0000-4000-a000-000000000002'$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach A', '[C6] confirme le score côté a (son équipe)', '1', pg_temp.essai($q$select 1 from (select tournoi_score_confirmer('a3000000-0000-4000-a000-000000000002', 'a')) x$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('Parent A', '[C6] voit les tournois du club', '2', pg_temp.essai($q$select 1 from tournois$q$)),
- ('Parent A', '[C6] saisit un score', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 5, 0, 'termine')) x$q$)),
- ('Parent A', '[C6] modifie un match', '0', pg_temp.essai($q$update tournoi_matchs set score_a = 9 where id = 'a3000000-0000-4000-a000-000000000001'$q$));
-reset role;
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
-set role authenticated;
-insert into r (qui, test, attendu, obtenu) values
- ('Coach B', '[C6] voit les tournois du club A', '0', pg_temp.essai($q$select 1 from tournois$q$)),
- ('Coach B', '[C6] voit les matchs du club A', '0', pg_temp.essai($q$select 1 from tournoi_matchs$q$)),
- ('Coach B', '[C6] saisit un score au club A', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 0, 9, 'termine')) x$q$)),
- ('Coach B', '[C6] ajoute une équipe au club A', 'refusé', pg_temp.essai($q$insert into tournoi_equipes (tableau_id, nom) values ('a1000000-0000-4000-a000-000000000001', 'X')$q$));
+ ('Parent A', '[C6] saisit un score', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 5, 0, 'termine', null, null)) x$q$)),
+ ('Parent A', '[C6] modifie un match', '0', pg_temp.essai($q$update tournoi_matchs set score_a = 9 where id = 'a3000000-0000-4000-a000-000000000001'$q$)),
+ ('Parent A', '[C6] voit les inscriptions', '0', pg_temp.essai($q$select 1 from tournoi_inscriptions$q$)),
+ ('Parent A', '[C6] voit les annonces de tournoi', '0', pg_temp.essai($q$select 1 from tournois_reseau()$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000004","role":"authenticated"}', false);
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('Externe', '[C6] voit des tournois', '0', pg_temp.essai($q$select 1 from tournois$q$)),
- ('Externe', '[C6] saisit un score', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 1, 1, 'termine')) x$q$));
+ ('Externe', '[C6] voit les annonces de tournoi', '0', pg_temp.essai($q$select 1 from tournois_reseau()$q$)),
+ ('Externe', '[C6] liste les clubs du réseau', '0', pg_temp.essai($q$select 1 from clubs_reseau()$q$)),
+ ('Externe', '[C6] voit des inscriptions', '0', pg_temp.essai($q$select 1 from mes_inscriptions()$q$)),
+ ('Externe', '[C6] inscrit une équipe', 'refusé', pg_temp.essai($q$select tournoi_inscrire('a1000000-0000-4000-a000-000000000004', '10000000-0000-4000-a000-0000000000b1')$q$)),
+ ('Externe', '[C6] saisit un score', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 1, 1, 'termine', null, null)) x$q$));
 reset role;
 select set_config('request.jwt.claims', '{"role":"anon"}', false);
 set role anon;
 insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[C6] lit la table des tournois', '0', pg_temp.essai($q$select 1 from tournois$q$)),
  ('Visiteur', '[C6] page publique d''un tournoi publié', '1', pg_temp.essai($q$select 1 where tournoi_public('a0000000-0000-4000-a000-000000000001') is not null$q$)),
- ('Visiteur', '[C6] page publique : 1 match', '1', pg_temp.essai($q$select 1 from jsonb_array_elements(tournoi_public('a0000000-0000-4000-a000-000000000001')->'tableaux') tb, jsonb_array_elements(tb->'matchs') m$q$)),
+ ('Visiteur', '[C6] page publique : 2 matchs', '2', pg_temp.essai($q$select 1 from jsonb_array_elements(tournoi_public('a0000000-0000-4000-a000-000000000001')->'tableaux') tb, jsonb_array_elements(tb->'matchs') m$q$)),
  ('Visiteur', '[C6] page publique d''un tournoi non publié', '0', pg_temp.essai($q$select 1 where tournoi_public('a0000000-0000-4000-a000-000000000002') is not null$q$)),
- ('Visiteur', '[C6] saisit un score', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 1, 1, 'termine')) x$q$));
+ ('Visiteur', '[C6] annonces de tournoi', 'refusé', pg_temp.essai($q$select 1 from tournois_reseau()$q$)),
+ ('Visiteur', '[C6] inscriptions', 'refusé', pg_temp.essai($q$select 1 from mes_inscriptions()$q$)),
+ ('Visiteur', '[C6] saisit un score', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 1, 1, 'termine', null, null)) x$q$));
 reset role;
 select set_config('request.jwt.claims', '', false);
 
