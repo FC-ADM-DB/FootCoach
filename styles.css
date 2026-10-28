@@ -805,6 +805,7 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .cal-it.prop{border:1px dashed var(--amber);background:var(--amber-bg);cursor:pointer}
 .cal-it.prop small{display:block;color:var(--amber);font-weight:700}
 .cal-it.libre{border:1px dashed var(--border2);color:var(--text3)}
+.cal-it.libre small{display:block;font-style:italic}
 .pr-cal{width:100%;margin-bottom:10px;font-size:13px;min-height:42px}
 .pr-jc{font-size:12.5px;background:var(--bg3);border-radius:var(--rsm);padding:8px 10px;margin-bottom:10px;line-height:1.45}
 .pr-jc a{white-space:nowrap}
