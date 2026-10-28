@@ -560,7 +560,9 @@ function renderMatchesList(){
 }
 function renderHomeMatches(){
   const el=document.getElementById('home-next');
-  const up=matches.filter(m=>m.statut==='prevu').slice(0,3);
+  // matches est trié du plus récent au plus ancien : sans re-tri, l'accueil montrait les
+  // 3 matchs prévus les plus LOINTAINS au lieu des 3 prochains.
+  const up=matches.filter(m=>m.statut==='prevu').sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3);
   if(!up.length){el.innerHTML=`<div class="empty" style="padding:22px 0"><div class="empty-i">📅</div><div class="empty-t">Aucun match prévu</div></div>`;return;}
   el.innerHTML=up.map(m=>{
     const d=new Date(m.date).toLocaleDateString('fr-BE',{weekday:'long',day:'2-digit',month:'long'});

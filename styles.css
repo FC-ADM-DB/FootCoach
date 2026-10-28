@@ -750,7 +750,9 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .msg-t{font-size:14px;white-space:pre-wrap;word-break:break-word;line-height:1.35}
 .msg-h{font-size:10.5px;color:var(--text3);margin-top:3px;text-align:right}
 .msg-h a{color:var(--text3)}
-.msg-jour{align-self:center;font-size:11px;color:var(--text3);margin:6px 0 2px;text-transform:capitalize}
+.msg-jour{align-self:center;font-size:11px;color:var(--text3);margin:6px 0 2px}
+/* Majuscule au jour seulement : capitalize donnait « Mercredi 28 Octobre » */
+.msg-jour::first-letter{text-transform:uppercase}
 .msg-vide{color:var(--text2);font-size:13px;text-align:center;margin:auto}
 .msg-saisie{display:flex;gap:6px;align-items:flex-end;margin-top:8px}
 .msg-saisie textarea{flex:1;resize:none;min-height:44px;max-height:120px;margin:0}
