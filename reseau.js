@@ -56,18 +56,16 @@ async function rsRenderAnnonces(){
   const verifie=!!T?.clubs?.verifie;
   const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?'selected':''}>${esc(l)}</option>`;
   const sel=(k,items,tout)=>`<select class="sel" onchange="rsFiltre('${k}',this.value)">${opt('',tout,rsFiltres[k])}${items.map(([v,l])=>opt(v,l,rsFiltres[k])).join('')}</select>`;
-  // En-tête compact : équipe + « Proposer », recherche + bouton « Filtres » (panneau replié)
+  // En-tête compact sur une ligne : équipe, « Proposer », « Filtres » (recherche comprise, panneau replié)
   const n=rsNbFiltres();
   const head=`<div class="rs-filters">
     <div class="rs-ligne">
       <select class="sel" onchange="rsTeamId=this.value;rsRenderAnnonces()" aria-label="Pour l'équipe">${st.map(t=>opt(t.id,t.nom+' ('+t.categorie+')',rsTeamId)).join('')}</select>
       ${verifie?'<button class="bsec rs-mini" onclick="prOuvrirDirect()">🤝 Proposer</button>':''}
-    </div>
-    <div class="rs-ligne">
-      <input class="fi" type="search" placeholder="🔎 Club ou équipe…" value="${esc(rsFiltres.q)}" oninput="rsFiltres.q=this.value;rsGarderFiltres();rsFiltrer()">
-      <button class="bsec rs-mini${n?' actif':''}" onclick="rsPanneau=!rsPanneau;rsRenderAnnonces()" aria-expanded="${rsPanneau}">⚙️ Filtres${n?` <span class="rs-count">${n}</span>`:''}</button>
+      <button class="bsec rs-mini${n?' actif':''}" id="rs-btnf" onclick="rsPanneau=!rsPanneau;rsRenderAnnonces()" aria-expanded="${rsPanneau}">⚙️ Filtres${n?` <span class="rs-count">${n}</span>`:''}</button>
     </div>
     ${rsPanneau?`<div class="rs-panneau">
+      <input class="fi" type="search" placeholder="🔎 Rechercher un club ou une équipe…" value="${esc(rsFiltres.q)}" oninput="rsFiltres.q=this.value;rsGarderFiltres();rsFiltrer()">
       <div class="frow">
         ${sel('periode',[['7','7 prochains jours'],['we','Prochain week-end'],['15','2 prochaines semaines'],['30','30 prochains jours'],['date','Date précise…']],'Toutes les dates')}
         ${sel('jsem',[['6','Samedi'],['0','Dimanche'],['3','Mercredi'],['sem','En semaine']],'Tous les jours')}
@@ -89,7 +87,7 @@ async function rsRenderAnnonces(){
       <label class="tm-new-toggle" style="margin:0;min-height:30px"><input type="checkbox" ${rsFiltres.compat?'checked':''} onchange="rsFiltre('compat',this.checked)"> Compatibles avec ${esc(T?.nom||'mon équipe')} seulement</label>
       <div class="rs-ligne">
         <select class="sel" onchange="rsFiltre('tri',this.value)" aria-label="Tri">${opt('date','Tri : date la plus proche',rsFiltres.tri)}${opt('distance','Tri : distance',rsFiltres.tri)}${opt('club','Tri : club (A–Z)',rsFiltres.tri)}</select>
-        ${n?'<button class="bsec rs-mini" onclick="rsFiltres={...RS_FILTRES0,q:rsFiltres.q};rsGarderFiltres();rsRenderAnnonces()">Effacer</button>':''}
+        ${n?'<button class="bsec rs-mini" onclick="rsFiltres={...RS_FILTRES0};rsGarderFiltres();rsRenderAnnonces()">Effacer</button>':''}
       </div>
     </div>`:''}
     <div class="rs-nb" id="rs-nb"></div>
@@ -109,7 +107,7 @@ function rsChercherPour(teamId,jour,hDe,hA){
 }
 // Changement d'un filtre à liste (la période change l'en-tête : champ « date précise »)
 function rsFiltre(k,v){rsFiltres[k]=v;rsGarderFiltres();rsRenderAnnonces();}   // ré-affiche l'en-tête (compteur, date précise)
-const rsNbFiltres=()=>['periode','jsem','hDe','hA','cat','type','lieu','format','niveau','km','compat'].filter(k=>rsFiltres[k]).length;
+const rsNbFiltres=()=>['q','periode','jsem','hDe','hA','cat','type','lieu','format','niveau','km','compat'].filter(k=>rsFiltres[k]).length;
 let rsPanneau=false;   // panneau des filtres ouvert
 const rsIso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 // Créneau retenu par les filtres de date : libre, pas passé, dans la période, bon jour
@@ -152,6 +150,7 @@ function rsFiltrer(){
   if(f.compat)list=list.filter(a=>!a.raisons.length);
   list.sort(f.tri==='distance'?(x,y)=>(x.distance_club??1e9)-(y.distance_club??1e9)
     :f.tri==='club'?(x,y)=>x.club_nom.localeCompare(y.club_nom):(x,y)=>x.prochain.localeCompare(y.prochain));
+  const bf=document.getElementById('rs-btnf');if(bf){const n=rsNbFiltres();bf.classList.toggle('actif',!!n);bf.innerHTML='⚙️ Filtres'+(n?` <span class="rs-count">${n}</span>`:'');}
   const nb=document.getElementById('rs-nb');if(nb)nb.textContent=`${list.length} annonce${list.length>1?'s':''}`;
   el.innerHTML=list.length?list.map(a=>rsCarte(a,T)).join('')
     :rsDonnees.length?`<div class="empty"><div class="empty-i">🔎</div><div class="empty-t">Aucune annonce avec ces filtres</div><div class="empty-s">Élargis la période ou réinitialise les filtres.</div></div>`
