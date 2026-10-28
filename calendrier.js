@@ -68,7 +68,9 @@ async function renderCalendrier(){
   const titre=`${jours[0].toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} – ${jours[6].toLocaleDateString('fr-BE',{day:'numeric',month:'short',...optAn})}`;
   // Aller loin d'un geste : les 12 prochains mois (1re semaine du mois) + sélecteur de date
   // sous le titre (semaine par semaine, avril depuis octobre = 25 touches).
-  const auj=new Date(),moisVu=jours[3].getFullYear()*12+jours[3].getMonth();
+  // Mois en vert = celui du dimanche : avec le jeudi, « janv. 27 » (semaine du 28 déc. au
+  // 3 janv.) allumait décembre. La semaine du 1er d'un mois finit toujours dans ce mois.
+  const auj=new Date(),moisVu=jours[6].getFullYear()*12+jours[6].getMonth();
   const mois=Array.from({length:12},(_,i)=>new Date(auj.getFullYear(),auj.getMonth()+i,1));
   const puces=mois.map(d=>`<button class="${d.getFullYear()*12+d.getMonth()===moisVu?'on':''}" onclick="calAller('${calIso(d)}')">${d.toLocaleDateString('fr-BE',{month:'short',...(d.getFullYear()!==auj.getFullYear()?{year:'2-digit'}:{})})}</button>`).join('');
   el.innerHTML=`${clubs.length>1?`<div class="club-chooser">${clubs.map(c=>`<button class="${c.club_id===calClub?'on':''}" onclick="calClub='${c.club_id}';renderCalendrier()">${esc(c.clubs.nom)}</button>`).join('')}</div>`:''}
