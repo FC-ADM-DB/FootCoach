@@ -46,7 +46,7 @@ goPage=function(name){
 async function msgRenderListe(sansRecharger){
   const el=document.getElementById('msg-content');if(!el)return;
   document.getElementById('msg-titre').textContent='Messages';
-  if(!CT){el.innerHTML='<div class="empty"><div class="empty-i">💬</div><div class="empty-t">Choisis une équipe</div></div>';return;}
+  if(!CT){el.innerHTML=clubVue?choisirEquipeHtml('💬','Chaque équipe a sa conversation avec ses familles','messages'):'<div class="empty"><div class="empty-i">💬</div><div class="empty-t">Choisis une équipe</div></div>';return;}
   if(!msgDispo){el.innerHTML='<div class="empty"><div class="empty-i">💬</div><div class="empty-t">Messagerie bientôt disponible</div></div>';return;}
   if(!sansRecharger){el.innerHTML='<div class="spin"></div>';await msgMajBadge();}
   const staff=isTeamStaff(CT);

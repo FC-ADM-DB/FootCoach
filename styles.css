@@ -750,7 +750,9 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .msg-t{font-size:14px;white-space:pre-wrap;word-break:break-word;line-height:1.35}
 .msg-h{font-size:10.5px;color:var(--text3);margin-top:3px;text-align:right}
 .msg-h a{color:var(--text3)}
-.msg-jour{align-self:center;font-size:11px;color:var(--text3);margin:6px 0 2px;text-transform:capitalize}
+.msg-jour{align-self:center;font-size:11px;color:var(--text3);margin:6px 0 2px}
+/* Majuscule au jour seulement : capitalize donnait « Mercredi 28 Octobre » */
+.msg-jour::first-letter{text-transform:uppercase}
 .msg-vide{color:var(--text2);font-size:13px;text-align:center;margin:auto}
 .msg-saisie{display:flex;gap:6px;align-items:flex-end;margin-top:8px}
 .msg-saisie textarea{flex:1;resize:none;min-height:44px;max-height:120px;margin:0}
@@ -870,7 +872,7 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .cal-jour{border:1px solid var(--border);border-radius:var(--r);background:var(--bg2);padding:8px 10px}
 .cal-jour.we{background:var(--bg3)}
 .cal-jour.auj{box-shadow:inset 0 0 0 2px var(--green-border)}
-.cal-jh{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;text-transform:capitalize;min-height:30px}
+.cal-jh{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;min-height:30px}
 .cal-add-j{width:34px;height:30px;border-radius:8px;border:1px dashed var(--border2);background:none;color:var(--text2);font-size:17px;cursor:pointer;padding:0}
 .cal-l-eq{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
 .cal-l-nom{font-size:12px;font-weight:700;min-width:48px;padding-top:4px}
@@ -887,3 +889,11 @@ body.parent-mode .ni-side.pa-cache{display:none!important}
 .cal-jour{padding:4px 10px}
 .cal{table-layout:fixed}
 .cal thead th:first-child,.cal tbody th{width:90px}
+/* Vue club (CQ / coordinateur sans équipe sélectionnée) */
+.club-only{display:none}
+body.club-vue .team-only{display:none}
+body.club-vue .srow.club-only{display:grid}
+body.club-vue .qb.club-only{display:block}
+body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
+.ce-liste{display:flex;flex-direction:column;gap:7px;max-width:460px;margin:0 auto}
+.mc-eq{display:inline-block;font-size:10px;font-weight:700;color:#fff;border-radius:5px;padding:1px 5px;margin-right:6px;vertical-align:1px}
