@@ -189,6 +189,13 @@ function safeLogo(t){const l=t?.logo;return typeof l==='string'&&/^data:image\/(
 function teamSqInner(t){const l=safeLogo(t);return l?`<img class="team-logo" src="${l}" alt="">`:`<span class="js-team-cat">${t?.categorie||''}</span>`;}
 function teamSqBg(t){return safeLogo(t)?'transparent':(t?.couleur||'#00d68f');}
 function renderNavTeam(){
+  if(clubVue){
+    const c=clubOf(clubVue)||{},l=safeLogo(c);
+    fillAll('.js-team-sq',el=>{el.style.background=l?'transparent':'var(--bg3)';el.innerHTML=l?`<img class="team-logo" src="${l}" alt="">`:'<span>🏟</span>';});
+    fillAll('.js-team-name',el=>el.textContent=c.nom||'Club');
+    fillAll('.js-team-sub',el=>el.textContent='Tout le club');
+    return;
+  }
   fillAll('.js-team-sq',el=>{el.style.background=teamSqBg(CT);el.innerHTML=teamSqInner(CT);});
   fillAll('.js-team-name',el=>el.textContent=CT?.nom||'Choisir une équipe');
   fillAll('.js-team-sub',el=>el.textContent=CT?`${CT.categorie} · ${CT.format}`:'');
@@ -198,7 +205,8 @@ function renderNavUser(){
   const name=UP?`${UP.prenom||''} ${UP.nom||''}`.trim():(U?.email||'');
   fillAll('.js-user-ini',el=>el.textContent=ini);
   fillAll('.js-user-name',el=>el.textContent=name);
-  fillAll('.js-user-role',el=>el.textContent=CT?(myRoleLabel(CT)||'Membre'):'');
+  const rc=clubVue&&myClubs.find(c=>c.club_id===clubVue);
+  fillAll('.js-user-role',el=>el.textContent=CT?(myRoleLabel(CT)||'Membre'):rc?(rc.role==='cq'?'CQ':'Coordinateur'):'');
   const adm=document.getElementById('umenu-admin');
   if(adm)adm.style.display=(isAdmin||(U&&myAdminTeams().length))?'flex':'none';
 }
@@ -207,7 +215,8 @@ function openUserMenu(){
   if(md)md.textContent=mdMode?'Quitter le mode Match Day':'Mode Match Day';
   // Page publique des scores : celle du club de l'équipe courante (à ses couleurs)
   const sc=document.getElementById('umenu-scores');
-  if(sc)sc.href='scores.html'+(CT?.clubs?.slug?'?club='+encodeURIComponent(CT.clubs.slug):'');
+  const slug=CT?.clubs?.slug||(clubVue&&clubOf(clubVue)?.slug);
+  if(sc)sc.href='scores.html'+(slug?'?club='+encodeURIComponent(slug):'');
   document.getElementById('umenu').classList.add('open');
 }
 function closeUserMenu(e){if(!e||e.target===document.getElementById('umenu'))document.getElementById('umenu').classList.remove('open');}
@@ -219,10 +228,77 @@ async function loadTeams(){
   // où je n'ai pas de rôle d'équipe (avant : « !inner » les cachait aux CQ/coordinateurs).
   const{data}=await sb.from('teams').select('*,team_members(profile_id,role),clubs(id,nom,logo,slug,verifie)').eq('team_members.profile_id',U.id).order('nom');
   teams=data||[];renderTeamsList();renderTsw();
-  if(teams.length>0&&!CT)selTeam(teams[0]);
+  // CQ / coordinateur : on démarre sur la vue club (aucune équipe imposée) ; loadTeams est
+  // aussi rappelé après une modification du club, il ne doit pas quitter la vue club.
+  if(clubVue&&isClubStaff(clubVue))selClub(clubVue);
   else if(CT){const u=teams.find(t=>t.id===CT.id);if(u)selTeam(u);}
+  else if(myClubs.length)selClub(myClubs[0].club_id);
+  else if(teams.length>0)selTeam(teams[0]);
+}
+// Vue club (CQ / coordinateur) : aucune équipe sélectionnée (CT=null), clubVue = id du
+// club. L'accueil montre le club (matchs de toutes ses équipes, calendrier, annonces) ;
+// les pages liées à une équipe (effectif, matchs, stats, messages) en font choisir une.
+let clubVue=null;
+function selClub(cid){
+  clubVue=cid;CT=null;isAdmin=false;players=[];matches=[];
+  document.body.classList.add('club-vue');
+  document.body.classList.remove('parent-mode');
+  const adminBtn=document.getElementById('admin-btn');
+  if(adminBtn)adminBtn.style.display='none';
+  document.getElementById('hdr-dot').style.background='#00d68f';
+  // Annonces et calendrier suivent le club choisi (toutes ses équipes)
+  if(typeof rsTeamId!=='undefined')rsTeamId='tous';
+  if(typeof calClub!=='undefined')calClub=cid;
+  clubPageId=cid;
+  renderNavTeam();renderNavUser();renderTsw();
+  renderPlayers();renderMatchesList();updateStats();renderHomeMatches();
+}
+function switchClub(cid){
+  const changed=clubVue!==cid;
+  selClub(cid);closeTsw();
+  if(!changed)return;
+  if(kioskMode)toggleKiosk();
+  if(CM)closeMatchDetail();
+  goPage('home');renderHome();
+}
+// Pages liées à une équipe, en vue club : choisir l'équipe (du club affiché) puis y aller
+function choisirEquipeHtml(icone,texte,page){
+  const eqs=teams.filter(t=>!clubVue||t.club_id===clubVue);
+  return `<div class="empty" style="padding-bottom:10px"><div class="empty-i">${icone}</div><div class="empty-t">Choisis une équipe</div><div class="empty-s">${texte}</div></div>
+    <div class="ce-liste">${eqs.map(t=>`<div class="topt" onclick="switchTeam('${t.id}');goPage('${page}')"><div class="team-sq" style="background:${teamSqBg(t)}">${teamSqInner(t)}</div><div style="flex:1;min-width:0"><div class="topt-name">${esc(t.nom)}</div><div class="topt-sub">${esc(t.categorie)} · ${esc(formatLabel(t.format))}</div></div></div>`).join('')}</div>`;
+}
+// Accueil de la vue club : chiffres du club et prochains matchs de toutes ses équipes
+async function renderClubHome(){
+  const cid=clubVue,el=document.getElementById('home-next');
+  const eqs=teams.filter(t=>t.club_id===cid);
+  document.getElementById('cs-eq').textContent=eqs.length;
+  document.getElementById('home-next-t').textContent='Prochains matchs du club';
+  if(!eqs.length){el.innerHTML=`<div class="empty" style="padding:22px 0"><div class="empty-i">🏆</div><div class="empty-t">Aucune équipe dans ce club</div></div>`;document.getElementById('cs-m').textContent='0';document.getElementById('cs-j').textContent='0';return;}
+  const hier=new Date(Date.now()-864e5).toISOString();
+  const[{data},{data:js}]=await Promise.all([
+    sb.from('matches').select('id,team_id,date,adversaire,lieu,statut').in('team_id',eqs.map(t=>t.id)).neq('statut','termine').gte('date',hier).order('date'),
+    sb.from('players').select('team_id').in('team_id',eqs.map(t=>t.id)).eq('actif',true)
+  ]);
+  if(clubVue!==cid)return;   // l'utilisateur a changé de club / d'équipe entre-temps
+  const auj=new Date();auj.setHours(0,0,0,0);
+  const up=(data||[]).filter(m=>m.statut==='en_cours'||new Date(m.date)>=auj);
+  document.getElementById('cs-m').textContent=up.length;
+  document.getElementById('cs-j').textContent=(js||[]).length;
+  if(!up.length){el.innerHTML=`<div class="empty" style="padding:22px 0"><div class="empty-i">📅</div><div class="empty-t">Aucun match prévu</div></div>`;return;}
+  el.innerHTML=up.slice(0,6).map(m=>{
+    const t=teams.find(x=>x.id===m.team_id)||{};
+    const d=new Date(m.date).toLocaleDateString('fr-BE',{weekday:'long',day:'2-digit',month:'long'});
+    const h=new Date(m.date).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+    const pill=m.statut==='en_cours'?'<span class="pill pg">En cours</span>':'<span class="pill pb">Prévu</span>';
+    return `<div class="mc" onclick="clubOuvrirMatch('${m.team_id}','${m.id}')"><div class="mc-top"><span class="mc-vs"><span class="mc-eq" style="background:${t.couleur||'#00d68f'}">${esc(t.categorie||'')}</span>${esc(t.nom||'')} vs ${esc(m.adversaire)}</span>${pill}</div><div class="mc-meta"><span>${d} · ${h}</span><span>${m.lieu==='domicile'?'🏠':'✈️'}</span></div></div>`;
+  }).join('');
+}
+async function clubOuvrirMatch(tid,mid){
+  switchTeam(tid);goPage('match');
+  await loadMatches();openMatchDetail(mid);
 }
 function selTeam(t){
+  clubVue=null;document.body.classList.remove('club-vue');
   CT = t;
   isAdmin = isTeamStaff(t);
   const adminBtn=document.getElementById('admin-btn');
@@ -289,7 +365,13 @@ function renderTsw(){
   box.innerHTML=keys.map(k=>{
     const c=k?(groups[k][0].clubs||clubOf(k)):null;
     const head=keys.length>1||k?`<div class="tsw-club">${c&&safeLogo(c)?`<img class="team-logo" src="${safeLogo(c)}" alt="">`:'<span>🏟</span>'}<span>${esc(c?.nom||(k?'Club':'Sans club'))}</span></div>`:'';
-    return head+groups[k].map(row).join('');
+    // CQ / coordinateur : « Tout le club » en tête des équipes du club
+    const on=clubVue===k;
+    const tout=k&&isClubStaff(k)?`<div class="topt ${on?'active':''}" onclick="switchClub('${k}')">
+      <div class="team-sq" style="background:var(--bg3)"><span>🏟</span></div>
+      <div style="flex:1;min-width:0"><div class="topt-name">Tout le club</div><div class="topt-sub">Calendrier, annonces et matchs de toutes les équipes</div></div>
+      ${on?'<span class="topt-check">✓</span>':''}</div>`:'';
+    return head+tout+groups[k].map(row).join('');
   }).join('');
 }
 // Nombre de joueurs par équipe pour la feuille "Mes équipes". Requête séparée et
@@ -461,7 +543,7 @@ async function loadPlayers(){
 }
 function renderPlayers(){
   const el=document.getElementById('players-list');
-  if(!CT){el.innerHTML=`<div class="empty"><div class="empty-i">👥</div><div class="empty-t">Aucune équipe</div></div>`;return;}
+  if(!CT){el.innerHTML=clubVue?choisirEquipeHtml('👥','L\'effectif est propre à chaque équipe','players'):`<div class="empty"><div class="empty-i">👥</div><div class="empty-t">Aucune équipe</div></div>`;return;}
   if(!players.length){el.innerHTML=`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide</div><div class="empty-s">Ajoute tes joueurs</div></div>`;return;}
   el.innerHTML=players.map(p=>{
     const col=pCol(p);
@@ -542,6 +624,7 @@ function getMatchChrono(m){
 }
 function renderMatchesList(){
   const el=document.getElementById('matches-list');
+  if(!CT&&clubVue){el.innerHTML=choisirEquipeHtml('📅','Les matchs se gèrent équipe par équipe (les prochains matchs du club sont sur l\'accueil)','match');return;}
   if(!matches.length){el.innerHTML=`<div class="empty"><div class="empty-i">📅</div><div class="empty-t">Aucun match</div><div class="empty-s">Crée ton premier match</div></div>`;return;}
   el.innerHTML=matches.map(m=>{
     const d=new Date(m.date).toLocaleDateString('fr-BE',{weekday:'short',day:'2-digit',month:'2-digit'});
@@ -560,6 +643,8 @@ function renderMatchesList(){
 }
 function renderHomeMatches(){
   const el=document.getElementById('home-next');
+  if(clubVue)return renderClubHome();
+  document.getElementById('home-next-t').textContent='Prochains matchs';
   // matches est trié du plus récent au plus ancien : sans re-tri, l'accueil montrait les
   // 3 matchs prévus les plus LOINTAINS au lieu des 3 prochains.
   const up=matches.filter(m=>m.statut==='prevu').sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3);
@@ -2037,7 +2122,7 @@ async function renderClubPage(){
     return;
   }
   // Club affiché : celui choisi, sinon celui de l'équipe courante, sinon le premier
-  if(!clubPageId||!isClubStaff(clubPageId))clubPageId=isClubStaff(CT?.club_id)?CT.club_id:myClubs[0].club_id;
+  if(!clubPageId||!isClubStaff(clubPageId))clubPageId=isClubStaff(clubVue)?clubVue:isClubStaff(CT?.club_id)?CT.club_id:myClubs[0].club_id;
   const cid=clubPageId,cq=isClubCQ(cid);
   const [{data:club},{data:mem}]=await Promise.all([
     sb.from('clubs').select('*').eq('id',cid).single(),
@@ -2199,7 +2284,7 @@ function renderHome(){
 function renderStatsPage(){
   const el=document.getElementById('stats-content');
   if(!CT){
-    el.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Choisis une équipe</div><div class="empty-s">Les statistiques sont liées à l'équipe sélectionnée</div></div>`;
+    el.innerHTML=clubVue?choisirEquipeHtml('📊','Les statistiques sont propres à chaque équipe','stats'):`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Choisis une équipe</div><div class="empty-s">Les statistiques sont liées à l'équipe sélectionnée</div></div>`;
     return;
   }
   const played=matches.filter(m=>m.statut!=='prevu');
