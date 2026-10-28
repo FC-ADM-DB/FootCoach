@@ -59,7 +59,7 @@ async function renderCalendrier(){
   const liste=jours.map(j=>{
     const iso=calIso(j),lignes=eqs.map(t=>{const h=contenu(t,j);return h?`<div class="cal-l-eq"><div class="cal-l-nom">${esc(t.nom)}</div><div class="cal-l-its">${h}</div></div>`:'';}).join('');
     const plus=iso>=todayIso()&&eqs.some(isTeamStaff)?`<button class="cal-add-j" onclick="calAnnonce('','${iso}')" aria-label="Trouver un match ce jour-là">+</button>`:'';
-    return `<div class="cal-jour${iso===todayIso()?' auj':''}${[0,6].includes(j.getDay())?' we':''}"><div class="cal-jh"><span>${j.toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'})}</span>${plus}</div>${lignes||'<div class="cal-vide">Rien de prévu</div>'}</div>`;
+    return `<div class="cal-jour${iso===todayIso()?' auj':''}${[0,6].includes(j.getDay())?' we':''}"><div class="cal-jh"><span class="cal-jd">${j.toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'})}${lignes?'':' <i class="cal-vide">· rien de prévu</i>'}</span>${plus}</div>${lignes}</div>`;
   }).join('');
   const ancienScroll=el.querySelector('.cal-wrap')?.scrollLeft;
   // Titre sans l'année quand c'est l'année en cours (le bouton « Aujourd'hui » était coupé sur iPhone)
