@@ -21,7 +21,7 @@ async function msgMajBadge(){
   msgFils=data||[];
   const n=msgFils.reduce((s,f)=>s+(f.non_lus||0),0);
   const b=document.getElementById('msg-badge');
-  if(b){b.textContent=n>99?'99+':n;b.style.display=n?'':'none';}
+  [b,document.getElementById('home-msg-badge')].forEach(x=>{if(x){x.textContent=n>99?'99+':n;x.style.display=n?'':'none';}});
   if(document.getElementById('page-messages')?.classList.contains('active')&&!msgOuvert)msgRenderListe(true);
 }
 function msgDemarrer(){

@@ -155,14 +155,17 @@ async function anSuppr(id){
 }
 
 // ------------------------------------------------------------ FORMULAIRE D'ANNONCE
-function anOpen(id){
+// preset (calendrier du club) : {team_id, jour} pour une nouvelle annonce
+let anDepuisCal=false;
+function anOpen(id,preset){
   const a=id?rsMine.find(x=>x.id===id):null;
-  const t=rsTeam(a?.team_id||rsTeamId)||rsStaffTeams()[0];
+  anDepuisCal=!!preset;
+  const t=rsTeam(a?.team_id||preset?.team_id||rsTeamId)||rsStaffTeams()[0];
   anEdit={id:a?.id||null,team_id:t.id,type:a?.type||'amical',lieu:a?.lieu||'indifferent',
     format:a?.format||t.format,duree_mt:a?.duree_mt||HALF_MIN[t.format]||'',zone:a?.zone||'province',
     distance_km:a?.distance_km||30,message:a?.message||'',statut:a?.statut||'brouillon',commentaire:a?.commentaire_validation||''};
   anCats=new Set(a?a.categories:[t.categorie]);anNivs=new Set(a?a.niveaux:[]);
-  anCreneaux=a?(a.annonce_creneaux||[]).map(c=>({jour:c.jour,debut:fmtHeure(c.heure_debut),fin:fmtHeure(c.heure_fin)})):[{jour:'',debut:'',fin:''}];
+  anCreneaux=a?(a.annonce_creneaux||[]).map(c=>({jour:c.jour,debut:fmtHeure(c.heure_debut),fin:fmtHeure(c.heure_fin)})):[{jour:preset?.jour||'',debut:'',fin:''}];
   anCibles=new Set();
   if(a?.zone==='equipes')sb.from('annonce_cibles').select('team_id').eq('annonce_id',a.id).then(({data})=>{(data||[]).forEach(r=>anCibles.add(r.team_id));anRenderZone();});
   anRenderForm();openModal('modal-annonce');
@@ -249,5 +252,7 @@ async function anSave(statut){
   let e2=null;if(anEdit.zone==='equipes')e2=(await sb.from('annonce_cibles').insert([...anCibles].map(t=>({annonce_id:id,team_id:t})))).error;
   if(e1||e2)showToast('Annonce enregistrée, mais créneaux/équipes incomplets : réessaie','err');
   else showToast({brouillon:'Brouillon enregistré',a_valider:'Envoyée au coordinateur pour validation',publiee:'Annonce publiée'}[statut],'ok');
-  closeModal('modal-annonce');rsTab='mine';renderReseauPage();
+  closeModal('modal-annonce');
+  if(anDepuisCal&&typeof renderCalendrier==='function')renderCalendrier();   // reste sur le calendrier
+  else{rsTab='mine';renderReseauPage();}
 }

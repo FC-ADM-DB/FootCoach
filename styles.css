@@ -809,3 +809,10 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .pr-cal{width:100%;margin-bottom:10px;font-size:13px;min-height:42px}
 .pr-jc{font-size:12.5px;background:var(--bg3);border-radius:var(--rsm);padding:8px 10px;margin-bottom:10px;line-height:1.45}
 .pr-jc a{white-space:nowrap}
+/* Accueil : tuile Messages (pastille) ; tuile seule en dernière ligne = pleine largeur */
+.qb-badge{position:absolute;top:8px;right:8px}
+.qgrid>.qb:last-of-type:nth-of-type(odd),.qgrid>.qb:nth-of-type(odd):has(+#home-cal[style*="none"]){grid-column:span 2}
+/* Calendrier : « + » annonce dans une case */
+.cal td{position:relative;padding-bottom:22px}
+.cal-add{position:absolute;right:3px;bottom:3px;width:22px;height:18px;border-radius:5px;border:1px dashed var(--border2);background:none;color:var(--text3);font-size:13px;line-height:1;cursor:pointer;padding:0}
+.cal-add:active{background:var(--bg3);color:var(--text)}
