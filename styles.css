@@ -897,3 +897,6 @@ body.club-vue .qb.club-only{display:block}
 body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .ce-liste{display:flex;flex-direction:column;gap:7px;max-width:460px;margin:0 auto}
 .mc-eq{display:inline-block;font-size:10px;font-weight:700;color:#fff;border-radius:5px;padding:1px 5px;margin-right:6px;vertical-align:1px}
+/* Passe décisive (2e étape du bouton ⚽ But) */
+.qg-but{font-size:13px;color:var(--text2);padding:0 2px 2px}
+.qg-opt.qg-sans{text-align:center}
