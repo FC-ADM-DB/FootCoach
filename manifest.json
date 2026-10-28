@@ -1,6 +1,6 @@
 {
-  "name": "FootCoach",
-  "short_name": "FootCoach",
+  "name": "FootLink",
+  "short_name": "FootLink",
   "description": "Gestion coach & délégué football jeunes",
   "start_url": "/",
   "display": "standalone",

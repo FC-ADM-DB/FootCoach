@@ -2025,7 +2025,7 @@ async function renderClubPage(){
     el.innerHTML=`<div class="card club-create">
       ${myClubs.length?`<button class="bsec logo-btn" style="margin-bottom:12px" onclick="clubCreating=false;renderClubPage()">← Retour à mon club</button>`:''}
       <div style="font-size:15px;font-weight:600;margin-bottom:4px">${myClubs.length?'Créer un autre club':'Créer mon club'}</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Tu en deviendras le CQ (correspondant qualifié). Le club sera visible des autres clubs après vérification par FootCoach.</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Tu en deviendras le CQ (correspondant qualifié). Le club sera visible des autres clubs après vérification par FootLink.</div>
       <div class="fg"><label class="fl">Nom du club</label><input class="fi" id="cc-nom" placeholder="ex : REH Braives"></div>
       <div class="fg"><label class="fl">Province</label><select class="sel" id="cc-prov"><option value="">—</option>${refs.provinces.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
       <div class="fg"><label class="fl">Adresse du terrain</label><input class="fi" id="cc-adr" placeholder="Rue, numéro, code postal, commune"><div style="font-size:11px;color:var(--text3);margin-top:5px">Obligatoire : sert à calculer la distance avec les autres clubs (« Trouver un match »).</div></div>
@@ -2083,7 +2083,7 @@ async function renderClubPage(){
       <input class="fi" id="cm-email" type="email" placeholder="email@club.be">
       <select class="sel" id="cm-role"><option value="coordinateur">Coordinateur</option><option value="cq">CQ</option></select>
       <button class="bsec logo-btn" onclick="addClubMember()">Ajouter</button>
-    </div><div style="font-size:11px;color:var(--text3);margin-top:6px">La personne doit avoir un compte FootCoach (sinon : Membres &amp; accès → + Personne pour le créer).</div>`:''}
+    </div><div style="font-size:11px;color:var(--text3);margin-top:6px">La personne doit avoir un compte FootLink (sinon : Membres &amp; accès → + Personne pour le créer).</div>`:''}
   </div>`;
   const equipes=`<div class="card">
     <div class="club-sec" style="display:flex;align-items:center;justify-content:space-between">Équipes du club <button class="badd" onclick="openTeamModal('${cid}')">+ Équipe</button></div>

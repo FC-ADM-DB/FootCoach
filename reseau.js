@@ -100,7 +100,7 @@ async function rsRenderAnnonces(){
     </div>`:''}
     <div class="rs-nb" id="rs-nb"></div>
   </div>`;
-  if(!verifie){body.innerHTML=head+`<div class="empty"><div class="empty-i">⏳</div><div class="empty-t">Club pas encore vérifié</div><div class="empty-s">Le club doit être vérifié par FootCoach pour voir et publier des annonces.</div></div>`;return;}
+  if(!verifie){body.innerHTML=head+`<div class="empty"><div class="empty-i">⏳</div><div class="empty-t">Club pas encore vérifié</div><div class="empty-s">Le club doit être vérifié par FootLink pour voir et publier des annonces.</div></div>`;return;}
   body.innerHTML=head+'<div id="rs-list"><div class="spin"></div></div>';
   // Toutes les équipes : une lecture par équipe (une annonce peut cibler une équipe précise), fusionnées
   const ids=tous?rsEquipesClub().filter(t=>t.clubs?.verifie).map(t=>t.id):[rsTeamId];
