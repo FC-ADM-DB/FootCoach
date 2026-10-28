@@ -130,6 +130,9 @@ function render(){
   // Vainqueur du tableau (finale jouée)
   const f=ms.filter(m=>m.phase==='finale').sort((x,y)=>(y.ordre||0)-(x.ordre||0))[0],gf=tcGagnant(f);
   if(gf)html+=`<div class="champion">🏆 ${esc(nom(gf==='a'?res[f.id].a:res[f.id].b)||'')}</div>`;
+  // Matchs en cours d'abord : c'est ce que les parents cherchent sur le bord du terrain
+  const live=ms.filter(m=>m.statut==='en_cours');
+  if(live.length)html+=`<h2>En ce moment</h2>${live.map(carte).join('')}`;
   // Classement (si l'organisateur l'affiche)
   if(tb.classement){
     const cl=tcClassement(tb,eqs,ms),nb=Object.keys(cl).length,k=tb.formule==='championnat'?0:Math.ceil((tb.qualifies||0)/Math.max(1,nb));

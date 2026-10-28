@@ -958,3 +958,4 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .trn-tab-but{margin-bottom:12px}
 .trn-s-foot{flex-wrap:wrap}
 @media (max-width:420px){.trn-2{grid-template-columns:1fr}.trn-cl-l{grid-template-columns:20px 1fr repeat(4,22px) 30px 28px;padding:8px 6px;font-size:12px}}
+#trn-content{max-width:760px}
