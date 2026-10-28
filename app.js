@@ -161,10 +161,11 @@ const myTeamRole=t=>t?.team_members?.find(m=>m.profile_id===U?.id)?.role||'';
 // Encadrement d'une équipe : entraîneur/délégué de l'équipe OU CQ/coordinateur de son club
 const isTeamStaff=t=>!!t&&(isStaffRole(myTeamRole(t))||isClubStaff(t.club_id));
 // Libellé de mon rôle pour une équipe (rôle d'équipe, sinon rôle de club)
+// Le rôle de club (CQ / coordinateur) prime : David, CQ, s'affichait « Entraîneur »
 function myRoleLabel(t){
-  const r=myTeamRole(t);if(r)return ROLE_LABEL[r]||r;
   const c=myClubs.find(x=>x.club_id===t?.club_id);
-  return c?(c.role==='cq'?'CQ':'Coordinateur'):'';
+  if(c)return c.role==='cq'?'CQ':'Coordinateur';
+  const r=myTeamRole(t);return r?(ROLE_LABEL[r]||r):'';
 }
 const clubOf=cid=>myClubs.find(c=>c.club_id===cid)?.clubs||null;
 async function loadProfile(){const{data}=await sb.from('profiles').select('*').eq('id',U.id).single();if(data){UP=data;document.getElementById('wname').textContent=`Bonjour ${data.prenom} !`;}renderNavUser();}
@@ -471,8 +472,8 @@ function renderPlayers(){
         <div class="ps">${p.numero_poste?plabel(p.numero_poste):'Poste non défini'}${p.date_naissance?' · '+new Date(p.date_naissance).toLocaleDateString('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric'}):''}</div>
       </div>
       ${p.numero_poste?`<div class="pnum">${p.numero_poste}</div>`:''}
-      <div class="bico" onclick="editPlayer('${p.id}',event)" style="margin-right:3px">✎</div>
-      <div class="bico" onclick="delPlayer('${p.id}',event)">✕</div>
+      ${typeof isParentOnly==='function'&&isParentOnly(CT)?'':`<div class="bico" onclick="editPlayer('${p.id}',event)" style="margin-right:3px">✎</div>
+      <div class="bico" onclick="delPlayer('${p.id}',event)">✕</div>`}
     </div>`;
   }).join('');
 }
@@ -554,7 +555,6 @@ function renderMatchesList(){
       <div class="mc-top"><span class="mc-vs">vs ${m.adversaire}</span><span class="mc-sc ${cls}">${sc}</span></div>
       ${liveInfo}
       <div class="mc-meta"><span>${d} · ${h}</span><span>${m.lieu==='domicile'?'🏠':'✈️'}</span><span class="pill ${spCls}" style="font-size:10px;padding:2px 7px">${spTxt}</span></div>
-      ${isAdmin?`<button class="bsec" onclick="deleteMatch('${m.id}', event)" style="margin-top:10px;font-size:12px">Supprimer</button>`:''}
     </div>`;
   }).join('');
 }
@@ -894,7 +894,7 @@ function renderKiosk(){
   document.getElementById('kiosk-meta').innerHTML=`<span>${CM.lieu==='domicile'?'🏠 Domicile':'✈️ Extérieur'}</span><span>Mi-${halfN}</span><span>${fmt(chronoS)}</span>`;
   const el=document.getElementById('kiosk-goals');
   if(!goals.length){el.innerHTML='<div style="color:var(--text2);font-size:13px">Aucun but enregistré</div>';return;}
-  el.innerHTML=goals.map(g=>`<div class="but-row"><span class="but-min">${g.min}'</span><div style="flex:1"><span style="font-size:13px;font-weight:600">${g.scorer}</span>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div><span class="pill ${g.adv?'pr':'pg'}" style="font-size:10px">${g.adv?'Concédé':'Marqué'}</span></div>`).join('');
+  el.innerHTML=goals.map(g=>`<div class="but-row"><span class="but-min">${butMin(g)}</span><div style="flex:1"><span style="font-size:13px;font-weight:600">${g.scorer}</span>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div><span class="pill ${g.adv?'pr':'pg'}" style="font-size:10px">${g.adv?'Concédé':'Marqué'}</span></div>`).join('');
 }
 
 // ============ CONVOCATIONS ============
@@ -1490,6 +1490,8 @@ async function saveGoal(){
   closeModal('modal-goal');
   recordGoal(goalAdv,scorer,assist,goalAdv?null:sid);
 }
+// Minute d'un but : le chrono repart à 0 à chaque mi-temps → « 2e MT 10' » (sinon 7', 21', 10'…)
+const butMin=g=>{const m=g.min!==undefined?g.min:Math.floor((g.t||0)/60);return (g.half>1?g.half+'e MT ':'')+m+"'";};
 function recordGoal(adv,scorer,assist,scorerId){
   const t=chronoS,min=Math.floor(t/60);
   const poste=scorerId?currentPosteOf(scorerId):null;
@@ -1520,7 +1522,7 @@ function renderGoals(){
   const fp=tlPlayer();
   const list=fp?goals.filter(g=>!g.adv&&(tlMatchesName(g.scorer,fp)||tlMatchesName(g.assist,fp))):goals;
   if(!list.length){el.innerHTML=`<div style="font-size:12px;color:var(--text3);padding:4px 0">${fp?'Aucun but pour '+fp.prenom:'Aucun but enregistré'}</div>`;return;}
-  el.innerHTML=list.map(g=>{const time=g.t!==undefined?fmt(g.t):g.min!==undefined?`${g.min}'`:'--';return `<div class="but-row">
+  el.innerHTML=list.map(g=>{const time=(g.half>1?g.half+'e MT ':'')+(g.t!==undefined?fmt(g.t):g.min!==undefined?`${g.min}'`:'--');return `<div class="but-row">
     <span class="but-min">${time}</span>
     <span>${g.adv?'🔴':'⚽'}</span>
     <div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div>
@@ -1782,7 +1784,7 @@ function renderResume(){
   if(isAdmin&&fin){html+=`<button onclick="openScoreEdit()" class="bsec" style="width:100%;margin-bottom:12px;font-size:13px">✎ Modifier le score</button>`;}
   if(goals.length){
     html+=`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px">Buts</div>`;
-    html+=goals.map(g=>`<div class="but-row"><span class="but-min">${g.min}'</span><span>${g.adv?'🔴':'⚽'}</span><div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}${g.poste?` <span class="pill pgr" style="font-size:9px;vertical-align:middle">#${g.poste}</span>`:''}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div></div>`).join('');
+    html+=goals.map(g=>`<div class="but-row"><span class="but-min">${butMin(g)}</span><span>${g.adv?'🔴':'⚽'}</span><div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}${g.poste?` <span class="pill pgr" style="font-size:9px;vertical-align:middle">#${g.poste}</span>`:''}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div></div>`).join('');
     html+=`</div>`;
   }
   const mpPlayers=players.filter(p=>MP[p.id]);
@@ -2011,6 +2013,14 @@ let clubCreating=false;
 async function renderClubPage(){
   const el=document.getElementById('club-content');
   await loadMyClubs();
+  // Entraîneur / délégué d'une équipe déjà dans un club : pas de « Créer mon club » (risque de doublon)
+  if(!myClubs.length&&!clubCreating&&CT?.club_id){
+    const{data:club}=await sb.from('clubs').select('nom,verifie').eq('id',CT.club_id).maybeSingle();
+    el.innerHTML=`<div class="card"><div style="font-size:15px;font-weight:600;margin-bottom:6px">🏟 ${esc(club?.nom||'Club')}${club?.verifie?' <span class="pill pg" style="font-size:10px">✓ vérifié</span>':''}</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.45">L'équipe <b>${esc(CT.nom)}</b> fait partie de ce club. La gestion du club (informations, équipes, membres) est réservée au CQ et aux coordinateurs.</div>
+      <button class="bsec" style="margin-top:12px;font-size:12px" onclick="clubCreating=true;renderClubPage()">Créer un autre club</button></div>`;
+    return;
+  }
   if(!myClubs.length||clubCreating){
     el.innerHTML=`<div class="card club-create">
       ${myClubs.length?`<button class="bsec logo-btn" style="margin-bottom:12px" onclick="clubCreating=false;renderClubPage()">← Retour à mon club</button>`:''}

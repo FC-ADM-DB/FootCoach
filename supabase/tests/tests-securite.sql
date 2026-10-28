@@ -584,6 +584,7 @@ insert into r (qui, test, attendu, obtenu) values
  ('Délégué A', '[C2] voit la proposition reçue', '1', pg_temp.essai($q$select 1 from propositions$q$)),
  ('Délégué A', '[C2] accepte → suggestion pour le coordinateur', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'accepter') = 'suggestion'$q$)),
  ('Délégué A', '[C2] écrit un message (sans validation)', '1', pg_temp.essai($q$select 1 from (select proposition_message('90000000-0000-4000-a000-000000000001', 'Bonjour')) x$q$)),
+ ('Délégué A', '[C2] retire sa propre suggestion', '1', pg_temp.essai($q$select 1 where proposition_agir('90000000-0000-4000-a000-000000000001', 'ecarter_suggestion') = 'ecartee'$q$)),
  ('Délégué A', '[C2] valide une suggestion', 'refusé', pg_temp.essai($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'valider_suggestion')$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000006","role":"authenticated"}', false);

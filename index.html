@@ -133,7 +133,7 @@
           <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="det-title">Match</div>
           <div style="font-size:11px;color:var(--text2)" id="det-sub"></div>
         </div>
-        <button id="match-delete-btn" onclick="deleteMatch(CM.id)" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:6px 10px;font-family:var(--font);font-size:12px;cursor:pointer">🗑 Supprimer</button>
+        <button id="match-delete-btn" onclick="deleteMatch(CM.id)" aria-label="Supprimer le match" title="Supprimer le match" style="display:none;background:none;color:var(--text3);border:1px solid var(--border);border-radius:var(--rsm);padding:6px 9px;font-family:var(--font);font-size:13px;cursor:pointer">🗑</button>
         <span class="pill" id="det-status"></span>
         <!-- Copie du bouton Start/Pause du chrono, affichée seulement en Live sur iPhone portrait
              (le vrai #btn-chrono est alors masqué ; texte et couleur recopiés par app.js) -->
@@ -151,8 +151,8 @@
         <div id="tab-conv" style="padding:0 13px 20px">
           <div style="margin:10px 0 8px;font-size:12px;color:var(--text2)">Définis la disponibilité avant le match</div>
           <div id="conv-list"></div>
-          <div id="start-match-area" style="margin-top:12px"></div>
           <div id="tb-match-conv" class="tb-match"></div>
+          <div id="start-match-area" style="margin-top:12px"></div>
         </div>
         <!-- LIVE -->
         <div id="tab-live" style="display:none">
@@ -329,6 +329,10 @@
     <button class="ni" onclick="goPage('messages')" id="nav-messages"><span class="ni-icon">💬<b class="ni-badge" id="msg-badge" style="display:none"></b></span><span class="ni-lbl">Messages</span></button>
     <button class="ni" onclick="goPage('players')" id="nav-players"><span class="ni-icon">👥</span><span class="ni-lbl">Effectif</span></button>
     <button class="ni" onclick="goPage('stats')" id="nav-stats"><span class="ni-icon">📊</span><span class="ni-lbl">Stats</span></button>
+    <!-- iPad/PC uniquement : accès directs (sinon cachés dans le menu du compte) -->
+    <button class="ni ni-side pa-cache" onclick="goPage('reseau')" id="nav-reseau"><span class="ni-icon">🤝</span><span class="ni-lbl">Trouver un match</span></button>
+    <button class="ni ni-side" onclick="ouvrirCalendrier()" id="nav-calendrier" style="display:none"><span class="ni-icon">📅</span><span class="ni-lbl">Calendrier du club</span></button>
+    <button class="ni ni-side pa-cache" onclick="goPage('club')" id="nav-club"><span class="ni-icon">🏟</span><span class="ni-lbl">Mon club</span></button>
     <!-- iPad/PC uniquement (pied de barre latérale) : compte -->
     <button class="side-user" onclick="openUserMenu()">
       <span class="avatar js-user-ini"></span>
@@ -408,8 +412,8 @@
     <div class="tb-etapes" id="tb-etapes" role="toolbar" aria-label="Étapes"></div>
     <div class="tb-bar" role="toolbar" aria-label="Outils du tableau">
       <button class="tb-btn" data-outil="deplacer" onclick="tbChoisirOutil('deplacer')" aria-label="Déplacer les pions">✋</button>
-      <button class="tb-btn" data-outil="course" onclick="tbChoisirOutil('course')" aria-label="Flèche de course">➜</button>
-      <button class="tb-btn" data-outil="passe" onclick="tbChoisirOutil('passe')" aria-label="Flèche de passe">⇢</button>
+      <button class="tb-btn" data-outil="course" onclick="tbChoisirOutil('course')" aria-label="Flèche de course (trait plein)"><svg width="22" height="14" viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 7h17"/><path d="M14 2l6 5-6 5"/></svg></button>
+      <button class="tb-btn" data-outil="passe" onclick="tbChoisirOutil('passe')" aria-label="Flèche de passe (pointillé)"><svg width="22" height="14" viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 7h17" stroke-dasharray="3 3"/><path d="M14 2l6 5-6 5"/></svg></button>
       <button class="tb-btn" data-outil="crayon" onclick="tbChoisirOutil('crayon')" aria-label="Crayon">✏️</button>
       <button class="tb-btn" data-outil="gomme" onclick="tbChoisirOutil('gomme')" aria-label="Gomme : toucher un tracé">🧽</button>
       <span class="tb-sep"></span>

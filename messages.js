@@ -70,6 +70,7 @@ async function msgRenderListe(sansRecharger){
   el.innerHTML=autres.map(x=>`<button class="msg-autre" onclick="switchTeam('${x.t.id}');goPage('messages')">💬 ${x.n} nouveau${x.n>1?'x':''} message${x.n>1?'s':''} dans ${esc(x.t.nom)} ›</button>`).join('')+
     ligne(null,'Groupe de l\'équipe','Encadrement et tous les parents de '+CT.nom,'👥')+
     (enfants.length?`<div class="tb-sec-t" style="margin:14px 0 7px">${staff?'Discussions avec les familles':'Mon enfant'}</div>`+enfants.map(e=>ligne(e.id,e.titre,e.sous,'👦')).join('')
+        +(staff?'<div class="rs-line" style="margin-top:10px">Les autres familles apparaîtront quand un parent sera rattaché (fiche du joueur → « Inviter un parent »).</div>':'')
       :staff?'<div class="rs-line" style="margin-top:12px">Les discussions privées apparaissent quand des parents sont rattachés (fiche du joueur → « Inviter un parent »).</div>':'');
 }
 

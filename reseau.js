@@ -25,6 +25,11 @@ let anEdit=null,anCreneaux=[],anCats=new Set(),anNivs=new Set(),anCibles=new Set
 // Équipes que j'encadre ET rattachées à un club (seules elles peuvent publier)
 const rsStaffTeams=()=>teams.filter(t=>t.club_id&&isTeamStaff(t));
 const rsTeam=id=>teams.find(t=>t.id===id);
+// Lieu d'une annonce vu par celui qui la LIT (AN_LIEUX est écrit du point de vue de l'annonceur :
+// « Chez nous » sur l'annonce de Hannut faisait croire au lecteur que le match était chez lui)
+const rsLieuLecteur=a=>a.lieu==='domicile'?'Chez '+a.club_nom:a.lieu==='exterieur'?'Se déplace chez vous':'Chez eux ou chez vous';
+// « U10 · U10 » : la catégorie n'est affichée que si elle diffère du nom de l'équipe
+const rsCat=(nom,cat)=>cat&&cat!==nom?' · '+cat:'';
 // « Toutes les équipes » (CQ / coordinateur) : les équipes des clubs que je gère
 const rsTous=()=>rsTeamId==='tous'&&myClubs.length>0;
 const rsEquipesClub=()=>rsStaffTeams().filter(t=>isClubStaff(t.club_id));
@@ -182,8 +187,8 @@ function rsCarte(a,T){
     <div class="rs-top"><div class="rs-logo">${logo?`<img class="team-logo" src="${logo}" alt="">`:'🏟'}</div>
       <div style="flex:1;min-width:0"><div class="rs-club">${esc(a.club_nom)}</div><div class="rs-sub">${esc([a.province,a.distance_club!=null?'à '+a.distance_club+' km':''].filter(Boolean).join(' · '))}</div></div>
       <span class="pill pb">${esc(AN_TYPES[a.type]||a.type)}</span></div>
-    <div class="rs-team">${esc(a.equipe)} · ${esc(a.equipe_categorie)}${a.equipe_niveau?' · '+esc(nivLabel(a.equipe_niveau)):''}</div>
-    <div class="rs-line">📍 ${esc(AN_LIEUX[a.lieu])}${a.format?' · '+esc(formatLabel(a.format)):''}${a.duree_mt?` · 2×${a.duree_mt} min`:''}</div>
+    <div class="rs-team">${esc(a.equipe)}${esc(rsCat(a.equipe,a.equipe_categorie))}${a.equipe_niveau?' · '+esc(nivLabel(a.equipe_niveau)):''}</div>
+    <div class="rs-line">📍 ${esc(rsLieuLecteur(a))}${a.format?' · '+esc(formatLabel(a.format)):''}${a.duree_mt?` · 2×${a.duree_mt} min`:''}</div>
     <div class="rs-line">🎯 Catégories : ${esc(a.categories.join(', ')||'toutes')} · Niveaux : ${esc(a.niveaux.map(nivLabel).join(', ')||'tous')}</div>
     ${cr.length?`<div class="rs-chips">${cr.map(c=>`<span>${esc(creneauTxt(c))}</span>`).join('')}</div>`:''}
     ${a.message?`<div class="rs-msg">${esc(a.message)}</div>`:''}
