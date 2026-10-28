@@ -459,7 +459,8 @@ function trnHtmlInscriptions(t){
       <div class="trn-clubs">${autres.map(c=>`<label><input type="checkbox" class="ta-club" value="${c.id}"${trnCibles.includes(c.id)?' checked':''}> ${esc(c.nom)}</label>`).join('')||'<span class="trn-aide">Aucun autre club vérifié pour l\'instant.</span>'}</div></div>
     <div class="trn-2"><div class="fg"><label class="fl">Date limite d'inscription</label><input class="fi" id="ta-limite" type="date" value="${t.date_limite||''}"></div>
       <div class="fg"><label class="fl">Équipes max par club et par catégorie</label><input class="fi" id="ta-max" type="number" min="1" max="20" value="${t.max_par_club??''}" placeholder="pas de limite"></div></div>
-    <div class="trn-2"><div class="fg"><label class="fl">Frais d'inscription (€)</label><div class="trn-terr"><input class="fi" id="ta-frais" type="number" min="0" step="0.5" value="${t.frais??''}" placeholder="gratuit" style="width:100px"><select class="sel" id="ta-frais-par" style="width:auto">${opt('equipe','par équipe',t.frais_par)}${opt('joueur','par joueur',t.frais_par)}</select></div></div>
+    <label class="trn-chk"><input type="checkbox" id="ta-payant"${t.frais!=null?' checked':''} onchange="document.getElementById('ta-frais-bloc').style.display=this.checked?'':'none'"> Frais d'inscription</label>
+    <div class="trn-2" id="ta-frais-bloc" style="${t.frais!=null?'':'display:none'}"><div class="fg"><label class="fl">Montant (€)</label><div class="trn-terr"><input class="fi" id="ta-frais" type="number" min="0" step="0.5" value="${t.frais??''}" style="width:100px"><select class="sel" id="ta-frais-par" style="width:auto">${opt('equipe','par équipe',t.frais_par)}${opt('joueur','par joueur',t.frais_par)}</select></div></div>
       <div class="fg"><label class="fl">Paiement</label><input class="fi" id="ta-paie" maxlength="300" value="${esc(t.paiement||'')}" placeholder="ex. virement BE.. avant le 20/03, ou sur place"></div></div>
     <div class="fg"><label class="fl">Contact</label><input class="fi" id="ta-contact" maxlength="300" value="${esc(t.contact||'')}" placeholder="ex. Marc, 0470 12 34 56, tournoi@club.be"></div>
     <div class="fg"><label class="fl">Infos pour les clubs</label><textarea class="fi" id="ta-infos" rows="4" maxlength="2000" placeholder="Accueil, règlement, durée des matchs, buvette, parking, coupes et médailles…">${esc(t.infos||'')}</textarea></div>
@@ -473,9 +474,13 @@ function trnHtmlInscriptions(t){
 async function trnSauverAnnonce(){
   const v=id=>document.getElementById(id)?.value;
   const zone=v('ta-zone'),num=(id,min,max)=>{const x=parseFloat(v(id));return isNaN(x)?null:Math.min(max,Math.max(min,x));};
+  const payant=document.getElementById('ta-payant').checked;
+  if(payant&&num('ta-frais',0,99999)==null)return showToast('Indique le montant des frais (ou décoche « Frais d\'inscription »)','err');
   const maj={inscriptions:document.getElementById('ta-ouv').checked,zone,distance_km:zone==='distance'?Math.round(num('ta-km',1,500)||30):trnCur.distance_km,
-    date_limite:v('ta-limite')||null,max_par_club:num('ta-max',1,20),frais:num('ta-frais',0,99999),frais_par:v('ta-frais-par')||'equipe',
-    paiement:(v('ta-paie')||'').trim()||null,contact:(v('ta-contact')||'').trim()||null,infos:(v('ta-infos')||'').trim()||null,
+    date_limite:v('ta-limite')||null,max_par_club:num('ta-max',1,20),
+    // Frais : option (case décochée = aucun montant ni modalité de paiement affichés)
+    frais:payant?num('ta-frais',0,99999):null,frais_par:v('ta-frais-par')||'equipe',
+    paiement:payant?(v('ta-paie')||'').trim()||null:null,contact:(v('ta-contact')||'').trim()||null,infos:(v('ta-infos')||'').trim()||null,
     validation_scores:document.getElementById('ta-valid').checked};
   if(maj.max_par_club!=null)maj.max_par_club=Math.round(maj.max_par_club);
   if(maj.date_limite&&maj.date_limite>trnCur.jour)return showToast('La date limite doit précéder le tournoi','err');
@@ -544,7 +549,7 @@ async function trnReseauRender(){
   const carte=t=>{
     const tabs=t.tableaux||[],ouvert=tabs.some(x=>!x.places||x.prises<x.places)&&(!t.date_limite||t.date_limite>=todayIso());
     const lignes=[t.date_limite?`📅 Inscription avant le ${new Date(t.date_limite+'T12:00').toLocaleDateString('fr-BE',{day:'numeric',month:'long'})}`:'',
-      trnFrais(t)?'💶 '+trnFrais(t):'💶 Gratuit',t.paiement?'💳 '+t.paiement:'',t.max_par_club?`👥 ${t.max_par_club} équipe${t.max_par_club>1?'s':''} max par club et par catégorie`:'',t.contact?'☎️ '+t.contact:''].filter(Boolean);
+      trnFrais(t)?'💶 '+trnFrais(t):'',t.paiement?'💳 '+t.paiement:'',t.max_par_club?`👥 ${t.max_par_club} équipe${t.max_par_club>1?'s':''} max par club et par catégorie`:'',t.contact?'☎️ '+t.contact:''].filter(Boolean);
     return `<div class="card trn-an" style="cursor:default">
       <div class="trn-ins-h"><div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700">${esc(t.nom)}</div><div class="trn-sous">${esc(t.club_nom)}${t.km!=null?' · '+String(t.km).replace('.',',')+' km':''} · ${esc(trnJour(t.jour))}</div>${t.lieu?`<div class="trn-sous">📍 ${esc(t.lieu)}</div>`:''}</div>${t.invite?'<span class="pill pb">Invitation</span>':''}</div>
       <div class="trn-places">${tabs.map(x=>{const plein=x.places&&x.prises>=x.places;return `<span class="trn-place${plein?' plein':''}">${esc(x.nom)}${x.format?' · '+esc(formatLabel(x.format)):''}${x.niveau?' · niv. '+esc(x.niveau):''}${x.annees?' · '+esc(x.annees):''} — ${plein?'complet':x.places?(x.places-x.prises)+' place'+(x.places-x.prises>1?'s':'')+' sur '+x.places:'places libres'}</span>`;}).join('')}</div>
