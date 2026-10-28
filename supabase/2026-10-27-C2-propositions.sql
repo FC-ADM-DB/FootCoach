@@ -3,6 +3,8 @@
 -- Nécessite C1 (annonces) et A1/A2 (clubs, rôles).
 -- Une proposition : une équipe (« proposant ») répond à une annonce publiée d'un autre
 -- club (« annonceur ») avec une date, une heure, un lieu (chez qui) et un message.
+-- Proposition DIRECTE (sans annonce, annonce_id vide) : l'équipe proposante choisit une
+-- équipe d'un autre club vérifié ; celle-ci joue le rôle de l'« annonceur » (elle répond).
 -- Déroulé (statut) :
 --   a_valider  préparée par un entraîneur/délégué, pas encore envoyée (invisible pour l'annonceur)
 --   envoyee    au tour de l'annonceur de répondre
@@ -26,7 +28,7 @@ alter table public.profiles add column if not exists telephone text check (char_
 
 create table if not exists public.propositions (
   id uuid primary key default extensions.uuid_generate_v4(),
-  annonce_id uuid not null references public.annonces(id) on delete cascade,
+  annonce_id uuid references public.annonces(id) on delete cascade,   -- vide = proposition directe
   equipe_annonceur uuid not null references public.teams(id) on delete cascade,
   club_annonceur uuid not null references public.clubs(id) on delete cascade,
   equipe_proposante uuid not null references public.teams(id) on delete cascade,
@@ -48,6 +50,10 @@ create index if not exists propositions_annonceur_idx on public.propositions (eq
 -- Une seule proposition en cours par équipe et par annonce
 create unique index if not exists propositions_une_en_cours on public.propositions (annonce_id, equipe_proposante)
   where statut in ('a_valider', 'envoyee', 'contre');
+alter table public.propositions alter column annonce_id drop not null;   -- rejouable (directes)
+-- Directe : une seule en cours par couple d'équipes et par jour
+create unique index if not exists propositions_directe_en_cours on public.propositions (equipe_proposante, equipe_annonceur, jour)
+  where annonce_id is null and statut in ('a_valider', 'envoyee', 'contre');
 alter table public.propositions enable row level security;
 
 -- Historique : chaque action (et chaque suggestion en attente de validation)
@@ -129,6 +135,33 @@ begin
   return v_id;
 exception when unique_violation then
   raise exception 'Une proposition de ton équipe est déjà en cours pour cette annonce';
+end $$;
+
+-- Proposition directe à une équipe d'un autre club vérifié (sans annonce)
+create or replace function public.proposition_directe(p_team uuid, p_cible uuid, p_jour date, p_heure time,
+                                                      p_lieu text, p_message text default null)
+  returns uuid language plpgsql security definer set search_path = public as
+$$ declare v_club uuid; v_club_cible uuid; v_id uuid; v_statut text;
+begin
+  if auth.uid() is null then raise exception 'Connexion requise'; end if;
+  if not is_team_staff(p_team) then raise exception 'Tu n''encadres pas cette équipe'; end if;
+  select t.club_id into v_club from teams t join clubs c on c.id = t.club_id where t.id = p_team and c.verifie;
+  if v_club is null then raise exception 'L''équipe doit appartenir à un club vérifié'; end if;
+  select t.club_id into v_club_cible from teams t join clubs c on c.id = t.club_id where t.id = p_cible and c.verifie;
+  if v_club_cible is null then raise exception 'Équipe introuvable (club non vérifié)'; end if;
+  if v_club_cible = v_club then raise exception 'C''est une équipe de ton propre club'; end if;
+  if p_jour is null or p_jour < current_date then raise exception 'Choisis une date à venir'; end if;
+  if coalesce(p_lieu, '') not in ('annonceur', 'proposant') then raise exception 'Lieu invalide'; end if;
+  v_statut := case when is_club_member(v_club) then 'envoyee' else 'a_valider' end;
+  insert into propositions (annonce_id, equipe_annonceur, club_annonceur, equipe_proposante, club_proposant,
+                            statut, jour, heure, lieu, cree_par)
+  values (null, p_cible, v_club_cible, p_team, v_club, v_statut, p_jour, p_heure, p_lieu, auth.uid())
+  returning id into v_id;
+  insert into proposition_tours (proposition_id, cote, action, jour, heure, lieu, message, auteur, auteur_nom)
+  values (v_id, 'proposant', 'proposition', p_jour, p_heure, p_lieu, nullif(trim(p_message), ''), auth.uid(), prop_nom_moi());
+  return v_id;
+exception when unique_violation then
+  raise exception 'Une proposition de ton équipe est déjà en cours avec cette équipe ce jour-là';
 end $$;
 
 -- ------------------------------------------------------------ AGIR
@@ -290,7 +323,7 @@ $$ select p.id, p.annonce_id, prop_cote(p.id), p.statut, p.jour, p.heure, p.lieu
              and t.cote <> prop_cote(p.id)
              and t.created_at > coalesce((select l.lu_jusqua from proposition_lus l where l.profile_id = auth.uid() and l.proposition_id = p.id), '-infinity'))
      from propositions p
-     join annonces an on an.id = p.annonce_id
+     left join annonces an on an.id = p.annonce_id   -- directe : pas d'annonce
      join teams ta on ta.id = p.equipe_annonceur join clubs ca on ca.id = p.club_annonceur
      join teams tp on tp.id = p.equipe_proposante join clubs cp on cp.id = p.club_proposant
     where prop_cote(p.id) is not null
@@ -300,11 +333,13 @@ revoke execute on function public.prop_cote(uuid), public.prop_nom_moi(),
   public.proposition_creer(uuid, uuid, date, time, text, text),
   public.proposition_agir(uuid, text, date, time, text, text),
   public.proposition_contacts(uuid), public.mes_propositions(),
-  public.proposition_message(uuid, text), public.proposition_lu(uuid) from public, anon;
+  public.proposition_message(uuid, text), public.proposition_lu(uuid),
+  public.proposition_directe(uuid, uuid, date, time, text, text) from public, anon;
 grant execute on function public.prop_cote(uuid), public.prop_nom_moi(),
   public.proposition_creer(uuid, uuid, date, time, text, text),
   public.proposition_agir(uuid, text, date, time, text, text),
   public.proposition_contacts(uuid), public.mes_propositions(),
-  public.proposition_message(uuid, text), public.proposition_lu(uuid) to authenticated;
+  public.proposition_message(uuid, text), public.proposition_lu(uuid),
+  public.proposition_directe(uuid, uuid, date, time, text, text) to authenticated;
 
 commit;

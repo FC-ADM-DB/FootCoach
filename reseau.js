@@ -57,6 +57,7 @@ async function rsRenderAnnonces(){
   const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?'selected':''}>${esc(l)}</option>`;
   const sel=(k,items,tout)=>`<select class="sel" onchange="rsFiltre('${k}',this.value)">${opt('',tout,rsFiltres[k])}${items.map(([v,l])=>opt(v,l,rsFiltres[k])).join('')}</select>`;
   const head=`<div class="rs-filters">
+    ${verifie?'<button class="bp pr-cal" style="margin:0" onclick="prOuvrirDirect()">🤝 Proposer un match à une équipe</button>':''}
     <label class="rs-lbl">Pour l'équipe<select class="sel" onchange="rsTeamId=this.value;rsRenderAnnonces()">${st.map(t=>opt(t.id,t.nom+' ('+t.categorie+')',rsTeamId)).join('')}</select></label>
     <input class="fi" type="search" placeholder="🔎 Club ou équipe…" value="${esc(rsFiltres.q)}" oninput="rsFiltres.q=this.value;rsGarderFiltres();rsFiltrer()">
     <div class="frow">
