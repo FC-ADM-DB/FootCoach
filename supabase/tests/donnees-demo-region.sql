@@ -216,6 +216,27 @@ do $c2$ declare v_an uuid := md5('an-reh-u10a')::uuid; v_p uuid := md5('prop-han
   update public.profiles set telephone = '0470 12 34 56' where id = md5('cq.hannut@demo.footcoach')::uuid;
 end $c2$;
 
+-- Tournoi (C6, si en place) : « Tournoi de Pâques » de REH Braives, publié, deux tableaux
+-- (U9 : 6 équipes, 2 poules + demi-finales ; U10 : 5 équipes en mini-championnat).
+-- Le programme n'est pas créé ici : il se génère dans l'app (Réglages → Générer).
+do $c6$ declare v_t uuid; v_u9 uuid; v_u10 uuid;
+begin
+  if to_regclass('public.tournois') is null then return; end if;
+  insert into public.tournois (club_id, nom, jour, lieu, publie, cree_par)
+  values ((select id from public.clubs where slug = 'demo-reh-braives'), 'Tournoi de Pâques', '2027-04-03', 'Stade communal de Braives', true, md5('david@demo.footcoach')::uuid)
+  returning id into v_t;
+  insert into public.tournoi_tableaux (tournoi_id, nom, format, formule, nb_poules, qualifies, duree_match, pause, terrains, terrain1, ordre)
+  values (v_t, 'U9', '5v5', 'poules', 2, 4, 10, 3, 2, 1, 0) returning id into v_u9;
+  insert into public.tournoi_tableaux (tournoi_id, nom, format, formule, nb_poules, qualifies, debut, duree_match, pause, terrains, terrain1, ordre)
+  values (v_t, 'U10', '8v8', 'championnat', 1, 0, '09:30', 12, 3, 2, 3, 1) returning id into v_u10;
+  insert into public.tournoi_equipes (tableau_id, nom, team_id, ordre) values
+    (v_u9, 'REH Braives U9', md5('demo-reh-braives/U9')::uuid, 0), (v_u9, 'RFC Hannut U9', null, 1), (v_u9, 'Burdinne U9', null, 2),
+    (v_u9, 'Wanze U9', null, 3), (v_u9, 'Amay U9', null, 4), (v_u9, 'Waremme U9', null, 5);
+  insert into public.tournoi_equipes (tableau_id, nom, team_id, poule, ordre) values
+    (v_u10, 'REH Braives U10A', md5('demo-reh-braives/U10A')::uuid, 'A', 0), (v_u10, 'RFC Hannut U10', null, 'A', 1), (v_u10, 'Burdinne U10', null, 'A', 2),
+    (v_u10, 'Wanze U10', null, 'A', 3), (v_u10, 'Amay U10', null, 'A', 4);
+end $c6$;
+
 -- Résumé
 select c.nom as club, c.verifie,
        (select count(*) from public.teams t where t.club_id = c.id) as equipes,
