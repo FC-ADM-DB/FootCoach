@@ -984,7 +984,7 @@ function renderKiosk(){
   document.getElementById('kiosk-meta').innerHTML=`<span>${CM.lieu==='domicile'?'🏠 Domicile':'✈️ Extérieur'}</span><span>Mi-${halfN}</span><span>${fmt(chronoS)}</span>`;
   const el=document.getElementById('kiosk-goals');
   if(!goals.length){el.innerHTML='<div style="color:var(--text2);font-size:13px">Aucun but enregistré</div>';return;}
-  el.innerHTML=goals.map(g=>`<div class="but-row"><span class="but-min">${butMin(g)}</span><div style="flex:1"><span style="font-size:13px;font-weight:600">${g.scorer}</span>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div><span class="pill ${g.adv?'pr':'pg'}" style="font-size:10px">${g.adv?'Concédé':'Marqué'}</span></div>`).join('');
+  el.innerHTML=goals.map(g=>`<div class="but-row"><span class="but-min">${butMin(g)}</span><div style="flex:1"><span style="font-size:13px;font-weight:600">${g.scorer}</span>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ passe : ${g.assist}</div>`:''}</div><span class="pill ${g.adv?'pr':'pg'}" style="font-size:10px">${g.adv?'Concédé':'Marqué'}</span></div>`).join('');
 }
 
 // ============ CONVOCATIONS ============
@@ -1576,36 +1576,53 @@ async function saveGoal(){
   const sid=document.getElementById('g-scorer').value;
   const aid=document.getElementById('g-assist').value;
   const scorer=goalAdv?CM.adversaire:(players.find(p=>p.id===sid)?.prenom+' '+(players.find(p=>p.id===sid)?.nom||'')||'?');
-  const assist=aid&&!goalAdv?(players.find(p=>p.id===aid)?.prenom||null):null;
+  const a=aid&&!goalAdv?players.find(p=>p.id===aid):null;
   closeModal('modal-goal');
-  recordGoal(goalAdv,scorer,assist,goalAdv?null:sid);
+  recordGoal(goalAdv,scorer,a?a.prenom+' '+a.nom:null,goalAdv?null:sid,a?aid:null);
 }
 // Minute d'un but : le chrono repart à 0 à chaque mi-temps → « 2e MT 10' » (sinon 7', 21', 10'…)
 const butMin=g=>{const m=g.min!==undefined?g.min:Math.floor((g.t||0)/60);return (g.half>1?g.half+'e MT ':'')+m+"'";};
-function recordGoal(adv,scorer,assist,scorerId){
-  const t=chronoS,min=Math.floor(t/60);
+function recordGoal(adv,scorer,assist,scorerId,assistId,tBut){
+  const t=tBut??chronoS,min=Math.floor(t/60);
   const poste=scorerId?currentPosteOf(scorerId):null;
   // pid : identifiant du buteur, utilisé par la page publique pour vérifier son
   // autorisation de publication du prénom (players.publication_ok).
-  goals.push({t,min,scorer,assist:assist||null,adv,half:halfN,poste,pid:adv?null:(scorerId||null)});
+  // aid : identifiant du passeur décisif (comme pid, pour des stats par joueur fiables)
+  goals.push({t,min,scorer,assist:assist||null,adv,half:halfN,poste,pid:adv?null:(scorerId||null),aid:adv?null:(assistId||null)});
   if(adv){sEux++;document.getElementById('sc-eux').textContent=sEux;} else {sNous++;document.getElementById('sc-nous').textContent=sNous;}
   renderGoals();syncCurrentMatchInMemory();saveState();showToast('But enregistré !','ok');
 }
 function openQuickGoalPicker(adv){
   goalAdv=adv;
   if(adv){recordGoal(true,CM.adversaire,null);return;}
-  const postes=getPostes(CT?.format||'8v8');
-  const onField=postes.map(n=>assignment[n]).filter(Boolean).map(id=>players.find(p=>p.id===id)).filter(Boolean);
+  qgT=chronoS;   // minute du but = moment du tap sur ⚽, pas celui du choix du passeur
+  document.getElementById('qg-title').textContent='Qui a marqué ?';
+  const onField=qgSurTerrain();
   const box=document.getElementById('quick-goal-list');
   if(!onField.length){box.innerHTML='<div style="font-size:12px;color:var(--text3);padding:6px 0">Aucun joueur sur le terrain</div>';}
   else box.innerHTML=onField.map(p=>`<button class="qg-opt" style="border-color:${pCol(p)};color:${pCol(p)}" onclick="quickGoal('${p.id}')">${p.prenom} ${p.nom}</button>`).join('');
   box.innerHTML+=`<button class="qg-opt qg-none" onclick="quickGoal(null)">Sans buteur précis</button>`;
   openModal('modal-quick-goal');
 }
+let qgT=0,qgButeur=null;
+const qgSurTerrain=()=>getPostes(CT?.format||'8v8').map(n=>assignment[n]).filter(Boolean).map(id=>players.find(p=>p.id===id)).filter(Boolean);
+// Passe décisive : 2e étape de la même fenêtre, parmi les autres joueurs sur le terrain ;
+// « Pas de passe décisive » enregistre le but sans passeur.
 function quickGoal(playerId){
-  closeModal('modal-quick-goal');
   const p=playerId?players.find(pl=>pl.id===playerId):null;
-  recordGoal(false,p?(p.prenom+' '+p.nom):'But marqué',null,playerId);
+  const autres=p?qgSurTerrain().filter(x=>x.id!==playerId):[];
+  if(!p||!autres.length){closeModal('modal-quick-goal');recordGoal(false,p?(p.prenom+' '+p.nom):'But marqué',null,playerId,null,qgT);return;}
+  qgButeur=playerId;
+  document.getElementById('qg-title').textContent='Passe décisive ?';
+  document.getElementById('quick-goal-list').innerHTML=
+    `<div class="qg-but">⚽ ${esc(p.prenom+' '+p.nom)}</div>`
+    +`<button class="qg-opt qg-none qg-sans" onclick="quickAssist(null)">Pas de passe décisive</button>`
+    +autres.map(a=>`<button class="qg-opt" style="border-color:${pCol(a)};color:${pCol(a)}" onclick="quickAssist('${a.id}')">${esc(a.prenom+' '+a.nom)}</button>`).join('');
+}
+function quickAssist(aid){
+  closeModal('modal-quick-goal');
+  const p=players.find(pl=>pl.id===qgButeur),a=aid?players.find(pl=>pl.id===aid):null;
+  recordGoal(false,p?(p.prenom+' '+p.nom):'But marqué',a?(a.prenom+' '+a.nom):null,qgButeur,aid,qgT);
 }
 function renderGoals(){
   const el=document.getElementById('goals-list');
@@ -1615,7 +1632,7 @@ function renderGoals(){
   el.innerHTML=list.map(g=>{const time=(g.half>1?g.half+'e MT ':'')+(g.t!==undefined?fmt(g.t):g.min!==undefined?`${g.min}'`:'--');return `<div class="but-row">
     <span class="but-min">${time}</span>
     <span>${g.adv?'🔴':'⚽'}</span>
-    <div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div>
+    <div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ passe : ${g.assist}</div>`:''}</div>
     <span class="pill ${g.adv?'pr':'pg'}" style="font-size:10px">${g.adv?'Concédé':'Marqué'}</span>
   </div>`}).join('');
 }
@@ -1874,7 +1891,7 @@ function renderResume(){
   if(isAdmin&&fin){html+=`<button onclick="openScoreEdit()" class="bsec" style="width:100%;margin-bottom:12px;font-size:13px">✎ Modifier le score</button>`;}
   if(goals.length){
     html+=`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:7px">Buts</div>`;
-    html+=goals.map(g=>`<div class="but-row"><span class="but-min">${butMin(g)}</span><span>${g.adv?'🔴':'⚽'}</span><div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}${g.poste?` <span class="pill pgr" style="font-size:9px;vertical-align:middle">#${g.poste}</span>`:''}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ ${g.assist}</div>`:''}</div></div>`).join('');
+    html+=goals.map(g=>`<div class="but-row"><span class="but-min">${butMin(g)}</span><span>${g.adv?'🔴':'⚽'}</span><div style="flex:1"><div style="font-size:13px;font-weight:500">${g.scorer}${g.poste?` <span class="pill pgr" style="font-size:9px;vertical-align:middle">#${g.poste}</span>`:''}</div>${g.assist?`<div style="font-size:11px;color:var(--text2)">↳ passe : ${g.assist}</div>`:''}</div></div>`).join('');
     html+=`</div>`;
   }
   const mpPlayers=players.filter(p=>MP[p.id]);
