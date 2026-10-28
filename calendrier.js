@@ -58,7 +58,7 @@ async function renderCalendrier(){
       <button class="bsec" onclick="calSemaine(1)" aria-label="Semaine suivante">›</button>
       <button class="bsec" onclick="calLundi=calDebutSemaine(new Date());renderCalendrier()">Aujourd'hui</button></div>
     <div class="cal-leg"><span class="cal-it dom">🏠 domicile</span><span class="cal-it ext">✈️ extérieur</span><span class="cal-it prop">proposition en cours</span><span class="cal-it libre">📢 annonce publiée</span></div>
-    <div class="rs-line" style="margin-bottom:8px">Touche <b>+</b> dans une case pour publier une annonce « Trouver un match » ce jour-là.</div>
+    <div class="rs-line" style="margin-bottom:8px">Touche <b>+</b> dans une case pour chercher un adversaire ce jour-là ou publier une annonce.</div>
     ${eqs.length?`<div class="cal-wrap"><table class="cal"><thead><tr><th></th>${jours.map(j=>`<th class="${calIso(j)===todayIso()?'auj':''}">${j.toLocaleDateString('fr-BE',{weekday:'short'})}<br><b>${j.getDate()}</b></th>`).join('')}</tr></thead>
       <tbody>${eqs.map(t=>`<tr><th><div class="cal-eq">${esc(t.nom)}</div><div class="cal-cat">${esc(t.categorie||'')}</div></th>${jours.map(j=>cell(t,j)).join('')}</tr>`).join('')}</tbody></table></div>`
       :'<div class="empty"><div class="empty-t">Aucune équipe dans ce club</div></div>'}`;
@@ -80,10 +80,27 @@ async function calJourClub(p){
 const calOpenUserMenu=openUserMenu;
 openUserMenu=function(){const m=document.getElementById('umenu-cal');if(m)m.style.display=myClubs.length?'flex':'none';calOpenUserMenu();};
 
-// « + » d'une case : formulaire d'annonce pré-rempli (équipe, jour)
-async function calAnnonce(teamId,jour){
-  if(typeof anOpen!=='function')return;
-  anOpen(null,{team_id:teamId,jour});
+// « + » d'une case : chercher un adversaire parmi les annonces (équipe, jour, tranche
+// horaire facultative) ou publier sa propre annonce pré-remplie
+function calAnnonce(teamId,jour){
+  const t=teams.find(x=>x.id===teamId);
+  const d=new Date(jour+'T12:00').toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('cal-choix-body').innerHTML=`<div class="mh"></div>
+    <div class="mt">Trouver un match</div>
+    <div class="rs-line" style="margin:-6px 0 14px"><b>${esc(t?.nom||'')}</b> · ${esc(d)}</div>
+    <div class="fg"><label class="fl">Tranche horaire <span style="color:var(--text3);font-weight:400">(facultatif)</span></label>
+      <div class="rs-heures"><span>Entre</span><input class="fi" type="time" id="calc-de"><span>et</span><input class="fi" type="time" id="calc-a"></div></div>
+    <button class="bp cal-choix-b" onclick="calChoix('voir','${teamId}','${jour}')">🔎 Voir les annonces qui correspondent</button>
+    <button class="bsec cal-choix-b" onclick="calChoix('publier','${teamId}','${jour}')">📢 Publier notre annonce</button>
+    <div class="mfoot"><button class="bcan" onclick="closeModal('modal-cal-choix')">Annuler</button></div>`;
+  openModal('modal-cal-choix');
+}
+function calChoix(action,teamId,jour){
+  const de=document.getElementById('calc-de').value,a=document.getElementById('calc-a').value;
+  if(de&&a&&a<de)return showToast('L\'heure de fin est avant l\'heure de début','err');
+  closeModal('modal-cal-choix');
+  if(action==='voir')return rsChercherPour(teamId,jour,de,a);
+  anOpen(null,{team_id:teamId,jour,debut:de,fin:a});
 }
 // Tuile « Calendrier » de l'accueil : seulement pour les CQ / coordinateurs
 const calRenderHome=renderHome;

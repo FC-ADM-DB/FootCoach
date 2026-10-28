@@ -14,7 +14,7 @@ const AN_ZONES={belgique:'Toute la Belgique',province:'Ma province',distance:'Di
 
 let rsTab='annonces',rsTeamId=null,rsMine=[],rsDonnees=[];
 // Filtres de recherche (mémorisés sur l'appareil, simple confort)
-const RS_FILTRES0={cat:'',type:'',compat:false,q:'',periode:'',date:'',jsem:'',lieu:'',format:'',niveau:'',km:'',tri:'date'};
+const RS_FILTRES0={cat:'',type:'',compat:false,q:'',periode:'',date:'',jsem:'',hDe:'',hA:'',lieu:'',format:'',niveau:'',km:'',tri:'date'};
 let rsFiltres={...RS_FILTRES0};
 try{Object.assign(rsFiltres,JSON.parse(localStorage.getItem('fc_rs_filtres')||'{}'));}catch(e){}
 const rsGarderFiltres=()=>{try{localStorage.setItem('fc_rs_filtres',JSON.stringify(rsFiltres));}catch(e){}};
@@ -64,6 +64,7 @@ async function rsRenderAnnonces(){
       ${sel('jsem',[['6','Samedi'],['0','Dimanche'],['3','Mercredi'],['sem','En semaine (lun–ven)']],'Tous les jours')}
     </div>
     ${rsFiltres.periode==='date'?`<input class="fi" type="date" min="${todayIso()}" value="${esc(rsFiltres.date)}" onchange="rsFiltre('date',this.value)">`:''}
+    <div class="rs-heures"><span>Entre</span><input class="fi" type="time" value="${esc(rsFiltres.hDe)}" onchange="rsFiltre('hDe',this.value)" aria-label="Heure de début"><span>et</span><input class="fi" type="time" value="${esc(rsFiltres.hA)}" onchange="rsFiltre('hA',this.value)" aria-label="Heure de fin">${rsFiltres.hDe||rsFiltres.hA?`<button class="bsec" onclick="rsFiltres.hDe=rsFiltres.hA='';rsGarderFiltres();rsRenderAnnonces()" aria-label="Effacer l'heure">✕</button>`:''}</div>
     <details class="rs-plus" ${rsNbFiltres()?'open':''}><summary>Plus de filtres<span id="rs-nbf"></span></summary>
       <div class="rs-plus-in">
         <div class="frow">
@@ -91,6 +92,12 @@ async function rsRenderAnnonces(){
   rsDonnees=(data||[]).filter(a=>!a.mon_club);
   rsFiltrer();
 }
+// Depuis le calendrier du club : annonces pour cette équipe, ce jour-là, dans la tranche
+function rsChercherPour(teamId,jour,hDe,hA){
+  rsTeamId=teamId;rsTab='annonces';
+  Object.assign(rsFiltres,{periode:'date',date:jour,jsem:'',hDe:hDe||'',hA:hA||'',q:''});
+  rsGarderFiltres();goPage('reseau');
+}
 // Changement d'un filtre à liste (la période change l'en-tête : champ « date précise »)
 function rsFiltre(k,v){rsFiltres[k]=v;rsGarderFiltres();if(k==='periode')rsRenderAnnonces();else rsFiltrer();}
 const rsNbFiltres=()=>['cat','type','lieu','format','niveau','km','compat'].filter(k=>rsFiltres[k]).length;
@@ -110,12 +117,16 @@ function rsCrOk(c){
     if(c.jour<rsIso(sam)||c.jour>rsIso(dim))return false;}
   if(f.periode==='date'&&f.date&&c.jour!==f.date)return false;
   if(f.jsem==='sem'?(j===0||j===6):(f.jsem!==''&&j!==+f.jsem))return false;
+  // Tranche horaire : le créneau doit la chevaucher (créneau sans heure = gardé, à discuter)
+  const hd=fmtHeure(c.heure_debut),hf=fmtHeure(c.heure_fin)||hd;
+  if(f.hDe&&hf&&hf<f.hDe)return false;
+  if(f.hA&&hd&&hd>f.hA)return false;
   return true;
 }
 function rsFiltrer(){
   const el=document.getElementById('rs-list');if(!el)return;
   const T=rsTeam(rsTeamId),f=rsFiltres,q=(f.q||'').trim().toLowerCase();
-  const dateFiltree=!!(f.periode||f.jsem);
+  const dateFiltree=!!(f.periode||f.jsem||f.hDe||f.hA);
   let list=rsDonnees
     // annonces sans créneau à venir (ou hors période / jour choisis) : masquées
     .filter(a=>a.creneaux.length?a.creneaux.some(rsCrOk):!dateFiltree)
@@ -229,7 +240,7 @@ function anOpen(id,preset){
     format:a?.format||t.format,duree_mt:a?.duree_mt||HALF_MIN[t.format]||'',zone:a?.zone||'province',
     distance_km:a?.distance_km||30,message:a?.message||'',statut:a?.statut||'brouillon',commentaire:a?.commentaire_validation||''};
   anCats=new Set(a?a.categories:[t.categorie]);anNivs=new Set(a?a.niveaux:[]);
-  anCreneaux=a?(a.annonce_creneaux||[]).map(c=>({jour:c.jour,debut:fmtHeure(c.heure_debut),fin:fmtHeure(c.heure_fin)})):[{jour:preset?.jour||'',debut:'',fin:''}];
+  anCreneaux=a?(a.annonce_creneaux||[]).map(c=>({jour:c.jour,debut:fmtHeure(c.heure_debut),fin:fmtHeure(c.heure_fin)})):[{jour:preset?.jour||'',debut:preset?.debut||'',fin:preset?.fin||''}];
   anCibles=new Set();
   if(a?.zone==='equipes')sb.from('annonce_cibles').select('team_id').eq('annonce_id',a.id).then(({data})=>{(data||[]).forEach(r=>anCibles.add(r.team_id));anRenderZone();});
   anRenderForm();openModal('modal-annonce');
