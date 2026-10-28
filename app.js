@@ -271,6 +271,8 @@ function choisirEquipeHtml(icone,texte,page){
 async function renderClubHome(){
   const cid=clubVue,el=document.getElementById('home-next');
   const eqs=teams.filter(t=>t.club_id===cid);
+  // Sinon la liste de l'équipe précédente restait affichée (et cliquable) pendant le chargement
+  if(el.dataset.vue!==cid){el.innerHTML='<div class="spin"></div>';el.dataset.vue=cid;}
   document.getElementById('cs-eq').textContent=eqs.length;
   document.getElementById('home-next-t').textContent='Prochains matchs du club';
   if(!eqs.length){el.innerHTML=`<div class="empty" style="padding:22px 0"><div class="empty-i">🏆</div><div class="empty-t">Aucune équipe dans ce club</div></div>`;document.getElementById('cs-m').textContent='0';document.getElementById('cs-j').textContent='0';return;}
@@ -644,6 +646,7 @@ function renderMatchesList(){
 function renderHomeMatches(){
   const el=document.getElementById('home-next');
   if(clubVue)return renderClubHome();
+  el.dataset.vue='';
   document.getElementById('home-next-t').textContent='Prochains matchs';
   // matches est trié du plus récent au plus ancien : sans re-tri, l'accueil montrait les
   // 3 matchs prévus les plus LOINTAINS au lieu des 3 prochains.
