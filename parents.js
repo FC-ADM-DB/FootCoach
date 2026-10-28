@@ -210,8 +210,8 @@ async function paInviter(pid){
   const{data,error}=await sb.from('invitations_parent').insert({player_id:pid}).select('token').single();
   if(error)return showToast('Lien impossible à créer','err');
   const url=location.origin+location.pathname+'?invitation='+data.token;
-  const texte=`Bonjour ! Voici le lien pour suivre ${p?.prenom||'votre enfant'} (${CT?.nom||''}) dans FootCoach : convocations, résultats et temps de jeu.`;
-  try{if(navigator.share){await navigator.share({title:'Invitation FootCoach',text:texte,url});paRenderParentsJoueur(pid);return;}}
+  const texte=`Bonjour ! Voici le lien pour suivre ${p?.prenom||'votre enfant'} (${CT?.nom||''}) dans FootLink : convocations, résultats et temps de jeu.`;
+  try{if(navigator.share){await navigator.share({title:'Invitation FootLink',text:texte,url});paRenderParentsJoueur(pid);return;}}
   catch(e){if(e.name==='AbortError'){paRenderParentsJoueur(pid);return;}}
   try{await navigator.clipboard.writeText(texte+' '+url);showToast('Lien copié : colle-le dans WhatsApp ou un SMS','ok');}
   catch(e){await askConfirm('Lien d\'invitation (valable 30 jours, 2 parents) :\n\n'+url);}

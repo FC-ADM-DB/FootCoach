@@ -20,7 +20,7 @@ const ptDate=d=>d?new Date(d).toLocaleDateString('fr-BE',{day:'numeric',month:'s
 
 async function renderPlateforme(){
   const el=document.getElementById('plateforme-content');
-  if(!isPlatformAdmin){el.innerHTML=`<div class="empty"><div class="empty-i">🔒</div><div class="empty-t">Réservé à l'administrateur FootCoach</div></div>`;return;}
+  if(!isPlatformAdmin){el.innerHTML=`<div class="empty"><div class="empty-i">🔒</div><div class="empty-t">Réservé à l'administrateur FootLink</div></div>`;return;}
   if(ptView==='nouveau')return ptRenderCreation();
   if(ptView)return ptRenderFiche(ptView);
   el.innerHTML='<div class="spin"></div>';
@@ -163,7 +163,7 @@ async function ptRenderFiche(id){
       <span class="pill ${m.role==='cq'?'pg':'pb'}" style="font-size:11px">${PT_ROLE[m.role]||m.role}</span>
       <button class="bred club-del" onclick="ptRetirerMembre('${m.club_member_id}','${c.id}')">Retirer</button></div>`).join(''):'<div class="rs-line" style="color:var(--amber)">⚠️ Aucun CQ : nommes-en un ci-dessous.</div>'}
     <div class="club-add">
-      <input class="fi" id="pc-email" type="email" placeholder="email du compte FootCoach">
+      <input class="fi" id="pc-email" type="email" placeholder="email du compte FootLink">
       <select class="sel" id="pc-role"><option value="cq">CQ</option><option value="coordinateur">Coordinateur</option></select>
       <button class="bsec logo-btn" onclick="ptAjouterMembre('${c.id}')">Ajouter</button>
     </div>
@@ -217,7 +217,7 @@ async function ptAjouterMembre(club){
   if(!email)return showToast('Email requis','err');
   const r=await sb.rpc('find_profile_by_email',{e:email});
   const p=Array.isArray(r.data)?r.data[0]:r.data;
-  if(!p)return showToast('Aucun compte FootCoach avec cet email','err');
+  if(!p)return showToast('Aucun compte FootLink avec cet email','err');
   const{data,error}=await sb.from('club_members').insert({club_id:club,profile_id:p.id,role}).select('id');
   if(error)return showToast(/duplicate|unique/i.test(error.message)?'Cette personne a déjà ce rôle':error.message,'err');
   if(!data?.length)return showToast('Ajout refusé','err');
@@ -245,7 +245,7 @@ function ptRenderCreation(){
       <div class="fg"><label class="fl">Matricule</label><input class="fi" id="pn-mat" inputmode="numeric"></div>
     </div>
     <div class="fg"><label class="fl">Adresse du terrain *</label><input class="fi" id="pn-adr" placeholder="rue, n°, code postal, commune"></div>
-    <div class="fg"><label class="fl">Email du CQ (compte FootCoach existant)</label><input class="fi" id="pn-cq" type="email" placeholder="facultatif — sinon tu restes CQ provisoire">
+    <div class="fg"><label class="fl">Email du CQ (compte FootLink existant)</label><input class="fi" id="pn-cq" type="email" placeholder="facultatif — sinon tu restes CQ provisoire">
       <div style="font-size:11px;color:var(--text3);margin-top:5px">Le CQ peut aussi être nommé plus tard depuis la fiche du club.</div></div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0 12px"><input type="checkbox" id="pn-verif" checked> Marquer le club comme vérifié</label>
     <button class="bp" id="pn-ok" onclick="ptCreerClub()">Créer le club</button>
@@ -264,7 +264,7 @@ async function ptCreerClub(){
   if(email){
     const r=await sb.rpc('find_profile_by_email',{e:email});
     cq=Array.isArray(r.data)?r.data[0]:r.data;
-    if(!cq){fin();return showToast('Aucun compte FootCoach avec cet email','err');}
+    if(!cq){fin();return showToast('Aucun compte FootLink avec cet email','err');}
   }
   const{data:id,error}=await sb.rpc('create_club',{p_nom:nom,p_province_id:parseInt(g('pn-prov').value)||null,p_matricule:g('pn-mat').value.trim()||null,p_adresse:adr});
   if(error){fin();return showToast(/matricule|unique|duplicate/i.test(error.message)?'Ce matricule est déjà utilisé par un autre club':error.message,'err');}
