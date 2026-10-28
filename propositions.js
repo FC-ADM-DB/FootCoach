@@ -3,7 +3,8 @@
 // fmtHeure, creneauTxt, todayIso, renderReseauPage, sb, U, UP, esc, showToast, askConfirm,
 // openModal, closeModal, loadMatches…).
 // Base : supabase/2026-10-27-C2-propositions.sql — toutes les actions passent par
-// proposition_creer / proposition_agir (machine à états, droits vérifiés par la base) :
+// proposition_creer (sur une annonce) / proposition_directe (à une équipe choisie, sans
+// annonce) / proposition_agir (machine à états, droits vérifiés par la base) :
 // le coordinateur/CQ décide ; un entraîneur/délégué prépare une suggestion qu'il valide.
 // Accord : match créé dans le calendrier des deux équipes.
 // Communication entre clubs : d'abord par MESSAGE dans l'application (proposition_message,
@@ -71,6 +72,66 @@ async function prEnvoyerForm(annonceId){
   await prMajCompte();rsTab='propositions';renderReseauPage();
 }
 
+// ------------------------------------------------------------ PROPOSER DIRECTEMENT (sans annonce)
+// preset : {team_id, jour, heure, depuisCal} (calendrier du club) ; l'adversaire est choisi
+// parmi les équipes des autres clubs vérifiés (equipes_reseau : nom, catégorie, club).
+let prDirect={team:null,cible:null,toutesCat:false,depuisCal:false},prEquipes=null;
+async function prOuvrirDirect(preset={}){
+  const st=rsStaffTeams();if(!st.length)return showToast('Il faut encadrer une équipe d\'un club','err');
+  const T=rsTeam(preset.team_id||rsTeamId)||st[0];
+  prDirect={team:T.id,cible:null,toutesCat:false,depuisCal:!!preset.depuisCal};
+  const auj=todayIso();
+  document.getElementById('prop-body').innerHTML=`
+    <div class="mt">Proposer un match</div>
+    <div class="fg"><label class="fl">Notre équipe</label><select class="sel" id="prd-team" onchange="prDirect.team=this.value;prDirect.cible=null;prDirListe()">${st.map(t=>`<option value="${t.id}" ${t.id===T.id?'selected':''}>${esc(t.nom)} (${esc(t.categorie)})</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">Adversaire</label>
+      <input class="fi" type="search" id="prd-q" placeholder="🔎 Club ou équipe…" oninput="prDirListe()">
+      <label class="tm-new-toggle" style="margin:4px 0 0"><input type="checkbox" onchange="prDirect.toutesCat=this.checked;prDirListe()"> Toutes les catégories</label>
+      <div class="prd-liste" id="prd-liste"><div class="spin"></div></div></div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="pr-jour" min="${auj}" value="${esc(preset.jour||'')}"></div>
+      <div class="fg"><label class="fl">Heure</label><input class="fi" type="time" id="pr-heure" value="${esc(preset.heure||'10:00')}"></div>
+    </div>
+    <div class="fg"><label class="fl">Où ?</label><select class="sel" id="pr-lieu">
+      <option value="proposant">🏠 Chez nous</option><option value="annonceur">✈️ Chez eux</option></select></div>
+    <div class="fg"><label class="fl">Message <span style="color:var(--text3);font-weight:400">(facultatif)</span></label><textarea class="fi" id="pr-msg" rows="3" maxlength="1000" placeholder="ex : match amical, terrain synthétique…"></textarea></div>
+    <div id="prd-aide"></div>
+    <div class="mfoot"><button class="bcan" onclick="closeModal('modal-prop')">Annuler</button>
+      <button class="bp" id="pr-ok" onclick="prEnvoyerDirect()">Envoyer</button></div>`;
+  openModal('modal-prop');
+  if(!prEquipes){const{data,error}=await sb.rpc('equipes_reseau');prEquipes=error?[]:(data||[]);}
+  prDirListe();
+}
+function prDirListe(){
+  const el=document.getElementById('prd-liste');if(!el||!prEquipes)return;
+  const T=rsTeam(prDirect.team),q=(document.getElementById('prd-q')?.value||'').trim().toLowerCase();
+  const club=isClubStaff(T?.club_id);
+  document.getElementById('prd-aide').innerHTML=club?'':'<div class="acc-help">Tu es entraîneur ou délégué : la proposition sera <b>envoyée par ton coordinateur ou ton CQ</b> après sa validation.</div>';
+  document.getElementById('pr-ok').textContent=club?'Envoyer':'Préparer';
+  // Équipes des autres clubs (jamais le mien), même catégorie par défaut
+  const l=prEquipes.filter(e=>!teams.some(t=>t.id===e.team_id&&t.club_id===T?.club_id))
+    .filter(e=>prDirect.toutesCat||!T?.categorie||e.categorie===T.categorie)
+    .filter(e=>!q||(e.club_nom+' '+e.equipe+' '+e.categorie).toLowerCase().includes(q))
+    .sort((a,b)=>a.club_nom.localeCompare(b.club_nom)||a.equipe.localeCompare(b.equipe));
+  el.innerHTML=l.length?l.slice(0,60).map(e=>`<button type="button" class="prd-eq${e.team_id===prDirect.cible?' on':''}" onclick="prDirect.cible='${e.team_id}';prDirListe()"><b>${esc(e.club_nom)}</b> · ${esc(e.equipe)} <span>${esc(e.categorie)}</span></button>`).join('')
+    :`<div class="rs-line" style="padding:8px">${prEquipes.length?'Aucune équipe trouvée'+(prDirect.toutesCat?'':' dans la catégorie '+esc(T?.categorie||'')):'Aucune autre équipe dans le réseau pour l\'instant (clubs vérifiés).'}</div>`;
+}
+async function prEnvoyerDirect(){
+  const jour=document.getElementById('pr-jour').value,heure=document.getElementById('pr-heure').value||null;
+  if(!prDirect.cible)return showToast('Choisis l\'équipe adverse','err');
+  if(!jour)return showToast('Choisis une date','err');
+  const btn=document.getElementById('pr-ok');btn.disabled=true;
+  const{error}=await sb.rpc('proposition_directe',{p_team:prDirect.team,p_cible:prDirect.cible,p_jour:jour,p_heure:heure,
+    p_lieu:document.getElementById('pr-lieu').value,p_message:document.getElementById('pr-msg').value.trim()||null});
+  btn.disabled=false;
+  if(error)return showToast(/proposition_directe|function/i.test(error.message||'')?'Fonction pas encore disponible':error.message.replace(/^.*?:\s*/,''),'err');
+  closeModal('modal-prop');
+  showToast(isClubStaff(rsTeam(prDirect.team)?.club_id)?'🤝 Proposition envoyée':'Proposition préparée : ton coordinateur doit l\'envoyer','ok');
+  await prMajCompte();
+  if(prDirect.depuisCal&&typeof renderCalendrier==='function')renderCalendrier();
+  else{rsTab='propositions';goPage('reseau');}
+}
+
 // ------------------------------------------------------------ ONGLET « PROPOSITIONS »
 async function prRenderListe(){
   const body=document.getElementById('rs-body');
@@ -83,13 +144,13 @@ async function prRenderListe(){
     const todo=prAFaire(p);
     return `<div class="card rs-card pr-card${todo?' todo':''}" onclick="prOuvrir('${p.id}')">
       <div class="rs-top"><div style="flex:1;min-width:0"><div class="rs-club">${p.cote==='proposant'?'Envoyée à':'Reçue de'} ${esc(autreClub)}</div>
-        <div class="rs-sub">${esc(autreEq)} ↔ ${esc(monEq)} · ${esc(AN_TYPES[p.annonce_type]||'')}</div></div><span class="pill ${cl}">${lbl}</span></div>
+        <div class="rs-sub">${esc(autreEq)} ↔ ${esc(monEq)} · ${p.annonce_id?esc(AN_TYPES[p.annonce_type]||''):'proposition directe'}</div></div><span class="pill ${cl}">${lbl}</span></div>
       <div class="rs-line">📅 ${esc(prQuand(p))} · ${prLieuTxt(p.lieu,p.cote)}</div>
       ${p.non_lus?`<div class="pr-msg-nb">💬 ${p.non_lus} nouveau${p.non_lus>1?'x':''} message${p.non_lus>1?'s':''}</div>`:''}
       ${todo&&!(p.non_lus&&!(p.decide?(p.a_moi||p.suggestion):(p.a_moi&&!p.suggestion)))?`<div class="pr-todo">${p.suggestion&&p.decide?'💡 Suggestion à valider':p.statut==='a_valider'?(p.decide?'➤ À envoyer':'⏳ En attente de ton coordinateur'):'👉 À vous de répondre'}</div>`:''}
     </div>`;};
   const enCours=prListe.filter(p=>['a_valider','envoyee','contre'].includes(p.statut)),finies=prListe.filter(p=>!enCours.includes(p));
-  body.innerHTML=(myClubs.length?'<button class="bsec pr-cal" onclick="ouvrirCalendrier()">📅 Calendrier du club (toutes les équipes)</button>':'')+(prListe.length?'':`<div class="empty"><div class="empty-i">🤝</div><div class="empty-t">Aucune proposition</div><div class="empty-s">Ouvre une annonce et touche « Proposer un match ».</div></div>`)+
+  body.innerHTML='<button class="bp pr-cal" onclick="prOuvrirDirect()">🤝 Proposer un match à une équipe</button>'+(myClubs.length?'<button class="bsec pr-cal" onclick="ouvrirCalendrier()">📅 Calendrier du club (toutes les équipes)</button>':'')+(prListe.length?'':`<div class="empty"><div class="empty-i">🤝</div><div class="empty-t">Aucune proposition</div><div class="empty-s">Ouvre une annonce et touche « Proposer un match », ou propose directement à une équipe.</div></div>`)+
     (enCours.length?`<div class="tb-sec-t">En cours</div>`+enCours.map(carte).join(''):'')+
     (finies.length?`<div class="tb-sec-t" style="margin-top:14px">Terminées</div>`+finies.slice(0,20).map(carte).join(''):'');
 }

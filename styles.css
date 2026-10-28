@@ -829,3 +829,8 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .rs-heures .fi{flex:1;min-width:0}
 .rs-heures .bsec{width:auto;min-height:40px;padding:0 12px;margin:0}
 .cal-choix-b{width:100%;margin-bottom:8px;min-height:46px}
+/* Proposition directe : choix de l'équipe adverse */
+.prd-liste{max-height:30vh;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);margin-top:6px;display:flex;flex-direction:column}
+.prd-eq{text-align:left;background:none;border:none;border-bottom:1px solid var(--border);padding:10px 12px;color:var(--text);font-family:var(--font);font-size:13.5px;cursor:pointer;min-height:42px}
+.prd-eq span{color:var(--text3);font-size:12px}
+.prd-eq.on{background:var(--green-bg);box-shadow:inset 3px 0 0 var(--green)}

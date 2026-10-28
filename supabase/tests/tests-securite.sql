@@ -549,6 +549,10 @@ insert into r (qui, test, attendu, obtenu) values
  ('CQ B', '[C2] 2e proposition sur la même annonce', 'refusé', pg_temp.essai($q$select proposition_creer('60000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000b1', current_date + 9, '10:30', 'annonceur')$q$)),
  ('CQ B', '[C2] propose pour une équipe qu''il n''encadre pas', 'refusé', pg_temp.essai($q$select proposition_creer('60000000-0000-4000-a000-000000000006', '10000000-0000-4000-a000-0000000000a1', current_date + 9, '10:30', 'annonceur')$q$)),
  ('CQ B', '[C2] propose une date passée', 'refusé', pg_temp.essai($q$select proposition_creer('60000000-0000-4000-a000-000000000006', '10000000-0000-4000-a000-0000000000b1', current_date - 1, '10:30', 'annonceur')$q$)),
+ ('CQ B', '[C2] propose un match directement à une équipe (sans annonce)', '1', pg_temp.essai($q$select 1 from (select proposition_directe('10000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000a1', current_date + 12, '14:00', 'proposant', 'Match chez nous ?')) x$q$)),
+ ('CQ B', '[C2] directe : 2e proposition même équipe même jour', 'refusé', pg_temp.essai($q$select proposition_directe('10000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000a1', current_date + 12, '15:00', 'proposant') from proposition_directe('10000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000a1', current_date + 12, '14:00', 'proposant')$q$)),
+ ('CQ B', '[C2] directe : à une équipe de son propre club', 'refusé', pg_temp.essai($q$select proposition_directe('10000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000b1', current_date + 12, '14:00', 'proposant')$q$)),
+ ('CQ B', '[C2] directe : pour une équipe qu''il n''encadre pas', 'refusé', pg_temp.essai($q$select proposition_directe('10000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000b1', current_date + 12, '14:00', 'proposant')$q$)),
  ('CQ B', '[C2] voit ses propositions (P1, P2)', '2', pg_temp.essai($q$select 1 from propositions$q$)),
  ('CQ B', '[C2] ne voit pas la suggestion en attente de l''autre club', '1', pg_temp.essai($q$select 1 from proposition_tours where proposition_id = '90000000-0000-4000-a000-000000000001'$q$)),
  ('CQ B', '[C2] accepte alors que c''est à l''annonceur de répondre', 'refusé', pg_temp.essai($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'accepter')$q$)),
@@ -601,6 +605,7 @@ insert into r (qui, test, attendu, obtenu) values
  ('Externe', '[C2] liste « mes propositions »', '0', pg_temp.essai($q$select 1 from mes_propositions()$q$)),
  ('Externe', '[C2] contacts d''une proposition', '0', pg_temp.essai($q$select 1 from proposition_contacts('90000000-0000-4000-a000-000000000001')$q$)),
  ('Externe', '[C2] écrit un message', 'refusé', pg_temp.essai($q$select proposition_message('90000000-0000-4000-a000-000000000001', 'spam')$q$)),
+ ('Externe', '[C2] propose un match directement', 'refusé', pg_temp.essai($q$select proposition_directe('10000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000b1', current_date + 12, '14:00', 'proposant')$q$)),
  ('Externe', '[C2] propose un match', 'refusé', pg_temp.essai($q$select proposition_creer('60000000-0000-4000-a000-000000000001', '10000000-0000-4000-a000-0000000000a1', current_date + 9, '10:30', 'annonceur')$q$));
 reset role;
 select set_config('request.jwt.claims', '{"role":"anon"}', false);
