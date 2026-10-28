@@ -217,22 +217,37 @@ do $tb$ begin
   end if;
 end $tb$;
 
--- Tournois (C6, si en place) : TO1 publié (club A, tableau U10 : notre équipe A contre
--- « Visiteurs FC », 1 match), TO2 non publié.
+-- Tournois (C6, si en place) : TO1 publié, inscriptions ouvertes (club A, validation des
+-- scores) ; TO2 brouillon. Tableaux de TO1 : U10 (4 places : notre équipe A, « Visiteurs FC »,
+-- l'équipe D du club C inscrite et acceptée), U9 (inscription « à valider » du club B),
+-- U11 (complet : 2 places, 2 équipes), U12 (ouvert). Inscription I1 du club B « envoyée » sur U10.
 do $c6$ begin
   if to_regclass('public.tournois') is not null then
     execute $c$
-      insert into public.tournois (id, club_id, nom, jour, publie, cree_par) values
-        ('a0000000-0000-4000-a000-000000000001', '50000000-0000-4000-a000-0000000000a1', 'TEST Tournoi publié', current_date + 30, true, '00000000-0000-4000-a000-000000000001'),
-        ('a0000000-0000-4000-a000-000000000002', '50000000-0000-4000-a000-0000000000a1', 'TEST Tournoi brouillon', current_date + 40, false, '00000000-0000-4000-a000-000000000001');
-      insert into public.tournoi_tableaux (id, tournoi_id, nom, format) values
-        ('a1000000-0000-4000-a000-000000000001', 'a0000000-0000-4000-a000-000000000001', 'U10', '8v8');
-      insert into public.tournoi_equipes (id, tableau_id, nom, team_id, poule) values
-        ('a2000000-0000-4000-a000-000000000001', 'a1000000-0000-4000-a000-000000000001', 'TEST U10 Club A', '10000000-0000-4000-a000-0000000000a1', 'A'),
-        ('a2000000-0000-4000-a000-000000000002', 'a1000000-0000-4000-a000-000000000001', 'Visiteurs FC', null, 'A');
+      update public.clubs set verifie = true where id = '50000000-0000-4000-a000-0000000000b1';
+      insert into public.tournois (id, club_id, nom, jour, publie, inscriptions, validation_scores, max_par_club, cree_par) values
+        ('a0000000-0000-4000-a000-000000000001', '50000000-0000-4000-a000-0000000000a1', 'TEST Tournoi publié', current_date + 30, true, true, true, 1, '00000000-0000-4000-a000-000000000001'),
+        ('a0000000-0000-4000-a000-000000000002', '50000000-0000-4000-a000-0000000000a1', 'TEST Tournoi brouillon', current_date + 40, false, false, false, null, '00000000-0000-4000-a000-000000000001');
+      insert into public.tournoi_tableaux (id, tournoi_id, nom, format, places) values
+        ('a1000000-0000-4000-a000-000000000001', 'a0000000-0000-4000-a000-000000000001', 'U10', '8v8', 4),
+        ('a1000000-0000-4000-a000-000000000002', 'a0000000-0000-4000-a000-000000000001', 'U9', '5v5', null),
+        ('a1000000-0000-4000-a000-000000000003', 'a0000000-0000-4000-a000-000000000001', 'U11', '8v8', 2),
+        ('a1000000-0000-4000-a000-000000000004', 'a0000000-0000-4000-a000-000000000001', 'U12', '8v8', null);
+      insert into public.tournoi_inscriptions (id, tournoi_id, tableau_id, club_id, team_id, nom, statut, cree_par) values
+        ('a4000000-0000-4000-a000-000000000001', 'a0000000-0000-4000-a000-000000000001', 'a1000000-0000-4000-a000-000000000001', '50000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000b1', 'TEST Club B U9', 'envoyee', '00000000-0000-4000-a000-000000000003'),
+        ('a4000000-0000-4000-a000-000000000002', 'a0000000-0000-4000-a000-000000000001', 'a1000000-0000-4000-a000-000000000002', '50000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000b1', 'TEST Club B U9', 'a_valider', '00000000-0000-4000-a000-000000000003'),
+        ('a4000000-0000-4000-a000-000000000003', 'a0000000-0000-4000-a000-000000000001', 'a1000000-0000-4000-a000-000000000001', '50000000-0000-4000-a000-0000000000c1', '10000000-0000-4000-a000-0000000000d1', 'TEST Club C', 'acceptee', '00000000-0000-4000-a000-000000000008');
+      insert into public.tournoi_equipes (id, tableau_id, nom, team_id, inscription_id, poule) values
+        ('a2000000-0000-4000-a000-000000000001', 'a1000000-0000-4000-a000-000000000001', 'TEST U10 Club A', '10000000-0000-4000-a000-0000000000a1', null, 'A'),
+        ('a2000000-0000-4000-a000-000000000002', 'a1000000-0000-4000-a000-000000000001', 'Visiteurs FC', null, null, 'A'),
+        ('a2000000-0000-4000-a000-000000000003', 'a1000000-0000-4000-a000-000000000001', 'TEST Club C', '10000000-0000-4000-a000-0000000000d1', 'a4000000-0000-4000-a000-000000000003', 'A'),
+        ('a2000000-0000-4000-a000-000000000004', 'a1000000-0000-4000-a000-000000000003', 'Équipe 1', null, null, 'A'),
+        ('a2000000-0000-4000-a000-000000000005', 'a1000000-0000-4000-a000-000000000003', 'Équipe 2', null, null, 'A');
       insert into public.tournoi_matchs (id, tableau_id, poule, equipe_a, equipe_b, terrain, heure) values
         ('a3000000-0000-4000-a000-000000000001', 'a1000000-0000-4000-a000-000000000001', 'A',
-         'a2000000-0000-4000-a000-000000000001', 'a2000000-0000-4000-a000-000000000002', 1, '09:00');
+         'a2000000-0000-4000-a000-000000000001', 'a2000000-0000-4000-a000-000000000002', 1, '09:00'),
+        ('a3000000-0000-4000-a000-000000000002', 'a1000000-0000-4000-a000-000000000001', 'A',
+         'a2000000-0000-4000-a000-000000000001', 'a2000000-0000-4000-a000-000000000003', 1, '09:15');
     $c$;
   end if;
 end $c6$;
