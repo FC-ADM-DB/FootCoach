@@ -26,12 +26,19 @@ async function prMajCompte(){
   prListe=data||[];
   const n=prListe.filter(prAFaire).length;
   const b=document.getElementById('umenu-prop-badge');if(b){b.textContent=n;b.style.display=n?'':'none';}
+  // Accueil : « Trouver un match » = propositions où c'est à nous d'agir (ou messages non lus) ;
+  // « Calendrier » = propositions en cours (à voir dans la semaine)
+  const hb=document.getElementById('home-prop-badge');if(hb){hb.textContent=n>99?'99+':n;hb.style.display=n?'':'none';}
+  const nc=prListe.filter(x=>['a_valider','envoyee','contre'].includes(x.statut)&&x.jour>=todayIso()).length;
+  const cb=document.getElementById('home-cal-badge');if(cb){cb.textContent=nc>99?'99+':nc;cb.style.display=nc?'':'none';}
   return n;
 }
 const prLoadApp=loadApp;
 loadApp=async function(user){await prLoadApp(user);prMajCompte();clearInterval(prCompteT);
   prCompteT=setInterval(()=>{if(document.visibilityState==='visible')prMajCompte();},60000);};
 if(U)prMajCompte();
+const prGoPage=goPage;
+goPage=function(name){prGoPage(name);if(name==='home')prMajCompte();};
 
 // ------------------------------------------------------------ PROPOSER (depuis une annonce)
 let prEquipeForm=null;   // équipe qui propose
