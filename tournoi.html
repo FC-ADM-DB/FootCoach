@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0a1628">
+<title>Tournoi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* Page publique d'un tournoi (tournoi.html?t=<id>). Aucune connexion : données via la
+   fonction Supabase tournoi_public (tournoi « publié » seulement). Noms d'équipes et
+   scores uniquement, aux couleurs du club organisateur (comme scores.html). */
+:root{
+  --band:#0a1628;--accent:#00d68f;--soft:#f2f5fa;
+  --ink:#1c1a17;--ink2:#5d5646;--line:#e2e6ee;--card:#ffffff;
+  --live:#d0172b;--win:#0b8a5a;
+  --font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--soft);color:var(--ink);font-family:var(--font);min-height:100vh;-webkit-text-size-adjust:100%}
+header{background:var(--band);color:#fff;padding:18px 16px 16px;border-bottom:5px solid var(--accent)}
+.brand{display:flex;align-items:center;gap:12px;max-width:680px;margin:0 auto}
+.crest{width:52px;height:60px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.crest img{max-width:100%;max-height:100%;object-fit:contain}
+.brand h1{font-size:22px;font-weight:700;line-height:1.1}
+.brand p{font-size:13px;opacity:.85;margin-top:3px;font-weight:500}
+nav.tabs{display:flex;gap:8px;max-width:680px;margin:14px auto 0;padding:0 16px;overflow-x:auto}
+nav.tabs button{flex-shrink:0;min-height:44px;padding:0 16px;border-radius:12px;border:2px solid var(--band);background:#fff;color:var(--band);font-family:var(--font);font-size:15px;font-weight:700;cursor:pointer}
+nav.tabs button.on{background:var(--band);color:#fff}
+main{max-width:680px;margin:0 auto;padding:0 16px 32px}
+h2{font-size:15px;font-weight:700;color:var(--band);margin:18px 0 6px;text-transform:uppercase;letter-spacing:.03em}
+.heure{font-family:var(--mono);font-size:14px;color:var(--ink2);margin:12px 0 4px}
+.m{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--band);border-radius:12px;padding:10px 12px;margin-top:6px}
+.m.live{border-left-color:var(--live)}
+.m-top{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink2);margin-bottom:6px}
+.pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px}
+.pill.live{background:var(--live);color:#fff}
+.pill.done{background:#ecebe6;color:#6b665a}
+.l{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}
+.eq{font-size:15px;font-weight:700;overflow-wrap:anywhere}
+.eq.d{text-align:right}
+.eq.att{color:var(--ink2);font-weight:500;font-style:italic}
+.eq.win{color:var(--win)}
+.sc{font-family:var(--mono);font-size:24px;font-weight:500;white-space:nowrap}
+.sc.plan{font-size:16px;color:var(--ink2)}
+.tab{font-size:12px;color:var(--ink2);text-align:center;margin-top:4px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:14px}
+th,td{padding:8px 6px;text-align:center}
+th{font-size:12px;color:var(--ink2);font-weight:600;background:#fafbfc}
+td.n,th.n{text-align:left}
+td.n{font-weight:700}
+tr+tr td{border-top:1px solid var(--line)}
+tr.q td{background:color-mix(in srgb,var(--accent) 14%,white)}
+.champion{text-align:center;font-size:20px;font-weight:700;padding:14px;margin-top:16px;border-radius:12px;background:#fff6d6;color:#8a6a00}
+.empty{text-align:center;padding:48px 16px;color:var(--ink2)}
+.empty .big{font-size:40px;margin-bottom:8px}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+footer{text-align:center;font-size:11px;color:var(--ink2);padding:0 16px 24px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="crest" id="crest"><span style="font-size:38px">🏆</span></div>
+    <div><h1 id="t-nom">Tournoi</h1><p id="t-sous"></p></div>
+  </div>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<main id="list"><div class="empty"><div class="big">🏆</div>Chargement…</div></main>
+<footer id="foot"></footer>
+
+<script src="tournoi-calc.js"></script>
+<script>
+// Même base que scores.html : production, sauf sur le lien de démonstration (branche
+// « demo » sur Vercel) qui utilise la base de test FootLink. Clés PUBLIQUES.
+const SB_DEMO=/^foot-coach-git-demo-/.test(location.hostname);
+const SB_URL=SB_DEMO?'https://shdmzyfdzczhwibwnvdn.supabase.co':'https://oejcfjthamzgnudofcwi.supabase.co';
+const SB_KEY=SB_DEMO?'sb_publishable_rXiHRcgsFm6TwzFapFckQA_shM52ilJ':'sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
+const ID=(new URLSearchParams(location.search).get('t')||'').toLowerCase().replace(/[^0-9a-f-]/g,'');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeLogo=l=>typeof l==='string'&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l)?l:null;
+const okColor=c=>/^#[0-9a-fA-F]{6}$/.test(c||'')?c:null;
+let T=null,tabId=new URLSearchParams(location.search).get('tab')||null,habille=false;
+
+async function load(){
+  if(!ID){vide('🔗','Lien incomplet','Demande le lien du tournoi à l\'organisateur.');return;}
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/rpc/tournoi_public`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({p_id:ID})});
+    if(!r.ok)throw new Error(r.status);
+    const d=await r.json();
+    if(!d){vide('🔒','Tournoi non disponible','Il n\'est pas (ou plus) publié par l\'organisateur.');return;}
+    T=d;habiller();render();
+    document.getElementById('foot').textContent='Mis à jour à '+new Date().toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})+' · actualisation automatique';
+  }catch(e){if(!T)vide('📡','Tournoi indisponible','Vérifie ta connexion, nouvel essai automatique.');}
+}
+function vide(i,t,s){document.getElementById('list').innerHTML=`<div class="empty"><div class="big">${i}</div><b>${t}</b>${s}</div>`;}
+function habiller(){
+  document.getElementById('t-nom').textContent=T.nom;
+  const j=new Date(T.jour+'T12:00').toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('t-sous').textContent=[T.club?.nom,j.charAt(0).toUpperCase()+j.slice(1),T.lieu].filter(Boolean).join(' · ');
+  document.title=T.nom;
+  if(habille)return;habille=true;
+  const l=safeLogo(T.club?.logo);if(l)document.getElementById('crest').innerHTML=`<img src="${l}" alt="">`;
+  const c1=okColor(T.club?.couleur1),c2=okColor(T.club?.couleur2)||c1,root=document.documentElement.style;
+  if(c2){root.setProperty('--band',c2);document.querySelector('meta[name=theme-color]').content=c2;}
+  if(c1){root.setProperty('--accent',c1);root.setProperty('--soft',`color-mix(in srgb, ${c1} 10%, white)`);}
+}
+function choisir(id){tabId=id;const u=new URL(location.href);u.searchParams.set('tab',id);history.replaceState(null,'',u);render();}
+function render(){
+  const tabs=T.tableaux||[];
+  if(!tabs.length){document.getElementById('tabs').innerHTML='';vide('📋','Programme bientôt disponible','L\'organisateur prépare le tournoi.');return;}
+  if(!tabs.some(x=>x.id===tabId))tabId=tabs[0].id;
+  document.getElementById('tabs').innerHTML=tabs.length>1?tabs.map(x=>`<button class="${x.id===tabId?'on':''}" onclick="choisir('${x.id}')">${esc(x.nom)}</button>`).join(''):'';
+  const tb=tabs.find(x=>x.id===tabId),eqs=tb.equipes||[],ms=tb.matchs||[];
+  const nom=id=>eqs.find(e=>e.id===id)?.nom||null;
+  if(!ms.length){vide('📋','Programme bientôt disponible',`${eqs.length} équipe${eqs.length>1?'s':''} inscrite${eqs.length>1?'s':''}.`);return;}
+  const res=tcResoudre(tb,eqs,ms);
+  const carte=m=>{
+    const r=res[m.id]||{},a=nom(r.a)||tcSource(m.source_a,ms),b=nom(r.b)||tcSource(m.source_b,ms),g=tcGagnant(m);
+    const sc=m.statut==='prevu'?`<div class="sc plan">–</div>`:`<div class="sc">${m.score_a??0} – ${m.score_b??0}</div>`;
+    const pill=m.statut==='en_cours'?'<span class="pill live">EN COURS</span>':m.statut==='termine'?'<span class="pill done">Terminé</span>':'';
+    const tab=m.statut==='termine'&&m.score_a===m.score_b&&m.vainqueur?`<div class="tab">Tirs au but : ${esc(m.vainqueur==='a'?a:b)}</div>`:'';
+    return `<div class="m${m.statut==='en_cours'?' live':''}"><div class="m-top"><span>${m.libelle?esc(m.libelle)+' · ':m.poule&&tb.formule!=='championnat'?'Poule '+esc(m.poule)+' · ':''}Terrain ${m.terrain??'?'}</span>${pill}</div>
+      <div class="l"><div class="eq${r.a?'':' att'}${g==='a'?' win':''}">${esc(a)}</div>${sc}<div class="eq d${r.b?'':' att'}${g==='b'?' win':''}">${esc(b)}</div></div>${tab}</div>`;
+  };
+  let html='';
+  // Vainqueur du tableau (finale jouée)
+  const f=ms.filter(m=>m.phase==='finale').sort((x,y)=>(y.ordre||0)-(x.ordre||0))[0],gf=tcGagnant(f);
+  if(gf)html+=`<div class="champion">🏆 ${esc(nom(gf==='a'?res[f.id].a:res[f.id].b)||'')}</div>`;
+  // Classement (si l'organisateur l'affiche)
+  if(tb.classement){
+    const cl=tcClassement(tb,eqs,ms),nb=Object.keys(cl).length,k=tb.formule==='championnat'?0:Math.ceil((tb.qualifies||0)/Math.max(1,nb));
+    Object.keys(cl).sort().forEach(p=>{
+      html+=`<h2>${nb>1?'Poule '+esc(p):'Classement'}</h2><table><tr><th>#</th><th class="n">Équipe</th><th>J</th><th>V</th><th>N</th><th>D</th><th>+/-</th><th>Pts</th></tr>
+        ${cl[p].map((l,i)=>`<tr${i<k?' class="q"':''}><td>${i+1}</td><td class="n">${esc(l.eq.nom)}</td><td>${l.j}</td><td>${l.v}</td><td>${l.n}</td><td>${l.d}</td><td>${l.diff>0?'+':''}${l.diff}</td><td><b>${l.pts}</b></td></tr>`).join('')}</table>`;
+    });
+  }
+  // Programme par heure (phase finale à part)
+  const bloc=(liste,titre)=>{
+    if(!liste.length)return '';
+    const parH={};liste.forEach(m=>(parH[m.heure||'—']=parH[m.heure||'—']||[]).push(m));
+    return `<h2>${titre}</h2>`+Object.keys(parH).sort().map(h=>`<div class="heure">${esc(h)}</div>${parH[h].sort((x,y)=>(x.terrain||0)-(y.terrain||0)).map(carte).join('')}`).join('');
+  };
+  html+=bloc(ms.filter(m=>m.phase==='poule'),tb.formule==='championnat'?'Matchs':'Matchs de poule')+bloc(ms.filter(m=>m.phase==='finale'),'Phase finale');
+  document.getElementById('list').innerHTML=html;
+}
+load();
+setInterval(load,20000);
+</script>
+</body>
+</html>

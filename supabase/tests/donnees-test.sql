@@ -217,6 +217,26 @@ do $tb$ begin
   end if;
 end $tb$;
 
+-- Tournois (C6, si en place) : TO1 publié (club A, tableau U10 : notre équipe A contre
+-- « Visiteurs FC », 1 match), TO2 non publié.
+do $c6$ begin
+  if to_regclass('public.tournois') is not null then
+    execute $c$
+      insert into public.tournois (id, club_id, nom, jour, publie, cree_par) values
+        ('a0000000-0000-4000-a000-000000000001', '50000000-0000-4000-a000-0000000000a1', 'TEST Tournoi publié', current_date + 30, true, '00000000-0000-4000-a000-000000000001'),
+        ('a0000000-0000-4000-a000-000000000002', '50000000-0000-4000-a000-0000000000a1', 'TEST Tournoi brouillon', current_date + 40, false, '00000000-0000-4000-a000-000000000001');
+      insert into public.tournoi_tableaux (id, tournoi_id, nom, format) values
+        ('a1000000-0000-4000-a000-000000000001', 'a0000000-0000-4000-a000-000000000001', 'U10', '8v8');
+      insert into public.tournoi_equipes (id, tableau_id, nom, team_id, poule) values
+        ('a2000000-0000-4000-a000-000000000001', 'a1000000-0000-4000-a000-000000000001', 'TEST U10 Club A', '10000000-0000-4000-a000-0000000000a1', 'A'),
+        ('a2000000-0000-4000-a000-000000000002', 'a1000000-0000-4000-a000-000000000001', 'Visiteurs FC', null, 'A');
+      insert into public.tournoi_matchs (id, tableau_id, poule, equipe_a, equipe_b, terrain, heure) values
+        ('a3000000-0000-4000-a000-000000000001', 'a1000000-0000-4000-a000-000000000001', 'A',
+         'a2000000-0000-4000-a000-000000000001', 'a2000000-0000-4000-a000-000000000002', 1, '09:00');
+    $c$;
+  end if;
+end $c6$;
+
 insert into public.player_notes (player_id, auteur_id, note) values
   ('30000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000001', 'Note de test (club A)');
 

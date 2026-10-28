@@ -104,6 +104,7 @@
         <button class="qb" id="home-cal" onclick="ouvrirCalendrier()" style="border-color:var(--amber-border);display:none;position:relative"><b class="ni-badge qb-badge cal-badge" id="home-cal-badge" style="display:none"></b><span style="font-size:20px;display:block;margin-bottom:5px">📅</span><span style="font-size:13px;font-weight:600;display:block">Calendrier</span><span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Toutes les équipes du club</span></button>
         <button class="qb club-only" onclick="goPage('club')" style="border-color:var(--green-border)"><span style="font-size:20px;display:block;margin-bottom:5px">🏟</span><span style="font-size:13px;font-weight:600;display:block">Mon club</span><span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Infos, équipes, membres</span></button>
         <button class="qb club-only" onclick="openTsw()" style="border-color:var(--blue-border)"><span style="font-size:20px;display:block;margin-bottom:5px">🏆</span><span style="font-size:13px;font-weight:600;display:block">Une équipe</span><span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Effectif, matchs, Live</span></button>
+        <button class="qb" id="home-trn" onclick="goPage('tournois')" style="border-color:var(--amber-border);display:none"><span style="font-size:20px;display:block;margin-bottom:5px">🏆</span><span style="font-size:13px;font-weight:600;display:block">Tournois</span><span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Programme, scores, classements</span></button>
       </div>
       <div class="sh"><span class="st" id="home-next-t">Prochains matchs</span></div>
       <div id="home-next"></div>
@@ -307,6 +308,14 @@
     </div>
   </div>
 
+  <!-- TOURNOIS (tournois.js + tournoi-calc.js) -->
+  <div class="page" id="page-tournois">
+    <div class="pc">
+      <div class="sh"><span class="st">Tournois</span></div>
+      <div id="trn-content"><div class="spin"></div></div>
+    </div>
+  </div>
+
   <!-- CALENDRIER DU CLUB (calendrier.js) -->
   <div class="page" id="page-calendrier">
     <div class="pc">
@@ -340,6 +349,7 @@
     <!-- iPad/PC uniquement : accès directs (sinon cachés dans le menu du compte) -->
     <button class="ni ni-side pa-cache" onclick="goPage('reseau')" id="nav-reseau"><span class="ni-icon">🤝</span><span class="ni-lbl">Trouver un match</span></button>
     <button class="ni ni-side" onclick="ouvrirCalendrier()" id="nav-calendrier" style="display:none"><span class="ni-icon">📅</span><span class="ni-lbl">Calendrier du club</span></button>
+    <button class="ni ni-side pa-cache" onclick="goPage('tournois')" id="nav-tournois" style="display:none"><span class="ni-icon">🏆</span><span class="ni-lbl">Tournois</span></button>
     <button class="ni ni-side pa-cache" onclick="goPage('club')" id="nav-club"><span class="ni-icon">🏟</span><span class="ni-lbl">Mon club</span></button>
     <!-- iPad/PC uniquement (pied de barre latérale) : compte -->
     <button class="side-user" onclick="openUserMenu()">
@@ -669,5 +679,7 @@
 <script src="messages.js"></script>
 <script src="propositions.js"></script>
 <script src="calendrier.js"></script>
+<script src="tournoi-calc.js"></script>
+<script src="tournois.js"></script>
 </body>
 </html>
