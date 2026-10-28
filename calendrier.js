@@ -47,7 +47,9 @@ async function renderCalendrier(){
     });
     (an.data||[]).filter(a=>a.team_id===t.id).forEach(a=>(a.annonce_creneaux||[]).filter(c=>c.jour===iso&&c.statut==='libre').forEach(c=>
       items.push({k:fmtHeure(c.heure_debut)||'98',html:`<div class="cal-it libre">${fmtHeure(c.heure_debut)||''}${c.heure_fin?'–'+fmtHeure(c.heure_fin):''} 📢 Annonce publiée <small>attente de proposition</small></div>`})));
-    return `<td class="${iso===todayIso()?'auj':''}${[5,6].includes(j.getDay()===0?6:j.getDay()-1)?' we':''}">${items.sort((a,b)=>a.k.localeCompare(b.k)).map(i=>i.html).join('')}</td>`;
+    // Case d'aujourd'hui ou future : publier une annonce pour cette équipe ce jour-là
+    const plus=iso>=todayIso()&&isTeamStaff(t)?`<button class="cal-add" onclick="calAnnonce('${t.id}','${iso}')" aria-label="Annonce pour trouver un match">+</button>`:'';
+    return `<td class="${iso===todayIso()?'auj':''}${[5,6].includes(j.getDay()===0?6:j.getDay()-1)?' we':''}">${items.sort((a,b)=>a.k.localeCompare(b.k)).map(i=>i.html).join('')}${plus}</td>`;
   };
   const titre=`${jours[0].toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} – ${jours[6].toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'})}`;
   el.innerHTML=`${clubs.length>1?`<div class="club-chooser">${clubs.map(c=>`<button class="${c.club_id===calClub?'on':''}" onclick="calClub='${c.club_id}';renderCalendrier()">${esc(c.clubs.nom)}</button>`).join('')}</div>`:''}
@@ -56,6 +58,7 @@ async function renderCalendrier(){
       <button class="bsec" onclick="calSemaine(1)" aria-label="Semaine suivante">›</button>
       <button class="bsec" onclick="calLundi=calDebutSemaine(new Date());renderCalendrier()">Aujourd'hui</button></div>
     <div class="cal-leg"><span class="cal-it dom">🏠 domicile</span><span class="cal-it ext">✈️ extérieur</span><span class="cal-it prop">proposition en cours</span><span class="cal-it libre">📢 annonce publiée</span></div>
+    <div class="rs-line" style="margin-bottom:8px">Touche <b>+</b> dans une case pour publier une annonce « Trouver un match » ce jour-là.</div>
     ${eqs.length?`<div class="cal-wrap"><table class="cal"><thead><tr><th></th>${jours.map(j=>`<th class="${calIso(j)===todayIso()?'auj':''}">${j.toLocaleDateString('fr-BE',{weekday:'short'})}<br><b>${j.getDate()}</b></th>`).join('')}</tr></thead>
       <tbody>${eqs.map(t=>`<tr><th><div class="cal-eq">${esc(t.nom)}</div><div class="cal-cat">${esc(t.categorie||'')}</div></th>${jours.map(j=>cell(t,j)).join('')}</tr>`).join('')}</tbody></table></div>`
       :'<div class="empty"><div class="empty-t">Aucune équipe dans ce club</div></div>'}`;
@@ -76,3 +79,13 @@ async function calJourClub(p){
 // Entrée « Calendrier du club » du menu : seulement pour les CQ / coordinateurs
 const calOpenUserMenu=openUserMenu;
 openUserMenu=function(){const m=document.getElementById('umenu-cal');if(m)m.style.display=myClubs.length?'flex':'none';calOpenUserMenu();};
+
+// « + » d'une case : formulaire d'annonce pré-rempli (équipe, jour)
+async function calAnnonce(teamId,jour){
+  if(typeof anOpen!=='function')return;
+  anOpen(null,{team_id:teamId,jour});
+}
+// Tuile « Calendrier » de l'accueil : seulement pour les CQ / coordinateurs
+const calRenderHome=renderHome;
+renderHome=function(){calRenderHome.apply(this,arguments);const b=document.getElementById('home-cal');if(b)b.style.display=myClubs.length?'':'none';};
+if(U&&document.getElementById('home-cal'))document.getElementById('home-cal').style.display=myClubs.length?'':'none';
