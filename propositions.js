@@ -34,13 +34,19 @@ loadApp=async function(user){await prLoadApp(user);prMajCompte();clearInterval(p
 if(U)prMajCompte();
 
 // ------------------------------------------------------------ PROPOSER (depuis une annonce)
+let prEquipeForm=null;   // équipe qui propose
 function prOuvrirForm(annonceId){
-  const a=rsAnnonces[annonceId],T=rsTeam(rsTeamId);if(!a||!T)return;
+  const a=rsAnnonces[annonceId];if(!a)return;
+  // « Toutes les équipes » : on choisit l'équipe (par défaut la première compatible)
+  const choix=rsTous()?rsEquipesClub():null;
+  const T=choix?(a.compatibles?.[0]||choix[0]):rsTeam(rsTeamId);if(!T)return;
+  prEquipeForm=T.id;
   const auj=todayIso(),cr=a.creneaux.filter(c=>c.jour>=auj&&c.statut==='libre');
   const lieuDef=a.lieu==='domicile'?'annonceur':a.lieu==='exterieur'?'proposant':'annonceur';
   document.getElementById('prop-body').innerHTML=`
     <div class="mt">Proposer un match</div>
-    <div class="rs-line" style="margin-bottom:10px">${esc(T.nom)} → <b>${esc(a.club_nom)}</b> · ${esc(a.equipe)} (${esc(AN_TYPES[a.type]||a.type)})</div>
+    ${choix?`<div class="fg"><label class="fl">Notre équipe</label><select class="sel" onchange="prEquipeForm=this.value">${choix.map(t=>`<option value="${t.id}" ${t.id===T.id?'selected':''}>${esc(t.nom)} (${esc(t.categorie)})${a.compatibles?.includes(t)?' ✓':''}</option>`).join('')}</select></div>`:''}
+    <div class="rs-line" style="margin-bottom:10px">${choix?'':esc(T.nom)+' '}→ <b>${esc(a.club_nom)}</b> · ${esc(a.equipe)} (${esc(AN_TYPES[a.type]||a.type)})</div>
     ${cr.length?`<label class="fl">Créneaux proposés par ${esc(a.club_nom)}</label><div class="rs-chips pr-cr">${cr.map(c=>`<span onclick="prChoisirCreneau('${c.jour}','${fmtHeure(c.debut)}',this)">${esc(creneauTxt(c))}</span>`).join('')}</div>`:''}
     <div class="frow">
       <div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="pr-jour" min="${auj}" value="${cr[0]?.jour||''}"></div>
@@ -63,12 +69,12 @@ async function prEnvoyerForm(annonceId){
   const jour=document.getElementById('pr-jour').value,heure=document.getElementById('pr-heure').value||null;
   if(!jour)return showToast('Choisis une date','err');
   const btn=document.getElementById('pr-ok');btn.disabled=true;
-  const{error}=await sb.rpc('proposition_creer',{p_annonce:annonceId,p_team:rsTeamId,p_jour:jour,p_heure:heure,
+  const{error}=await sb.rpc('proposition_creer',{p_annonce:annonceId,p_team:prEquipeForm,p_jour:jour,p_heure:heure,
     p_lieu:document.getElementById('pr-lieu').value,p_message:document.getElementById('pr-msg').value.trim()||null});
   btn.disabled=false;
   if(error)return showToast(error.message.replace(/^.*?:\s*/,''),'err');
   closeModal('modal-prop');
-  showToast(isClubStaff(rsTeam(rsTeamId)?.club_id)?'🤝 Proposition envoyée':'Proposition préparée : ton coordinateur doit l\'envoyer','ok');
+  showToast(isClubStaff(rsTeam(prEquipeForm)?.club_id)?'🤝 Proposition envoyée':'Proposition préparée : ton coordinateur doit l\'envoyer','ok');
   await prMajCompte();rsTab='propositions';renderReseauPage();
 }
 
