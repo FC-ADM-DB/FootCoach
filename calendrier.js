@@ -30,7 +30,7 @@ async function renderCalendrier(){
   const ids=eqs.map(t=>t.id);
   el.innerHTML='<div class="spin"></div>';
   const finExcl=new Date(jours[6]);finExcl.setDate(finExcl.getDate()+1);
-  const [m,an,trn,ins,mesIns]=await Promise.all([
+  const [m,an,,trn,ins,mesIns]=await Promise.all([
     ids.length?sb.from('matches').select('id,team_id,date,adversaire,lieu,statut').in('team_id',ids).gte('date',jours[0].toISOString()).lt('date',finExcl.toISOString()).order('date'):{data:[]},
     sb.from('annonces').select('id,team_id,annonce_creneaux(jour,heure_debut,heure_fin,statut)').eq('club_id',calClub).eq('statut','publiee'),
     typeof prMajCompte==='function'?prMajCompte():null,
