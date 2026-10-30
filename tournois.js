@@ -418,7 +418,9 @@ async function trnConfirmer(id,cote){
 // Côté club invité : « Trouver un match » → onglet Tournois (annonces + mes inscriptions).
 // Circuit (comme les propositions) : l'entraîneur prépare, son coordinateur envoie,
 // l'organisateur accepte / refuse ; un désistement libère la place sans rien supprimer.
-const TRN_STATUT={a_valider:['pgr','À valider par le coordinateur'],envoyee:['pb','Envoyée — réponse de l\'organisateur attendue'],acceptee:['pg','✓ Acceptée'],refusee:['pr','Refusée'],annulee:['pgr','Annulée'],desistee:['pgr','Désistée']};
+// Pastille courte (sur téléphone, un long libellé écrasait le titre de la carte) + ligne d'explication
+const TRN_STATUT={a_valider:['pgr','À valider'],envoyee:['pb','Envoyée'],acceptee:['pg','✓ Acceptée'],refusee:['pr','Refusée'],annulee:['pgr','Annulée'],desistee:['pgr','Désistée']};
+const TRN_AIDE={a_valider:'Le coordinateur / CQ du club doit l\'envoyer à l\'organisateur.',envoyee:'En attente de la réponse de l\'organisateur.'};
 const trnFrais=x=>x.frais!=null&&x.frais!==''?`${String(Number(x.frais).toFixed(2)).replace('.',',').replace(',00','')} € par ${x.frais_par==='joueur'?'joueur':'équipe'}`:'';
 
 async function trnMajInscriptions(){
@@ -442,7 +444,7 @@ function trnHtmlInscriptions(t){
   const opt=(v,l,cur)=>`<option value="${v}"${v===cur?' selected':''}>${l}</option>`;
   const ins=trnInscr.filter(i=>i.tournoi_id===t.id&&i.cote==='organisateur');
   const ligne=i=>{const[c,l]=TRN_STATUT[i.statut]||['pgr',i.statut];
-    return `<div class="trn-ins"><div class="trn-ins-h"><div style="flex:1;min-width:0"><b>${esc(i.nom)}</b><div class="trn-sous">${esc(i.tableau_nom)} · ${new Date(i.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'})}</div></div><span class="pill ${c}">${esc(l.replace(' — réponse de l\'organisateur attendue',''))}</span></div>
+    return `<div class="trn-ins"><div class="trn-ins-h"><div style="flex:1;min-width:0"><b>${esc(i.nom)}</b><div class="trn-sous">${esc(i.tableau_nom)} · ${new Date(i.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'})}</div></div><span class="pill ${c}">${esc(l)}</span></div>
       <div class="trn-ins-a">${i.statut==='envoyee'?`<button class="badd" onclick="trnAgir('${i.id}','accepter')">Accepter</button><button class="bsec" onclick="trnAgir('${i.id}','refuser')">Refuser</button>`:''}
       ${i.statut==='acceptee'?`<button class="bsec" onclick="trnAgirConfirme('${i.id}','desister','Retirer cette équipe ? Sa place devient « Place libre » dans le programme.')">Retirer (désistement)</button>`:''}
       <button class="bsec" onclick="trnMsgOuvrir('${i.id}')">💬 Messages${i.nb_messages?' ('+i.nb_messages+')':''}</button></div></div>`;};
@@ -545,7 +547,7 @@ async function trnReseauRender(){
     return b+`<button class="bsec" onclick="trnMsgOuvrir('${i.id}')">💬${i.nb_messages?' '+i.nb_messages:''}</button>`;
   };
   const insCarte=i=>{const[c,l]=TRN_STATUT[i.statut]||['pgr',i.statut];
-    return `<div class="trn-ins${i.a_traiter?' a-traiter':''}"><div class="trn-ins-h"><div style="flex:1;min-width:0"><b>${esc(i.tournoi_nom)}</b><div class="trn-sous">${esc(i.club_organisateur)} · ${esc(trnJour(i.jour))}</div><div class="trn-sous">${esc(i.tableau_nom)} · ${esc(i.nom)}</div></div><span class="pill ${c}">${esc(i.a_traiter?'À envoyer':l)}</span></div><div class="trn-ins-a">${actions(i)}</div></div>`;};
+    return `<div class="trn-ins${i.a_traiter?' a-traiter':''}"><div class="trn-ins-h"><div style="flex:1;min-width:0"><b>${esc(i.tournoi_nom)}</b><div class="trn-sous">${esc(i.club_organisateur)} · ${esc(trnJour(i.jour))}</div><div class="trn-sous">${esc(i.tableau_nom)} · ${esc(i.nom)}</div>${TRN_AIDE[i.statut]&&!i.a_traiter?`<div class="trn-sous trn-aide-st">${TRN_AIDE[i.statut]}</div>`:''}</div><span class="pill ${c}">${esc(i.a_traiter?'À envoyer':l)}</span></div><div class="trn-ins-a">${actions(i)}</div></div>`;};
   const carte=t=>{
     const tabs=t.tableaux||[],ouvert=tabs.some(x=>!x.places||x.prises<x.places)&&(!t.date_limite||t.date_limite>=todayIso());
     const lignes=[t.date_limite?`📅 Inscription avant le ${new Date(t.date_limite+'T12:00').toLocaleDateString('fr-BE',{day:'numeric',month:'long'})}`:'',
