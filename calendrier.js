@@ -30,10 +30,19 @@ async function renderCalendrier(){
   const ids=eqs.map(t=>t.id);
   el.innerHTML='<div class="spin"></div>';
   const finExcl=new Date(jours[6]);finExcl.setDate(finExcl.getDate()+1);
-  const [m,an]=await Promise.all([
+  const [m,an,trn,ins,mesIns]=await Promise.all([
     ids.length?sb.from('matches').select('id,team_id,date,adversaire,lieu,statut').in('team_id',ids).gte('date',jours[0].toISOString()).lt('date',finExcl.toISOString()).order('date'):{data:[]},
     sb.from('annonces').select('id,team_id,annonce_creneaux(jour,heure_debut,heure_fin,statut)').eq('club_id',calClub).eq('statut','publiee'),
-    typeof prMajCompte==='function'?prMajCompte():null]);
+    typeof prMajCompte==='function'?prMajCompte():null,
+    // Tournois de la semaine (organisés par le club, ou avec une de nos équipes acceptée) ;
+    // erreur ignorée tant que le module Tournois n'est pas installé dans la base
+    sb.from('tournois').select('id,nom,jour,club_id,tournoi_tableaux(nom,tournoi_equipes(team_id,libre))').gte('jour',debut).lte('jour',fin),
+    ids.length?sb.from('tournoi_inscriptions').select('id,team_id,statut').in('team_id',ids).in('statut',['a_valider','envoyee']):{data:[]},
+    sb.rpc('mes_inscriptions')]);
+  const tournois=trn.error?[]:(trn.data||[]);
+  // Inscriptions en cours (le tournoi d'un autre club n'est pas lisible avant l'accord : nom
+  // et date viennent de mes_inscriptions)
+  const insEnCours=(ins.error||mesIns.error)?[]:(ins.data||[]).map(i=>({...i,info:(mesIns.data||[]).find(x=>x.id===i.id)})).filter(i=>i.info&&i.info.jour>=debut&&i.info.jour<=fin);
   const props=(typeof prListe!=='undefined'?prListe:[]).filter(p=>['a_valider','envoyee','contre'].includes(p.statut)&&p.jour>=debut&&p.jour<=fin);
   const h=d=>new Date(d).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
   const contenu=(t,j)=>{
@@ -48,8 +57,15 @@ async function renderCalendrier(){
     });
     (an.data||[]).filter(a=>a.team_id===t.id).forEach(a=>(a.annonce_creneaux||[]).filter(c=>c.jour===iso&&c.statut==='libre').forEach(c=>
       items.push({k:fmtHeure(c.heure_debut)||'98',html:`<div class="cal-it libre">${fmtHeure(c.heure_debut)||''}${c.heure_fin?'–'+fmtHeure(c.heure_fin):''} 📢 Annonce publiée <small>attente de proposition</small></div>`})));
+    // Tournoi où joue l'équipe (tableau = catégorie) ; inscription pas encore acceptée en pointillé
+    tournois.filter(x=>x.jour===iso).forEach(x=>(x.tournoi_tableaux||[]).filter(tb=>(tb.tournoi_equipes||[]).some(e=>e.team_id===t.id&&!e.libre)).forEach(tb=>
+      items.push({k:'00',html:`<div class="cal-it trn" onclick="calTournoi('${x.id}')">🏆 ${esc(x.nom)} <small>${esc(tb.nom)}</small></div>`})));
+    insEnCours.filter(i=>i.team_id===t.id&&i.info.jour===iso).forEach(i=>
+      items.push({k:'00',html:`<div class="cal-it trn att" onclick="calInscriptions()">🏆 ${esc(i.info.tournoi_nom)} <small>${i.statut==='a_valider'?'inscription à valider':'inscription envoyée'}</small></div>`}));
     return items.sort((a,b)=>a.k.localeCompare(b.k)).map(i=>i.html).join('');
   };
+  // Tournois organisés par le club ce jour-là (repère sur le jour, même sans équipe du club)
+  const orgJour=j=>tournois.filter(x=>x.club_id===calClub&&x.jour===calIso(j)).map(x=>`<div class="cal-trn-j" onclick="calTournoi('${x.id}')">🏆 ${esc(x.nom)}</div>`).join('');
   const cell=(t,j)=>{
     const iso=calIso(j);
     // Case d'aujourd'hui ou future : chercher / proposer / publier pour cette équipe ce jour-là
@@ -60,7 +76,8 @@ async function renderCalendrier(){
   const liste=jours.map(j=>{
     const iso=calIso(j),lignes=eqs.map(t=>{const h=contenu(t,j);return h?`<div class="cal-l-eq"><div class="cal-l-nom">${esc(t.nom)}</div><div class="cal-l-its">${h}</div></div>`:'';}).join('');
     const plus=iso>=todayIso()&&eqs.some(isTeamStaff)?`<button class="cal-add-j" onclick="calAnnonce('','${iso}')" aria-label="Trouver un match ce jour-là">+</button>`:'';
-    return `<div class="cal-jour${iso===todayIso()?' auj':''}${[0,6].includes(j.getDay())?' we':''}"><div class="cal-jh"><span class="cal-jd">${j.toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'})}${lignes?'':' <i class="cal-vide">· rien de prévu</i>'}</span>${plus}</div>${lignes}</div>`;
+    const org=orgJour(j);
+    return `<div class="cal-jour${iso===todayIso()?' auj':''}${[0,6].includes(j.getDay())?' we':''}"><div class="cal-jh"><span class="cal-jd">${j.toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'})}${lignes||org?'':' <i class="cal-vide">· rien de prévu</i>'}</span>${plus}</div>${org}${lignes}</div>`;
   }).join('');
   const ancienScroll=el.querySelector('.cal-wrap')?.scrollLeft;
   // Titre sans l'année quand c'est l'année en cours (le bouton « Aujourd'hui » était coupé sur iPhone)
@@ -79,9 +96,9 @@ async function renderCalendrier(){
       <button class="bsec" onclick="calSemaine(1)" aria-label="Semaine suivante">›</button>
       <button class="bsec" onclick="calLundi=calDebutSemaine(new Date());renderCalendrier()">Aujourd'hui</button></div>
     <div class="cal-mois">${puces}</div>
-    <div class="cal-leg"><span class="cal-it dom">🏠 domicile</span><span class="cal-it ext">✈️ extérieur</span><span class="cal-it prop">proposition en cours</span><span class="cal-it libre">📢 annonce publiée</span></div>
+    <div class="cal-leg"><span class="cal-it dom">🏠 domicile</span><span class="cal-it ext">✈️ extérieur</span><span class="cal-it prop">proposition en cours</span><span class="cal-it libre">📢 annonce publiée</span><span class="cal-it trn">🏆 tournoi</span></div>
     <div class="rs-line" style="margin-bottom:8px">Touche <b>+</b> dans une case pour chercher un adversaire ce jour-là, proposer un match à une équipe ou publier une annonce.</div>
-    ${eqs.length?`<div class="cal-wrap"><table class="cal"><thead><tr><th></th>${jours.map(j=>`<th class="${calIso(j)===todayIso()?'auj':''}">${j.toLocaleDateString('fr-BE',{weekday:'short'})}<br><b>${j.getDate()}</b></th>`).join('')}</tr></thead>
+    ${eqs.length?`<div class="cal-wrap"><table class="cal"><thead><tr><th></th>${jours.map(j=>`<th class="${calIso(j)===todayIso()?'auj':''}">${j.toLocaleDateString('fr-BE',{weekday:'short'})}<br><b>${j.getDate()}</b>${orgJour(j)}</th>`).join('')}</tr></thead>
       <tbody>${eqs.map(t=>`<tr><th><div class="cal-eq">${esc(t.nom)}</div>${t.categorie&&t.categorie!==t.nom?`<div class="cal-cat">${esc(t.categorie)}</div>`:''}</th>${jours.map(j=>cell(t,j)).join('')}</tr>`).join('')}</tbody></table></div>
       <div class="cal-liste">${liste}</div>`
       :'<div class="empty"><div class="empty-t">Aucune équipe dans ce club</div></div>'}`;
@@ -90,6 +107,10 @@ async function renderCalendrier(){
   if(wrap){if(ancienScroll!=null)wrap.scrollLeft=ancienScroll;
     else{const a=wrap.querySelector('thead th.auj');if(a)wrap.scrollLeft=Math.max(0,a.offsetLeft-wrap.querySelector('tbody th').offsetWidth);}}
 }
+
+// Ouvrir un tournoi (page Tournois) ou ses inscriptions (Trouver un match → Tournois)
+function calTournoi(id){if(typeof trnAller==='function')trnAller(id);}
+function calInscriptions(){if(typeof rsTab!=='undefined')rsTab='tournois';goPage('reseau');}
 
 // Fiche d'une proposition : planning du club ce jour-là (pour le coordinateur / CQ)
 async function calJourClub(p){
