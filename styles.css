@@ -989,3 +989,15 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .cal-mois button.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
 .trn-ins-h .pill{flex-shrink:0;white-space:nowrap}
 .trn-aide-st{color:var(--blue)}
+/* Calendrier : tournois (case de l'équipe, inscription en cours, repère du jour organisé) */
+.cal-it.trn{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border);cursor:pointer;font-weight:600}
+.cal-it.trn small{display:block;font-weight:500}
+.cal-it.trn.att{background:none;border-style:dashed}
+.cal-trn-j{font-size:10px;font-weight:700;color:var(--amber);background:var(--amber-bg);border-radius:6px;padding:2px 5px;margin-top:3px;cursor:pointer;white-space:normal;line-height:1.2}
+.cal-jour>.cal-trn-j{font-size:12px;padding:5px 8px;margin:4px 0}
+/* Stats : buteurs et passeurs */
+.bp-cl{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:6px}
+.bp-l{display:grid;grid-template-columns:1fr 70px 70px;align-items:center;padding:8px 12px;font-size:13px;border-top:1px solid var(--border);text-align:center}
+.bp-l .n{text-align:left;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bp-h{border-top:none;font-size:11px;color:var(--text3);font-weight:600}
+.bp-h span:first-child{text-align:left}

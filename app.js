@@ -2315,6 +2315,18 @@ function renderStatsPage(){
   const ga=played.reduce((sum,m)=>sum+(m.score_eux||0),0);
   const nextMatch=matches.filter(m=>m.statut==='prevu').sort((a,b)=>new Date(a.date)-new Date(b.date))[0];
   const recent=played.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,4);
+  // Buteurs et passeurs (encadrement seulement : prénoms des enfants). Joueur retrouvé par
+  // son identifiant (pid / aid), sinon par le nom enregistré (anciens buts : prénom seul).
+  const bp={};
+  if(isTeamStaff(CT)){
+    const parNom=n=>{if(!n)return null;const x=n.trim().toLowerCase();return players.find(p=>(p.prenom+' '+p.nom).trim().toLowerCase()===x)||players.find(p=>p.prenom.trim().toLowerCase()===x)||null;};
+    const compte=(id,nom,k)=>{const p=(id&&players.find(x=>x.id===id))||parNom(nom);if(!p&&!nom)return;const cle=p?p.id:'n:'+nom;(bp[cle]=bp[cle]||{nom:p?`${p.prenom} ${p.nom||''}`.trim():nom,b:0,p:0})[k]++;};
+    played.forEach(m=>(m.timeline_json?.goals||[]).filter(g=>!g.adv).forEach(g=>{
+      if(g.pid||g.scorer!=='But marqué')compte(g.pid,g.scorer==='But marqué'?null:g.scorer,'b');
+      if(g.aid||g.assist)compte(g.aid,g.assist,'p');
+    }));
+  }
+  const classementBP=Object.values(bp).sort((a,b)=>b.b-a.b||b.p-a.p||a.nom.localeCompare(b.nom));
   el.innerHTML=`
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-num">${played.length}</div><div class="stat-label">Matchs joués</div></div>
@@ -2324,6 +2336,9 @@ function renderStatsPage(){
       <div class="stat-card"><div class="stat-num">${gf}</div><div class="stat-label">Buts pour</div></div>
       <div class="stat-card"><div class="stat-num">${ga}</div><div class="stat-label">Buts contre</div></div>
     </div>
+    ${classementBP.length?`<div class="sh" style="margin-top:8px"><span class="st">Buteurs et passeurs</span></div>
+    <div class="bp-cl"><div class="bp-l bp-h"><span>Joueur</span><span>⚽ Buts</span><span>↳ Passes</span></div>
+      ${classementBP.map(l=>`<div class="bp-l"><span class="n">${esc(l.nom)}</span><b>${l.b||'–'}</b><b>${l.p||'–'}</b></div>`).join('')}</div>`:''}
     <div class="sh" style="margin-top:8px"><span class="st">Prochain match</span></div>
     ${nextMatch?`<div class="mc"><div class="mc-top"><span class="mc-vs">vs ${nextMatch.adversaire}</span><span class="mc-sc pb">Prévu</span></div><div class="mc-meta"><span>${new Date(nextMatch.date).toLocaleDateString('fr-BE',{weekday:'short',day:'2-digit',month:'2-digit'})} · ${new Date(nextMatch.date).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</span><span>${nextMatch.lieu==='domicile'?'🏠':'✈️'}</span></div></div>`:`<div class="empty"><div class="empty-i">⏳</div><div class="empty-t">Aucun match prévu</div></div>`}
     <div class="sh" style="margin-top:14px"><span class="st">Derniers résultats</span></div>

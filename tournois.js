@@ -66,8 +66,10 @@ async function renderTournois(){
   const el=document.getElementById('trn-content');
   const{data,error}=await sb.from('tournois').select('*').order('jour',{ascending:false});
   if(error){el.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Tournois indisponibles</div><div class="empty-s">${isMissingFn(error)||/tournois/.test(error.message||'')?'Le module n\'est pas encore installé dans la base.':esc(error.message)}</div></div>`;return;}
+  if(trnCur)return renderTournoi();   // un tournoi a été ouvert pendant le chargement
   trnListe=data||[];
   await trnMajInscriptions();
+  if(trnCur)return renderTournoi();
   const peutCreer=myClubs.length>0;
   const auj=todayIso();
   // Tournoi d'un autre club (inscription acceptée) : « Organisé par … »
@@ -136,6 +138,9 @@ async function trnOuvrir(id){
     if(await trnCharger(trnCur.id))renderTournoi();
   },10000);
 }
+// Aller à un tournoi depuis une autre page : le charger AVANT d'afficher la page, sinon
+// la liste des tournois (chargée en parallèle) pouvait s'afficher par-dessus
+async function trnAller(id){await trnOuvrir(id);goPage('tournois');}
 function trnFermer(){trnCur=null;clearInterval(trnPoll);trnPoll=null;renderTournois();}
 
 function renderTournoi(){
@@ -543,7 +548,7 @@ async function trnReseauRender(){
     let b='';
     if(i.statut==='a_valider')b+=i.a_traiter?`<button class="badd" onclick="trnAgir('${i.id}','envoyer')">➤ Envoyer à ${esc(i.club_organisateur)}</button><button class="bsec" onclick="trnAgir('${i.id}','annuler')">Annuler</button>`:`<button class="bsec" onclick="trnAgir('${i.id}','annuler')">Annuler</button>`;
     if(i.statut==='envoyee')b+=`<button class="bsec" onclick="trnAgir('${i.id}','annuler')">Annuler</button>`;
-    if(i.statut==='acceptee')b+=`<button class="badd" onclick="goPage('tournois');trnOuvrir('${i.tournoi_id}')">Voir le tournoi</button><button class="bsec" onclick="trnAgirConfirme('${i.id}','desister','Désister cette équipe ? L\\'organisateur en sera informé et la place sera libérée.')">Se désister</button>`;
+    if(i.statut==='acceptee')b+=`<button class="badd" onclick="trnAller('${i.tournoi_id}')">Voir le tournoi</button><button class="bsec" onclick="trnAgirConfirme('${i.id}','desister','Désister cette équipe ? L\\'organisateur en sera informé et la place sera libérée.')">Se désister</button>`;
     return b+`<button class="bsec" onclick="trnMsgOuvrir('${i.id}')">💬${i.nb_messages?' '+i.nb_messages:''}</button>`;
   };
   const insCarte=i=>{const[c,l]=TRN_STATUT[i.statut]||['pgr',i.statut];
