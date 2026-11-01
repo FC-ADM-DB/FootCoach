@@ -252,6 +252,16 @@ do $c6$ begin
   end if;
 end $c6$;
 
+-- Notifications (C3, si en place) : une pour Parent A, une pour Coach A ; Coach B a coupé les e-mails
+do $c3$ begin
+  if to_regclass('public.notifications') is not null then
+    execute $c$
+      insert into public.notifications (profile_id, type, titre, texte, statut) values
+        ('00000000-0000-4000-a000-000000000007', 'test', 'Test parent', 'Texte', 'envoye'),
+        ('00000000-0000-4000-a000-000000000001', 'test', 'Test coach', 'Texte', 'envoye');
+    $c$;
+  end if;
+end $c3$;
 insert into public.player_notes (player_id, auteur_id, note) values
   ('30000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000001', 'Note de test (club A)');
 
