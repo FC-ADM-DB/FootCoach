@@ -1028,3 +1028,7 @@ body.sans-role #page-home .srow,body.sans-role #page-home .qgrid,body.sans-role 
 .da-n{font-size:14px;font-weight:600}
 .da-r{font-size:13px;margin-top:4px}
 .da-v{background:var(--bg3);border-radius:var(--r);padding:11px 12px;margin-bottom:8px}
+/* Téléphone : formulaire de connexion ancré en haut. Centré verticalement, il se
+   recentrait quand le clavier se fermait : le bouton bougeait sous le doigt et le premier
+   toucher sur « Se connecter » (ou « Créer mon compte », « Réinitialiser ») était perdu. */
+@media (max-width:640px){#screen-auth{justify-content:flex-start;padding-top:32px}}
