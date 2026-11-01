@@ -1001,3 +1001,9 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .bp-l .n{text-align:left;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bp-h{border-top:none;font-size:11px;color:var(--text3);font-weight:600}
 .bp-h span:first-child{text-align:left}
+/* Écran de connexion : acceptation des conditions, liens légaux */
+.auth-cgu{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text2);margin:2px 0 14px;line-height:1.4;cursor:pointer}
+.auth-cgu input{margin-top:2px;flex-shrink:0}
+.auth-cgu a{color:var(--green)}
+.auth-legal{text-align:center;font-size:12px;color:var(--text3);margin-top:16px}
+.auth-legal a{color:var(--text3)}
