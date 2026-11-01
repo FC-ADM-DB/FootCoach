@@ -1007,3 +1007,4 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .auth-cgu a{color:var(--green)}
 .auth-legal{text-align:center;font-size:12px;color:var(--text3);margin-top:16px}
 .auth-legal a{color:var(--text3)}
+.aerr.ok{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}

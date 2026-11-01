@@ -95,14 +95,15 @@ async function doRegister(){
     // Date d'acceptation des conditions gardée avec le compte (preuve de l'accord, RGPD)
     const {error} = await sb.auth.signUp({email:e,password:p,options:{data:{prenom:pn,nom:nn,cgu_acceptees:new Date().toISOString()}}});
     if(error) return showAErr(error.message);
-    const el=document.getElementById('aerr');el.textContent='Compte créé ! Vérifie ton email.';el.style.color='var(--green)';el.classList.add('show');
+    const el=document.getElementById('aerr');el.textContent='Compte créé ! Vérifie ton email.';el.style.color='';el.classList.add('show','ok');
   } catch(err) {
     showAErr(err?.message || 'Création impossible. Vérifie ta connexion.');
   } finally {
     btn.disabled=false;btn.textContent='Créer mon compte';
   }
 }
-function showAErr(m){const el=document.getElementById('aerr');el.textContent=m;el.style.color='';el.classList.add('show');}
+// Message d'erreur (rouge) ; les messages de succès ajoutent la classe « ok » (vert)
+function showAErr(m){const el=document.getElementById('aerr');el.textContent=m;el.style.color='';el.classList.remove('ok');el.classList.add('show');}
 function toggleForm(){const il=document.getElementById('form-login').style.display!=='none';document.getElementById('form-login').style.display=il?'none':'block';document.getElementById('form-reg').style.display=il?'block':'none';document.getElementById('form-reset').style.display='none';document.getElementById('aerr').classList.remove('show');}
 function showResetForm(){document.getElementById('form-login').style.display='none';document.getElementById('form-reg').style.display='none';document.getElementById('form-reset').style.display='block';document.getElementById('aerr').classList.remove('show');}
 function showLoginForm(){document.getElementById('form-login').style.display='block';document.getElementById('form-reg').style.display='none';document.getElementById('form-reset').style.display='none';document.getElementById('aerr').classList.remove('show');}
@@ -143,7 +144,7 @@ async function doResetPassword(){
     }
     const {data,error}=response;
     if(error) return showAErr(error.message);
-    const el=document.getElementById('aerr');el.textContent='Email envoyé ! Vérifie ta boîte mail.';el.style.color='var(--green)';el.classList.add('show');
+    const el=document.getElementById('aerr');el.textContent='Email envoyé ! Vérifie ta boîte mail.';el.style.color='';el.classList.add('show','ok');
   } catch(err) {
     showAErr(err?.message || "Impossible d’envoyer l’email. Vérifie ta connexion.");
   } finally {
