@@ -841,6 +841,17 @@ insert into r (qui, test, attendu, obtenu) values
  ('Coach B', '[C3] e-mails coupés par la coordinatrice → plus rien pour elle', '001,002', pg_temp.notif_test($q$select proposition_directe('10000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000a1', current_date + 17, '10:00', 'proposant')$q$, 'prop_recue'));
 reset role;
 update public.profiles set notif_email = true where id = '00000000-0000-4000-a000-000000000006';
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000004","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Externe', '[C3] crée un club → e-mail à l''admin plateforme', '005', pg_temp.notif_test($q$select create_club('TEST Club nouveau')$q$, 'club_a_verifier'));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000005","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Admin', '[C3] crée un club lui-même → pas d''e-mail', 'aucun', pg_temp.notif_test($q$select create_club('TEST Club admin')$q$, 'club_a_verifier'));
+reset role;
 select set_config('request.jwt.claims', '', false);
 
 select n, qui, test, attendu, obtenu, case when attendu = obtenu then 'OK' else 'ÉCHEC' end as resultat

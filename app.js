@@ -262,6 +262,43 @@ async function loadTeams(){
   else if(CT){const u=teams.find(t=>t.id===CT.id);if(u)selTeam(u);}
   else if(myClubs.length)selClub(myClubs[0].club_id);
   else if(teams.length>0)selTeam(teams[0]);
+  majAccueilNouveau();
+}
+// Compte sans aucun rôle (ni équipe, ni club) : l'accueil était presque vide, sans dire
+// quoi faire. On explique les 3 chemins : être ajouté par son club, lien parent, créer son club.
+function majAccueilNouveau(){
+  const sans=!!U&&!teams.length&&!myClubs.length;
+  document.body.classList.toggle('sans-role',sans);
+  const el=document.getElementById('accueil-nouveau');if(!el)return;
+  if(!sans){el.innerHTML='';return;}
+  // Compte admin plateforme sans club (ex. compte dédié FootLink) : accès direct à la gestion
+  if(typeof isPlatformAdmin!=='undefined'&&isPlatformAdmin){
+    el.innerHTML=`<div class="an-t">Administration FootLink 🛡</div>
+      <div class="an-s">Ce compte n'encadre aucune équipe : il sert à gérer la plateforme.</div>
+      <div class="an-c"><div class="an-h">Clubs, vérifications, niveaux, chiffres</div>
+        <button class="badd" onclick="goPage('plateforme')">Ouvrir la gestion des clubs</button></div>`;
+    return;
+  }
+  const mail=esc(U.email||UP?.email||'');
+  el.innerHTML=`<div class="an-t">Bienvenue sur FootLink 👋</div>
+    <div class="an-s">Ton compte est prêt, mais il n'est relié à aucun club ni aucune équipe pour l'instant. Choisis ta situation :</div>
+    <div class="an-c"><div class="an-h">🏟 Je fais partie d'un club qui utilise FootLink</div>
+      <div class="an-p">Donne ton adresse au responsable de ton club (CQ, coordinateur) ou à l'entraîneur de ton équipe : il t'ajoutera depuis FootLink.</div>
+      <div class="an-mail"><b>${mail}</b><button class="bsec" onclick="copierMonEmail()">Copier</button></div>
+      <button class="bsec" onclick="rechargerAcces()">J'ai été ajouté(e) : actualiser</button></div>
+    <div class="an-c"><div class="an-h">👪 Je suis parent d'un joueur</div>
+      <div class="an-p">Demande à l'entraîneur de ton enfant le <b>lien d'invitation FootLink</b> (il le trouve sur la fiche de ton enfant). Ouvre-le une fois connecté(e) : tu seras relié(e) à ton enfant.</div></div>
+    <div class="an-c"><div class="an-h">⚽ Je veux inscrire mon club</div>
+      <div class="an-p">Crée la fiche de ton club : tu en deviens le responsable (CQ). Nous vérifions chaque nouveau club avant qu'il puisse publier des annonces ou des tournois.</div>
+      <button class="badd" onclick="goPage('club')">Créer mon club</button></div>
+    <div class="an-q">Une question ? <a href="mailto:contact@footlink.be">contact@footlink.be</a></div>`;
+}
+async function copierMonEmail(){
+  try{await navigator.clipboard.writeText(U.email);showToast('Adresse copiée','ok');}catch(e){showToast(U.email,'ok');}
+}
+async function rechargerAcces(){
+  await loadMyClubs();await loadTeams();renderHome();
+  showToast(teams.length||myClubs.length?'Accès trouvé : bienvenue !':'Pas encore d\'accès : demande à ton club de t\'ajouter avec ton adresse','ok');
 }
 // Vue club (CQ / coordinateur) : aucune équipe sélectionnée (CT=null), clubVue = id du
 // club. L'accueil montre le club (matchs de toutes ses équipes, calendrier, annonces) ;
