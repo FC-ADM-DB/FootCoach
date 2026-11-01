@@ -104,9 +104,19 @@ function showAErr(m){const el=document.getElementById('aerr');el.textContent=m;e
 function toggleForm(){const il=document.getElementById('form-login').style.display!=='none';document.getElementById('form-login').style.display=il?'none':'block';document.getElementById('form-reg').style.display=il?'block':'none';document.getElementById('form-reset').style.display='none';document.getElementById('aerr').classList.remove('show');}
 function showResetForm(){document.getElementById('form-login').style.display='none';document.getElementById('form-reg').style.display='none';document.getElementById('form-reset').style.display='block';document.getElementById('aerr').classList.remove('show');}
 function showLoginForm(){document.getElementById('form-login').style.display='block';document.getElementById('form-reg').style.display='none';document.getElementById('form-reset').style.display='none';document.getElementById('aerr').classList.remove('show');}
+// Touche Entrée dans les écrans de connexion : les champs ne sont pas dans un <form>, le
+// navigateur ne savait pas quel bouton déclencher (il fallait cliquer « Se connecter »).
+document.addEventListener('keydown',ev=>{
+  if(ev.key!=='Enter'||ev.isComposing)return;
+  const champ=ev.target.closest?.('#form-login,#form-reg,#form-reset,#modal-mdp');
+  if(!champ||ev.target.tagName!=='INPUT')return;
+  ev.preventDefault();
+  ({'form-login':doLogin,'form-reg':doRegister,'form-reset':doResetPassword,'modal-mdp':enregistrerNouveauMdp})[champ.id]();
+});
 async function enregistrerNouveauMdp(){
   const a=document.getElementById('mdp-1').value,b=document.getElementById('mdp-2').value;
-  if(a.length<6)return showToast('Au moins 6 caractères','err');
+  // Même règle qu'à l'inscription (8 caractères)
+  if(a.length<8)return showToast('Au moins 8 caractères','err');
   if(a!==b)return showToast('Les deux mots de passe sont différents','err');
   const{error}=await sb.auth.updateUser({password:a});
   if(error)return showToast(error.message,'err');
