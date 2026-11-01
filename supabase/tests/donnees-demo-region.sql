@@ -40,7 +40,8 @@ from (values
   ('cq.amay@demo.footcoach',      'Pierre',   'Lambrecht'),
   ('cq.burdinne@demo.footcoach',  'Valérie',  'Hardy'),
   ('coach.reh@demo.footcoach',    'Thomas',   'Coach'),     -- entraîneur U10A REH (sans rôle club : il suggère, David valide)
-  ('parent@demo.footcoach',       'Claire',   'Parent')     -- maman d'Arthur (U10A), accès parent (A3)
+  ('parent@demo.footcoach',       'Claire',   'Parent'),    -- maman d'Arthur (U10A), accès parent (A3)
+  ('nouveau@demo.footcoach',      'Julie',    'Nouvelle')   -- compte sans rôle : demandes d'accès en attente (A5)
 ) as u(email, prenom, nom);
 
 insert into public.platform_admins (profile_id) values (md5('david@demo.footcoach')::uuid)
@@ -273,6 +274,17 @@ Goûter offert après la finale.',
                ('U10', 'RFC Hannutois U10', md5('demo-hannut/U10')::uuid, 0), ('U10', 'Huy U10', null, 1)) x(cat, nom, team, o) on x.cat = tb.nom
   where tb.tournoi_id = v_h;
 end $c6$;
+
+-- Demandes d'accès (A5, si en place) : Julie (compte sans rôle) demande à être parent de
+-- « Lina » (U10A) et déléguée de l'U9 de REH Braives → à valider par David (ou Thomas pour U10A).
+do $a5$ begin
+  if to_regclass('public.demandes_acces') is null then return; end if;
+  insert into public.demandes_acces (profile_id, club_id, team_id, role, enfant, message)
+  values (md5('nouveau@demo.footcoach')::uuid, (select id from public.clubs where slug = 'demo-reh-braives'),
+          md5('demo-reh-braives/U10A')::uuid, 'parent', 'Lina', 'Bonjour, je suis la maman de Lina.'),
+         (md5('nouveau@demo.footcoach')::uuid, (select id from public.clubs where slug = 'demo-reh-braives'),
+          md5('demo-reh-braives/U9')::uuid, 'delegue', null, 'Je peux aider le samedi matin.');
+end $a5$;
 
 -- Résumé
 select c.nom as club, c.verifie,

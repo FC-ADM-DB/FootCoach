@@ -390,7 +390,9 @@
       <button class="umenu-item pa-cache" onclick="closeUserMenu();goPage('club')"><span>🏟</span><span>Mon club</span></button>
       <button class="umenu-item pa-cache" onclick="closeUserMenu();goPage('reseau')"><span>🤝</span><span>Trouver un match</span><b class="umenu-badge" id="umenu-prop-badge" style="display:none"></b></button>
       <button class="umenu-item" id="umenu-cal" onclick="closeUserMenu();ouvrirCalendrier()" style="display:none"><span>📅</span><span>Calendrier du club</span></button>
+      <button class="umenu-item" id="umenu-da" onclick="closeUserMenu();daOuvrirValidation()" style="display:none"><span>📥</span><span>Demandes d'accès</span><b class="umenu-badge" id="umenu-da-n"></b></button>
       <button class="umenu-item" onclick="closeUserMenu();ouvrirProfil()"><span>👤</span><span>Mon profil</span></button>
+      <button class="umenu-item" onclick="closeUserMenu();daOuvrir('club')"><span>➕</span><span>Demander un accès</span></button>
       <a class="umenu-item" href="confidentialite.html" target="_blank" rel="noopener" onclick="closeUserMenu()" style="text-decoration:none"><span>🔒</span><span>Confidentialité &amp; conditions</span></a>
       <a class="umenu-item" id="umenu-demo" href="https://foot-coach-git-demo-fc-adm-dbs-projects.vercel.app" target="_blank" rel="noopener" onclick="closeUserMenu()" style="display:none;text-decoration:none"><span>🧪</span><span>Lien de démo</span></a>
       <button class="umenu-item" id="umenu-plateforme" onclick="closeUserMenu();goPage('plateforme')" style="display:none"><span>🛡</span><span>Gestion des clubs</span></button>
@@ -698,5 +700,6 @@
 <script src="calendrier.js"></script>
 <script src="tournoi-calc.js"></script>
 <script src="tournois.js"></script>
+<script src="demandes.js"></script>
 </body>
 </html>

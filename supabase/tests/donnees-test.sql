@@ -262,6 +262,18 @@ do $c3$ begin
     $c$;
   end if;
 end $c3$;
+-- Demandes d'accès (A5, si en place) : Externe demande D1 coordinateur du club A,
+-- D2 entraîneur de l'équipe A, D3 parent de « Léo » dans l'équipe A.
+do $a5$ begin
+  if to_regclass('public.demandes_acces') is not null then
+    execute $c$
+      insert into public.demandes_acces (id, profile_id, club_id, team_id, role, enfant) values
+        ('b0000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000004', '50000000-0000-4000-a000-0000000000a1', null, 'coordinateur', null),
+        ('b0000000-0000-4000-a000-000000000002', '00000000-0000-4000-a000-000000000004', '50000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000a1', 'entraineur', null),
+        ('b0000000-0000-4000-a000-000000000003', '00000000-0000-4000-a000-000000000004', '50000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000a1', 'parent', 'Léo Alpha');
+    $c$;
+  end if;
+end $a5$;
 insert into public.player_notes (player_id, auteur_id, note) values
   ('30000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000001', 'Note de test (club A)');
 
