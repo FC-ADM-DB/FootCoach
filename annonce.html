@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a1628">
+<meta property="og:title" content="Cherche adversaire — répondez en un clic">
+<meta property="og:description" content="Annonce de match de football de jeunes. Choisissez un créneau et répondez sans créer de compte, via FootLink.">
+<meta property="og:site_name" content="FootLink">
+<title>Cherche adversaire — FootLink</title>
+<style>
+/* Annonce partagée (Facebook, WhatsApp…) : un club sans FootLink choisit un créneau et
+   répond sans compte. Données via annonce_publique / annonce_repondre_public uniquement. */
+:root{--band:#0a1628;--accent:#00d68f;--soft:#f2f5fa;--ink:#1c1a17;--ink2:#5d5646;--line:#e2e6ee;--red:#c62828;--font:'Segoe UI',system-ui,-apple-system,Arial,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--soft);color:var(--ink);font-family:var(--font);min-height:100vh;-webkit-text-size-adjust:100%}
+header{background:var(--band);color:#fff;padding:18px 16px 16px;border-bottom:5px solid var(--accent)}
+.brand{display:flex;align-items:center;gap:12px;max-width:560px;margin:0 auto}
+.crest{width:48px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:34px}
+.crest img{max-width:100%;max-height:100%;object-fit:contain}
+.brand h1{font-size:20px;line-height:1.15}
+.brand p{font-size:13px;opacity:.85;margin-top:3px}
+main{max-width:560px;margin:0 auto;padding:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.t{font-size:18px;font-weight:700}
+.info{font-size:14px;color:var(--ink2);margin-top:6px;line-height:1.5}
+.msg{margin-top:12px;background:var(--soft);border-left:4px solid var(--accent);padding:10px 12px;border-radius:8px;white-space:pre-wrap;font-size:14px}
+h2{font-size:15px;margin-bottom:8px}
+.cr{display:flex;align-items:center;gap:10px;border:2px solid var(--line);border-radius:10px;padding:11px 12px;margin-top:8px;cursor:pointer;font-size:15px}
+.cr input{width:auto;transform:scale(1.2)}
+.cr.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,white)}
+label.f{display:block;font-size:13px;font-weight:600;color:var(--ink2);margin:10px 0 4px}
+input,select,textarea{width:100%;font-family:var(--font);font-size:16px;padding:10px;border:1px solid #c9d0dc;border-radius:8px;background:#fff;color:var(--ink)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{width:100%;margin-top:14px;font-family:var(--font);font-size:16px;font-weight:700;border-radius:10px;padding:13px;cursor:pointer;border:2px solid var(--accent);background:var(--accent);color:var(--band)}
+.err{color:var(--red);font-size:14px;margin-top:8px;min-height:1em}
+.etat{font-size:17px;font-weight:700;text-align:center;padding:8px}
+footer{text-align:center;font-size:12px;color:var(--ink2);padding:6px 16px 28px;line-height:1.6}
+footer a{color:var(--ink2)}
+</style>
+</head>
+<body>
+<header><div class="brand"><div class="crest" id="crest">⚽</div><div><h1 id="titre">Cherche adversaire</h1><p id="sous">via FootLink</p></div></div></header>
+<main id="main"><div class="card">Chargement…</div></main>
+<footer>FootLink — l'application gratuite des clubs de football de jeunes : matchs, convocations, tournois.<br>Votre club peut aussi l'utiliser : <a href="./">créer un compte sur footlink.be</a> · <a href="confidentialite.html">Confidentialité</a></footer>
+<script>
+const SB_DEMO=/^foot-coach-git-demo-/.test(location.hostname);
+const SB_URL=SB_DEMO?'https://shdmzyfdzczhwibwnvdn.supabase.co':'https://oejcfjthamzgnudofcwi.supabase.co';
+const SB_KEY=SB_DEMO?'sb_publishable_rXiHRcgsFm6TwzFapFckQA_shM52ilJ':'sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
+const LIEN=(new URLSearchParams(location.search).get('a')||'').replace(/[^0-9a-zA-Z-]/g,'');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeLogo=l=>typeof l==='string'&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l)?l:null;
+const okColor=c=>/^#[0-9a-fA-F]{6}$/.test(c||'')?c:null;
+const rpc=(fn,body)=>fetch(`${SB_URL}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+const jour=d=>{const s=new Date(d+'T12:00').toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'});return s.charAt(0).toUpperCase()+s.slice(1);};
+const TYPES={amical:'Match amical',tournoi:'Tournoi',entrainement:'Entraînement commun'};
+let A=null,choix=null;
+
+function vide(t,s){document.getElementById('main').innerHTML=`<div class="card"><div class="etat">${esc(t)}</div><p class="info" style="text-align:center">${esc(s)}</p></div>`;}
+async function charger(){
+  if(!LIEN)return vide('Lien incomplet','Vérifiez le lien de l\'annonce.');
+  try{
+    const r=await rpc('annonce_publique',{p_lien:LIEN});if(!r.ok)throw 0;
+    A=await r.json();
+    if(!A)return vide('Annonce introuvable','Elle a peut-être été retirée par le club.');
+  }catch(e){return vide('Connexion impossible','Vérifiez votre connexion et rechargez la page.');}
+  document.getElementById('titre').textContent=A.club;
+  document.getElementById('sous').textContent='cherche un adversaire';
+  document.title=A.club+' cherche un adversaire — FootLink';
+  const l=safeLogo(A.logo);if(l)document.getElementById('crest').innerHTML=`<img src="${l}" alt="">`;
+  const c2=okColor(A.couleur2)||okColor(A.couleur1);if(c2)document.documentElement.style.setProperty('--band',c2);
+  const c1=okColor(A.couleur1);if(c1)document.documentElement.style.setProperty('--accent',c1);
+  afficher();
+}
+// lieu de l'annonce (point de vue du club qui publie) → valeur pour la réponse : 'nous' = chez lui
+function afficher(){
+  const m=document.getElementById('main');
+  if(A.statut!=='publiee'||!A.creneaux.length)return vide('Plus de créneau disponible','Cette annonce est clôturée ou tous ses créneaux sont pris.');
+  const lieuTxt={domicile:`🏠 Chez ${A.club}${A.adresse?' — '+A.adresse:''}`,exterieur:'✈️ Le club se déplace chez vous',indifferent:`🏠✈️ Chez ${A.club} ou chez vous`}[A.lieu]||'';
+  m.innerHTML=`<div class="card"><div class="t">${esc(TYPES[A.type]||'Match amical')} · ${esc(A.equipe)}</div>
+      <div class="info">${esc(A.categorie||'')}${A.format?' · '+esc(A.format.replace('v',' contre ')):''}${A.duree_mt?' · '+A.duree_mt+' min par mi-temps':''}<br>${esc(lieuTxt)}</div>
+      ${A.message?`<div class="msg">${esc(A.message)}</div>`:''}</div>
+    <div class="card"><h2>1. Choisissez un créneau</h2>
+      ${A.creneaux.map((c,i)=>`<label class="cr" id="cr${i}"><input type="radio" name="cr" onchange="choisir(${i})"> ${esc(jour(c.jour))}${c.debut?' · '+esc(c.debut):''}${c.fin?'–'+esc(c.fin):''}</label>`).join('')}
+      ${A.lieu==='indifferent'?`<label class="f" for="li">Où jouer ?</label><select id="li"><option value="nous">Chez ${esc(A.club)}</option><option value="eux">Chez nous (nous recevons)</option></select>`:''}
+    </div>
+    <div class="card"><h2>2. Votre club</h2>
+      <div class="row"><div><label class="f" for="club">Club</label><input id="club" maxlength="80" placeholder="ex. RFC Exemple"></div>
+        <div><label class="f" for="eq">Équipe</label><input id="eq" maxlength="60" placeholder="ex. U10"></div></div>
+      <div class="row"><div><label class="f" for="nom">Votre nom</label><input id="nom" maxlength="100"></div>
+        <div><label class="f" for="tel">Téléphone</label><input id="tel" type="tel" maxlength="30"></div></div>
+      <label class="f" for="mail">E-mail <span style="font-weight:400">(pour recevoir la confirmation)</span></label><input id="mail" type="email" maxlength="200">
+      <label class="f" for="msg">Message <span style="font-weight:400">(facultatif)</span></label><textarea id="msg" rows="2" maxlength="1000"></textarea>
+      <label class="f" for="h">Heure souhaitée <span style="font-weight:400">(facultatif)</span></label><input id="h" type="time">
+      <button onclick="envoyer()">Envoyer ma réponse à ${esc(A.club)}</button>
+      <div class="err" id="err"></div></div>`;
+}
+function choisir(i){choix=i;document.querySelectorAll('.cr').forEach((e,k)=>e.classList.toggle('on',k===i));const h=document.getElementById('h');if(h&&!h.value&&A.creneaux[i].debut)h.value=A.creneaux[i].debut;}
+async function envoyer(){
+  const v=id=>document.getElementById(id)?.value?.trim()||null,err=document.getElementById('err');
+  if(choix===null)return err.textContent='Choisissez un créneau.';
+  if(!v('club'))return err.textContent='Indiquez le nom de votre club.';
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v('mail')||''))return err.textContent='Indiquez une adresse e-mail valide.';
+  const lieu=A.lieu==='domicile'?'nous':A.lieu==='exterieur'?'eux':v('li');
+  document.querySelector('button').disabled=true;err.textContent='';
+  try{
+    const r=await rpc('annonce_repondre_public',{p_lien:LIEN,p_jour:A.creneaux[choix].jour,p_heure:v('h')||A.creneaux[choix].debut||null,p_lieu:lieu,
+      p_club:v('club'),p_equipe:v('eq'),p_email:v('mail'),p_nom:v('nom'),p_tel:v('tel'),p_message:v('msg')});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error((e.message||'').replace(/^.*?:\s*/,'')||'Envoi impossible');}
+    document.getElementById('main').innerHTML=`<div class="card"><div class="etat">✅ Réponse envoyée à ${esc(A.club)}</div>
+      <p class="info" style="text-align:center">Le club va accepter ou décliner : vous recevrez un e-mail de confirmation.</p></div>
+      <div class="card"><div class="t" style="font-size:16px">Et si votre club utilisait FootLink ?</div>
+      <p class="info">Gratuit : effectifs, convocations, matchs en direct, tournois, et trouver des adversaires en un clic.</p>
+      <p class="info"><a href="./">Créer un compte pour mon club →</a></p></div>`;
+  }catch(e){err.textContent=e.message;document.querySelector('button').disabled=false;}
+}
+charger();
+</script>
+</body>
+</html>

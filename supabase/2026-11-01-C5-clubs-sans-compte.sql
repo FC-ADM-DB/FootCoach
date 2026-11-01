@@ -6,6 +6,10 @@
 --    secret. À l'accord, le match s'ajoute au calendrier de notre équipe.
 -- 2. Invitation à REJOINDRE FootLink : lien par e-mail ; la personne crée son compte et la
 --    fiche de son club (pré-remplie), elle en devient CQ ; le club qui invite est prévenu.
+-- 3. ANNONCE PARTAGÉE (Facebook…) : une annonce publiée reçoit un lien public ; un club sans
+--    compte y choisit un créneau et laisse ses coordonnées ; sa réponse arrive comme une
+--    proposition par e-mail « à accepter » (accepter = match au calendrier, créneau pris,
+--    e-mail de confirmation au club). Garde-fou : 20 réponses par annonce et par jour.
 -- Qui envoie : CQ / coordinateur d'un club VÉRIFIÉ (un entraîneur / délégué prépare une
 -- proposition, son coordinateur l'envoie). Garde-fou anti-abus : 30 envois par club et par jour.
 -- L'adresse e-mail du club extérieur ne sert qu'à cet échange.
@@ -72,6 +76,8 @@ create table public.invitations_match (
   reponse_nom text check (char_length(reponse_nom) <= 100),
   reponse_tel text check (char_length(reponse_tel) <= 30),
   match_id uuid references public.matches(id) on delete set null,
+  origine text not null default 'email' check (origine in ('email', 'annonce')),   -- annonce = réponse via le lien public
+  annonce_id uuid references public.annonces(id) on delete set null,
   cree_par uuid default auth.uid() references public.profiles(id) on delete set null,
   envoye_le timestamptz,
   created_at timestamptz not null default now(),
@@ -140,6 +146,10 @@ begin
             case coalesce(i.reponse_lieu, i.lieu) when 'nous' then 'domicile' else 'exterieur' end, 'prevu', '{}'::jsonb)
     returning id into v_match;
     update invitations_match set statut = 'acceptee', match_id = v_match, updated_at = now() where id = p_id;
+    -- Réponse à une annonce : le créneau de ce jour est pris
+    if i.annonce_id is not null then
+      update annonce_creneaux set statut = 'pris' where annonce_id = i.annonce_id and jour = coalesce(i.reponse_jour, i.jour);
+    end if;
     return 'acceptee';
   elsif p_action = 'refuser_contre' and i.statut = 'contre' then
     update invitations_match set statut = 'refusee', updated_at = now() where id = p_id;
@@ -197,7 +207,14 @@ create or replace function public.notif_invitations_match() returns trigger
   language plpgsql security definer set search_path = public as
 $$ declare v_club text := (select nom from clubs where id = new.club_id);
 begin
-  if tg_op = 'INSERT' and new.statut = 'a_valider' then
+  if tg_op = 'INSERT' and new.origine = 'annonce' then
+    perform notif_ajouter(notif_im_nous(new), 'im_annonce', 'Réponse à votre annonce : ' || new.club_externe,
+      new.club_externe || coalesce(' ' || new.equipe_externe, '') || E' répond à votre annonce (lien partagé) :\n'
+        || notif_im_resume(new, true)
+        || coalesce(E'\n\nContact : ' || new.reponse_nom, '') || coalesce(' · ' || new.reponse_tel, '') || E' · ' || new.contact_email
+        || coalesce(E'\nMessage : « ' || new.reponse_message || ' »', '')
+        || E'\n\nAccepte ou refuse dans FootLink : Trouver un match → Propositions.');
+  elsif tg_op = 'INSERT' and new.statut = 'a_valider' then
     perform notif_ajouter(array(select notif_club_staff(new.club_id)), 'im_a_envoyer', 'Proposition de match à envoyer',
       E'Un entraîneur a préparé une proposition de match par e-mail. Vérifie-la et envoie-la.\n\n' || notif_im_resume(new));
   elsif new.statut = 'envoyee' and (tg_op = 'INSERT' or old.statut is distinct from 'envoyee') then
@@ -241,13 +258,71 @@ create trigger invitations_match_notif after insert or update of statut on publi
 create or replace function public.mes_invitations_match()
 returns table(id uuid, team_id uuid, equipe text, club_externe text, equipe_externe text, contact_nom text, contact_email text,
               jour date, heure text, lieu text, message text, statut text, reponse_jour date, reponse_heure text, reponse_lieu text,
-              reponse_message text, reponse_nom text, reponse_tel text, decide boolean, created_at timestamptz)
+              reponse_message text, reponse_nom text, reponse_tel text, decide boolean, created_at timestamptz, origine text)
 language sql stable security definer set search_path = public as
 $$ select i.id, i.team_id, t.nom, i.club_externe, i.equipe_externe, i.contact_nom, i.contact_email, i.jour, to_char(i.heure, 'HH24:MI'),
           i.lieu, i.message, i.statut, i.reponse_jour, to_char(i.reponse_heure, 'HH24:MI'), i.reponse_lieu, i.reponse_message,
-          i.reponse_nom, i.reponse_tel, is_club_member(i.club_id), i.created_at
+          i.reponse_nom, i.reponse_tel, is_club_member(i.club_id), i.created_at, i.origine
    from invitations_match i join teams t on t.id = i.team_id
    where is_team_staff(i.team_id) order by i.created_at desc $$;
+
+-- ------------------------------------------------------------------ 3. ANNONCE PARTAGÉE (FACEBOOK…)
+alter table public.annonces add column if not exists lien_public text unique;
+
+-- Lien public d'une annonce publiée (créé à la première demande)
+create or replace function public.annonce_partager(p_annonce uuid) returns text
+  language plpgsql security definer set search_path = public as
+$$ declare a annonces;
+begin
+  select * into a from annonces where id = p_annonce for update;
+  if a.id is null or not is_team_staff(a.team_id) then raise exception 'Accès refusé'; end if;
+  if a.statut <> 'publiee' then raise exception 'Seule une annonce publiée peut être partagée'; end if;
+  if a.lien_public is null then
+    update annonces set lien_public = encode(extensions.gen_random_bytes(12), 'hex') where id = p_annonce
+      returning lien_public into a.lien_public;
+  end if;
+  return a.lien_public;
+end $$;
+
+-- Page publique de l'annonce (lien partagé) : club, équipe, créneaux libres à venir
+create or replace function public.annonce_publique(p_lien text) returns jsonb
+  language sql stable security definer set search_path = public as
+$$ select jsonb_build_object('club', c.nom, 'logo', c.logo, 'couleur1', c.couleur1, 'couleur2', c.couleur2, 'adresse', c.adresse,
+          'equipe', t.nom, 'categorie', t.categorie, 'format', coalesce(a.format, t.format), 'type', a.type, 'lieu', a.lieu,
+          'duree_mt', a.duree_mt, 'niveaux', a.niveaux, 'message', a.message, 'statut', a.statut,
+          'creneaux', coalesce((select jsonb_agg(jsonb_build_object('jour', cr.jour, 'debut', to_char(cr.heure_debut, 'HH24:MI'),
+                       'fin', to_char(cr.heure_fin, 'HH24:MI')) order by cr.jour, cr.heure_debut)
+                     from annonce_creneaux cr where cr.annonce_id = a.id and cr.statut = 'libre' and cr.jour >= current_date), '[]'::jsonb))
+   from annonces a join teams t on t.id = a.team_id join clubs c on c.id = a.club_id
+   where a.lien_public = p_lien $$;
+
+-- Réponse d'un club sans compte via le lien public → « proposition par e-mail » à accepter
+create or replace function public.annonce_repondre_public(p_lien text, p_jour date, p_heure time, p_lieu text,
+    p_club text, p_equipe text, p_email text, p_nom text default null, p_tel text default null, p_message text default null)
+  returns text language plpgsql security definer set search_path = public as
+$$ declare a annonces;
+begin
+  select * into a from annonces where lien_public = p_lien;
+  if a.id is null or a.statut <> 'publiee' then raise exception 'Cette annonce n''est plus disponible'; end if;
+  if not exists (select 1 from annonce_creneaux where annonce_id = a.id and jour = p_jour and statut = 'libre' and jour >= current_date) then
+    raise exception 'Choisis un des créneaux proposés';
+  end if;
+  if coalesce(p_lieu, '') not in ('nous', 'eux') then raise exception 'Lieu invalide'; end if;
+  if nullif(trim(p_club), '') is null then raise exception 'Nom de votre club obligatoire'; end if;
+  if coalesce(trim(p_email), '') !~* '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Adresse e-mail invalide'; end if;
+  if (select count(*) from invitations_match where annonce_id = a.id and created_at >= current_date) >= 20 then
+    raise exception 'Trop de réponses aujourd''hui pour cette annonce, réessayez demain';
+  end if;
+  -- lieu « nous » = chez le club de l'annonce (point de vue de FootLink, comme invitations_match)
+  insert into invitations_match (team_id, club_id, club_externe, equipe_externe, contact_nom, contact_email, jour, heure, lieu, message,
+                                 statut, reponse_jour, reponse_heure, reponse_lieu, reponse_message, reponse_nom, reponse_tel,
+                                 origine, annonce_id, cree_par)
+  values (a.team_id, a.club_id, left(trim(p_club), 80), nullif(left(trim(p_equipe), 60), ''), nullif(left(trim(p_nom), 100), ''),
+          lower(trim(p_email)), p_jour, p_heure, p_lieu, null,
+          'contre', p_jour, p_heure, p_lieu, nullif(left(trim(p_message), 1000), ''), nullif(left(trim(p_nom), 100), ''),
+          nullif(left(trim(p_tel), 30), ''), 'annonce', a.id, null);
+  return 'envoyee';
+end $$;
 
 -- ------------------------------------------------------------------ 2. INVITER UN CLUB À REJOINDRE FOOTLINK
 create table public.invitations_club (
@@ -339,5 +414,11 @@ revoke execute on function public.invitation_match_voir(text), public.invitation
   public.invitation_club_info(text) from public;
 grant execute on function public.invitation_match_voir(text), public.invitation_match_repondre(text, text, date, time, text, text, text, text),
   public.invitation_club_info(text) to anon, authenticated;
+revoke execute on function public.annonce_partager(uuid) from public, anon;
+grant execute on function public.annonce_partager(uuid) to authenticated;
+revoke execute on function public.annonce_publique(text),
+  public.annonce_repondre_public(text, date, time, text, text, text, text, text, text, text) from public;
+grant execute on function public.annonce_publique(text),
+  public.annonce_repondre_public(text, date, time, text, text, text, text, text, text, text) to anon, authenticated;
 
 commit;

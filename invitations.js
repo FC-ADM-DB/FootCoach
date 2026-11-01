@@ -69,17 +69,20 @@ prRenderListe=async function(){
   const act=body.querySelector('.pr-actions');
   if(act&&imClub()&&!document.getElementById('ic-btn'))act.insertAdjacentHTML('beforeend','<button class="bsec rs-mini" id="ic-btn" onclick="icOuvrir()">✉️ Inviter un club</button>');
   const l=await imCharger();if(!l||!l.length)return;
-  const carte=i=>{const[c,lb]=IM_STATUT[i.statut]||['pgr',i.statut];
+  const carte=i=>{
+    // Réponse arrivée par le lien partagé d'une annonce : « à accepter » (pas une contre-proposition)
+    const viaAnnonce=i.origine==='annonce';
+    const[c,lb]=viaAnnonce&&i.statut==='contre'?['pa','📣 Réponse à l\'annonce']:(IM_STATUT[i.statut]||['pgr',i.statut]);
     const quand=`${imJour(i.jour)}${i.heure?' · '+i.heure:''} · ${i.lieu==='nous'?'🏠 chez nous':'✈️ chez eux'}`;
     let act='';
     if(i.statut==='a_valider'&&i.decide)act+=`<button class="badd" onclick="imAgir('${i.id}','envoyer')">➤ Envoyer</button>`;
-    if(i.statut==='contre'&&i.decide)act+=`<button class="badd" onclick="imAgir('${i.id}','accepter_contre')">Accepter la nouvelle date</button><button class="bsec" onclick="imAgir('${i.id}','refuser_contre')">Refuser</button>`;
+    if(i.statut==='contre'&&i.decide)act+=`<button class="badd" onclick="imAgir('${i.id}','accepter_contre')">${viaAnnonce?'Accepter ce match':'Accepter la nouvelle date'}</button><button class="bsec" onclick="imAgir('${i.id}','refuser_contre')">Refuser</button>`;
     if(['a_valider','envoyee','contre'].includes(i.statut))act+=`<button class="bsec" onclick="imAgir('${i.id}','annuler')">Annuler</button>`;
     return `<div class="card rs-card${(i.statut==='contre'||i.statut==='a_valider')&&i.decide?' todo':''}" style="cursor:default">
       <div class="rs-top"><div style="flex:1;min-width:0"><div class="rs-club">✉️ ${esc(i.club_externe)}${i.equipe_externe?' · '+esc(i.equipe_externe):''}</div>
         <div class="rs-sub">${esc(i.equipe)} · ${esc(i.contact_nom?i.contact_nom+' — ':'')}${esc(i.contact_email)}</div></div><span class="pill ${c}">${lb}</span></div>
-      <div class="rs-line">📅 ${esc(quand)}</div>
-      ${i.statut==='contre'?`<div class="rs-line" style="color:var(--amber)">↪ Ils proposent : ${esc(imJour(i.reponse_jour))}${i.reponse_heure?' · '+i.reponse_heure:''} · ${i.reponse_lieu==='nous'?'🏠 chez nous':'✈️ chez eux'}</div>`:''}
+      ${viaAnnonce?'':`<div class="rs-line">📅 ${esc(quand)}</div>`}
+      ${i.statut==='contre'||viaAnnonce?`<div class="rs-line" style="color:var(--amber)">${viaAnnonce?'📅 Créneau choisi :':'↪ Ils proposent :'} ${esc(imJour(i.reponse_jour))}${i.reponse_heure?' · '+i.reponse_heure:''} · ${i.reponse_lieu==='nous'?'🏠 chez nous':'✈️ chez eux'}</div>`:''}
       ${i.reponse_message?`<div class="rs-line">💬 « ${esc(i.reponse_message)} »</div>`:''}
       ${i.reponse_nom||i.reponse_tel?`<div class="rs-line">☎️ ${esc([i.reponse_nom,i.reponse_tel].filter(Boolean).join(' · '))}</div>`:''}
       ${act?`<div class="trn-ins-a">${act}</div>`:''}</div>`;};
@@ -154,3 +157,58 @@ createClub=async function(){
     try{localStorage.removeItem(IM_CLE);}catch(e){}imInfo=null;
   }
 };
+
+// ---- 3. Partager une annonce (post Facebook) ----
+// Texte prêt à copier (la plupart des clubs cherchent encore leurs adversaires sur Facebook)
+// + lien vers annonce.html : un club sans FootLink y choisit un créneau et laisse ses
+// coordonnées ; sa réponse arrive dans « Propositions par e-mail » (à accepter).
+let fbAnnonce=null,fbLien='';
+document.body.insertAdjacentHTML('beforeend',`
+<div class="mo" id="modal-fb"><div class="modal"><div class="mh"></div>
+  <div class="mt">📣 Partager l'annonce</div>
+  <div class="rs-line" style="margin:-6px 0 10px">Copie ce texte dans un groupe Facebook (ou WhatsApp). Les clubs répondent en un clic via le lien, même sans compte FootLink.</div>
+  <div class="fb-contact"><span>Contact affiché :</span>
+    <label><input type="checkbox" id="fb-nom" checked onchange="fbMaj()"> nom</label>
+    <label><input type="checkbox" id="fb-tel" onchange="fbMaj()"> téléphone</label>
+    <label><input type="checkbox" id="fb-mail" onchange="fbMaj()"> e-mail</label></div>
+  <textarea class="fi fb-texte" id="fb-texte" rows="12"></textarea>
+  <div class="trn-btns" style="margin-top:10px"><button class="bp" onclick="fbCopier()">📋 Copier le texte</button>
+    <button class="bsec" onclick="fbFacebook()">Ouvrir Facebook</button>
+    <button class="bsec" onclick="fbWhatsapp()">WhatsApp</button></div>
+  <div class="mfoot"><button class="bcan" onclick="closeModal('modal-fb')">Fermer</button></div>
+</div></div>`);
+async function fbPartager(id){
+  fbAnnonce=(typeof rsMine!=='undefined'?rsMine:[]).find(a=>a.id===id);if(!fbAnnonce)return;
+  const{data,error}=await sb.rpc('annonce_partager',{p_annonce:id});
+  if(error)return showToast(/function|schema cache/i.test(error.message)?'Partage pas encore disponible':error.message.replace(/^.*?:\s*/,''),'err');
+  fbLien=location.origin+'/annonce.html?a='+data;
+  document.getElementById('fb-tel').disabled=!UP?.telephone;document.getElementById('fb-tel').checked=!!UP?.telephone;
+  fbMaj();openModal('modal-fb');
+}
+function fbTexte(){
+  const a=fbAnnonce,t=rsTeam(a.team_id)||{},club=t.clubs?.nom||clubOf(a.club_id)?.nom||'';
+  const fmt=a.format||t.format,cat=(a.categories||[]).length?a.categories.join(', '):t.categorie;
+  const cr=(a.annonce_creneaux||[]).filter(c=>c.statut!=='pris'&&c.jour>=todayIso()).sort((x,y)=>(x.jour+(x.heure_debut||'')).localeCompare(y.jour+(y.heure_debut||'')));
+  const lieu={domicile:`🏠 À domicile${clubOf(a.club_id)?.adresse?' ('+clubOf(a.club_id).adresse+')':''}`,exterieur:'✈️ Nous nous déplaçons',indifferent:'🏠✈️ À domicile ou en déplacement'}[a.lieu]||'';
+  const niv=(a.niveaux||[]).map(n=>typeof nivLabel==='function'?nivLabel(n):'').filter(Boolean).join(', ');
+  const contact=[document.getElementById('fb-nom').checked&&UP?`${UP.prenom} ${UP.nom||''}`.trim():'',
+    document.getElementById('fb-tel').checked&&UP?.telephone?UP.telephone:'',
+    document.getElementById('fb-mail').checked&&UP?.email?UP.email:''].filter(Boolean).join(' · ');
+  return [`⚽ ${club} cherche un adversaire — ${t.nom||cat}${cat&&cat!==t.nom?' ('+cat+')':''}${fmt?' · '+formatLabel(fmt):''}`,
+    `${AN_TYPES[a.type]||'Match amical'}`,'',
+    ...cr.map(c=>'📅 '+creneauTxt(c)),
+    lieu,niv?`📊 Niveau : ${niv}`:'',a.duree_mt?`⏱️ ${a.duree_mt} min par mi-temps`:'',
+    a.message?`\n${a.message}`:'','',
+    `👉 Répondez en un clic, sans inscription : ${fbLien}`,
+    contact?`☎️ ${contact}`:'','',
+    `FootLink, l'appli gratuite des clubs de foot de jeunes : ${location.origin}`].filter((l,i,arr)=>l!==''||arr[i-1]!=='').join('\n').trim();
+}
+function fbMaj(){document.getElementById('fb-texte').value=fbTexte();}
+async function fbCopier(){
+  const t=document.getElementById('fb-texte').value;
+  try{await navigator.clipboard.writeText(t);showToast('Texte copié : colle-le dans ton post','ok');}
+  catch(e){const ta=document.getElementById('fb-texte');ta.select();document.execCommand('copy');showToast('Texte copié','ok');}
+}
+// Facebook ne permet pas de pré-remplir le texte : on copie puis on ouvre le partage du lien
+async function fbFacebook(){await fbCopier();window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(fbLien),'_blank','noopener');}
+function fbWhatsapp(){window.open('https://wa.me/?text='+encodeURIComponent(document.getElementById('fb-texte').value),'_blank','noopener');}

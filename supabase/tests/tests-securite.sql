@@ -948,7 +948,14 @@ insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[C5] répond avec un lien inconnu', 'refusé', pg_temp.essai($q$select invitation_match_repondre('mauvais-lien', 'accepter')$q$)),
  ('Visiteur', '[C5] infos de l''invitation à rejoindre', '1', pg_temp.essai($q$select 1 where invitation_club_info('test-ic') is not null$q$)),
  ('Visiteur', '[C5] crée une proposition', 'refusé', pg_temp.essai($q$select invitation_match_creer('10000000-0000-4000-a000-0000000000a1', 'FC Nouveau', 'U10', 'coach@exemple.invalid', 'Marc', current_date + 20, '10:00', 'nous', 'Bonjour')$q$)),
- ('Visiteur', '[C5] invite un club', 'refusé', pg_temp.essai($q$select invitation_club_creer('50000000-0000-4000-a000-0000000000a1', 'x@exemple.invalid')$q$));
+ ('Visiteur', '[C5] invite un club', 'refusé', pg_temp.essai($q$select invitation_club_creer('50000000-0000-4000-a000-0000000000a1', 'x@exemple.invalid')$q$)),
+ ('Visiteur', '[C5] voit l''annonce partagée (lien public)', '1', pg_temp.essai($q$select 1 where annonce_publique('test-annonce') is not null$q$)),
+ ('Visiteur', '[C5] annonce partagée : 1 créneau libre', '1', pg_temp.essai($q$select 1 from jsonb_array_elements(annonce_publique('test-annonce')->'creneaux')$q$)),
+ ('Visiteur', '[C5] annonce : lien inconnu', '0', pg_temp.essai($q$select 1 where annonce_publique('mauvais') is not null$q$)),
+ ('Visiteur', '[C5] répond à l''annonce partagée', '1', pg_temp.essai($q$select 1 where (select annonce_repondre_public('test-annonce', current_date + 7, '10:00', 'nous', 'FC Facebook', 'U10', 'fb@exemple.invalid', 'Lou', '0470 00 00 01', 'Partant !')) = 'envoyee'$q$)),
+ ('Visiteur', '[C5] réponse à l''annonce → e-mail au club et à l''équipe', '001,002,006', pg_temp.notif_test($q$select annonce_repondre_public('test-annonce', current_date + 7, '10:00', 'nous', 'FC Facebook', 'U10', 'fb@exemple.invalid', 'Lou', '0470 00 00 01', 'Partant !')$q$, 'im_annonce')),
+ ('Visiteur', '[C5] répond pour un jour hors créneaux', 'refusé', pg_temp.essai($q$select annonce_repondre_public('test-annonce', current_date + 8, '10:00', 'nous', 'FC Facebook', 'U10', 'fb@exemple.invalid', 'Lou', '0470 00 00 01', 'Partant !')$q$)),
+ ('Visiteur', '[C5] répond sans e-mail valide', 'refusé', pg_temp.essai($q$select annonce_repondre_public('test-annonce', current_date + 7, null, 'nous', 'FC X', null, 'pas-un-mail')$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
 set role authenticated;
@@ -960,7 +967,8 @@ insert into r (qui, test, attendu, obtenu) values
  ('Coach A', '[C5] refuse la contre-proposition', '1', pg_temp.essai($q$select 1 where invitation_match_agir('c0000000-0000-4000-a000-000000000002', 'refuser_contre') = 'refusee'$q$)),
  ('Coach A', '[C5] proposition avec une adresse invalide', 'refusé', pg_temp.essai($q$select invitation_match_creer('10000000-0000-4000-a000-0000000000a1', 'FC X', null, 'pas-une-adresse', null, current_date + 20, null, 'nous')$q$)),
  ('Coach A', '[C5] invite un club → e-mail d''invitation', 'nouveau@exemple.invalid', pg_temp.notif_ext($q$select invitation_club_creer('50000000-0000-4000-a000-0000000000a1', 'nouveau@exemple.invalid', 'Luc', 'RFC Nouveau')$q$, 'ic_invitation')),
- ('Coach A', '[C5] voit les invitations de son club', '1', pg_temp.essai($q$select 1 from invitations_club$q$));
+ ('Coach A', '[C5] voit les invitations de son club', '1', pg_temp.essai($q$select 1 from invitations_club$q$)),
+ ('Coach A', '[C5] obtient le lien public de son annonce', '1', pg_temp.essai($q$select 1 where annonce_partager('60000000-0000-4000-a000-000000000001') = 'test-annonce'$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
 set role authenticated;
@@ -977,7 +985,8 @@ set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('Coach B', '[C5] voit les propositions du club A', '0', pg_temp.essai($q$select 1 from invitations_match$q$)),
  ('Coach B', '[C5] accepte une contre-proposition du club A', 'refusé', pg_temp.essai($q$select invitation_match_agir('c0000000-0000-4000-a000-000000000002', 'accepter_contre')$q$)),
- ('Coach B', '[C5] invite au nom du club A', 'refusé', pg_temp.essai($q$select invitation_club_creer('50000000-0000-4000-a000-0000000000a1', 'x@exemple.invalid')$q$));
+ ('Coach B', '[C5] invite au nom du club A', 'refusé', pg_temp.essai($q$select invitation_club_creer('50000000-0000-4000-a000-0000000000a1', 'x@exemple.invalid')$q$)),
+ ('Coach B', '[C5] partage l''annonce du club A', 'refusé', pg_temp.essai($q$select annonce_partager('60000000-0000-4000-a000-000000000001')$q$));
 reset role;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
 set role authenticated;

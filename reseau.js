@@ -217,6 +217,8 @@ function rsRenderMine(validation){
     if(club&&['brouillon','a_valider','refusee'].includes(a.statut))acts.push(`<button class="bp rs-act" onclick="anStatut('${a.id}','publiee')">Publier</button>`);
     if(club&&a.statut==='a_valider')acts.push(`<button class="bred" onclick="anRefus('${a.id}')">Refuser</button>`);
     if(club&&a.statut==='publiee')acts.push(`<button class="bsec" onclick="anStatut('${a.id}','cloturee')">Clôturer</button>`);
+    // Post Facebook (clubs sans FootLink) : texte prêt à copier + lien de réponse sans compte (invitations.js)
+    if(a.statut==='publiee'&&typeof fbPartager==='function')acts.push(`<button class="bsec" onclick="fbPartager('${a.id}')">📣 Partager (Facebook)</button>`);
     if(club||['brouillon','a_valider','refusee'].includes(a.statut))acts.push(`<button class="bred" onclick="anSuppr('${a.id}')">Supprimer</button>`);
     return `<div class="card rs-card">
       <div class="rs-top"><div style="flex:1;min-width:0"><div class="rs-club">${esc(t?.nom||'Équipe')} · ${esc(AN_TYPES[a.type]||a.type)}</div>
