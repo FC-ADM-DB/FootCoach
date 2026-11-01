@@ -20,7 +20,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
-const FICTIVES = /@(test|demo)\.footcoach$/i;
+const FICTIVES = /(@(test|demo)\.footcoach|\.invalid)$/i;   // adresses fictives (tests, démo)
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 const b64 = (s: string) => {
   const o = new TextEncoder().encode(s);
@@ -118,7 +118,8 @@ async function vider(): Promise<Response> {
     try { smtp = new Smtp(); await smtp.ouvrir(host, port, user, pass); }
     catch (e) { res.erreur = String((e as Error)?.message ?? e); await smtp?.fermer(); smtp = null; }
   }
-  for (const n of lot as { id: string; email: string; prenom: string; titre: string; texte: string }[]) {
+  for (const n of lot as { id: string; email: string; prenom: string | null; titre: string; texte: string;
+                           lien?: string | null; bouton?: string | null; externe?: boolean }[]) {
     // Destinataire réel, redirection (test) ou simulation
     const vers = redirect || n.email;
     if (res.erreur) {
@@ -131,14 +132,21 @@ async function vider(): Promise<Response> {
       res.simules++;
       continue;
     }
-    const texte = `Bonjour ${n.prenom ?? ""},\n\n${n.texte}\n\nOuvrir FootLink : ${appUrl}\n\n—\n` +
-      `Tu reçois cet e-mail car tu fais partie de l'encadrement d'une équipe ou d'un club sur FootLink ` +
-      `(ou tu es parent d'un joueur). Pour ne plus recevoir d'e-mails : FootLink → Mon profil → décocher « Recevoir les e-mails ».` +
+    // Bouton : page précise (réponse à une proposition, invitation) ou accueil de l'app.
+    // Destinataire sans compte (club extérieur) : vouvoiement et ligne discrète sur FootLink.
+    const url = appUrl.replace(/\/$/, "") + (n.lien ?? "");
+    const bouton = n.bouton ?? "Ouvrir FootLink";
+    const bonjour = n.prenom ? `Bonjour ${n.prenom},` : "Bonjour,";
+    const pied = n.externe
+      ? `Vous recevez cet e-mail car un club vous a contacté via FootLink. Votre club peut aussi utiliser FootLink gratuitement : ${appUrl}`
+      : `Tu reçois cet e-mail car tu fais partie de l'encadrement d'une équipe ou d'un club sur FootLink ` +
+        `(ou tu es parent d'un joueur). Pour ne plus recevoir d'e-mails : FootLink → Mon profil → décocher « Recevoir les e-mails ».`;
+    const texte = `${bonjour}\n\n${n.texte}\n\n${bouton} : ${url}\n\n—\n${pied}` +
       (redirect ? `\n\n[TEST — destinataire réel : ${n.email}]` : "");
     const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1c1a17;max-width:560px">` +
-      `<p>Bonjour ${esc(n.prenom ?? "")},</p><p>${esc(n.texte).replace(/\n/g, "<br>")}</p>` +
-      `<p><a href="${esc(appUrl)}" style="display:inline-block;background:#00d68f;color:#0a1628;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold">Ouvrir FootLink</a></p>` +
-      `<p style="font-size:12px;color:#6b665a">Pour ne plus recevoir d'e-mails : FootLink → Mon profil → décocher « Recevoir les e-mails ».` +
+      `<p>${esc(bonjour)}</p><p>${esc(n.texte).replace(/\n/g, "<br>")}</p>` +
+      `<p><a href="${esc(url)}" style="display:inline-block;background:#00d68f;color:#0a1628;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold">${esc(bouton)}</a></p>` +
+      `<p style="font-size:12px;color:#6b665a">${esc(pied).replace(esc(appUrl), `<a href="${esc(appUrl)}" style="color:#6b665a">${esc(appUrl)}</a>`)}` +
       (redirect ? `<br>[TEST — destinataire réel : ${esc(n.email)}]` : "") + `</p></div>`;
     try {
       await smtp.envoyer(user, vers, `FootLink · ${n.titre}`, texte.replace(/\n/g, "\r\n"), html);

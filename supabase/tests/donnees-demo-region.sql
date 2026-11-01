@@ -286,6 +286,16 @@ do $a5$ begin
           md5('demo-reh-braives/U9')::uuid, 'delegue', null, 'Je peux aider le samedi matin.');
 end $a5$;
 
+-- Clubs sans compte (C5, si en place) : REH Braives a proposé par e-mail un match au
+-- « RFC Exemple » (club sans FootLink, adresse fictive) ; page de réponse : reponse.html?t=demo-proposition
+do $c5$ begin
+  if to_regclass('public.invitations_match') is null then return; end if;
+  insert into public.invitations_match (token, team_id, club_id, club_externe, equipe_externe, contact_nom, contact_email, jour, heure, lieu, message, statut, envoye_le, cree_par)
+  values ('demo-proposition', md5('demo-reh-braives/U10A')::uuid, (select id from public.clubs where slug = 'demo-reh-braives'),
+          'RFC Exemple', 'U10', 'Jean', 'jean@exemple.invalid', current_date + 12, '10:30', 'nous',
+          'Bonjour ! Match amical sur notre terrain synthétique, goûter offert après le match.', 'envoyee', now(), md5('david@demo.footcoach')::uuid);
+end $c5$;
+
 -- Résumé
 select c.nom as club, c.verifie,
        (select count(*) from public.teams t where t.club_id = c.id) as equipes,

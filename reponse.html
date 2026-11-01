@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0a1628">
+<title>Proposition de match — FootLink</title>
+<style>
+/* Réponse d'un club sans compte à une proposition de match (lien secret de l'e-mail).
+   Données via invitation_match_voir / invitation_match_repondre (rien d'autre n'est lisible). */
+:root{--band:#0a1628;--accent:#00d68f;--soft:#f2f5fa;--ink:#1c1a17;--ink2:#5d5646;--line:#e2e6ee;--red:#c62828;--font:'Segoe UI',system-ui,-apple-system,Arial,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--soft);color:var(--ink);font-family:var(--font);min-height:100vh;-webkit-text-size-adjust:100%}
+header{background:var(--band);color:#fff;padding:18px 16px 16px;border-bottom:5px solid var(--accent)}
+.brand{display:flex;align-items:center;gap:12px;max-width:560px;margin:0 auto}
+.crest{width:48px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:34px}
+.crest img{max-width:100%;max-height:100%;object-fit:contain}
+.brand h1{font-size:20px;line-height:1.15}
+.brand p{font-size:13px;opacity:.85;margin-top:3px}
+main{max-width:560px;margin:0 auto;padding:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.vs{font-size:18px;font-weight:700;line-height:1.3}
+.l{margin-top:10px;font-size:15px;display:flex;gap:8px}
+.l b{min-width:70px;color:var(--ink2);font-weight:600}
+.msg{margin-top:12px;background:var(--soft);border-left:4px solid var(--accent);padding:10px 12px;border-radius:8px;white-space:pre-wrap;font-size:14px}
+.btns{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+button{font-family:var(--font);font-size:16px;font-weight:700;border-radius:10px;padding:13px;cursor:pointer;border:2px solid var(--band)}
+.ok{background:var(--accent);border-color:var(--accent);color:var(--band)}
+.sec{background:#fff;color:var(--band)}
+.non{background:#fff;color:var(--red);border-color:#e8b4b4}
+label{display:block;font-size:13px;font-weight:600;color:var(--ink2);margin:10px 0 4px}
+input,select,textarea{width:100%;font-family:var(--font);font-size:16px;padding:10px;border:1px solid #c9d0dc;border-radius:8px;background:#fff;color:var(--ink)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.info{font-size:13px;color:var(--ink2);margin-top:10px}
+.etat{font-size:17px;font-weight:700;text-align:center;padding:8px}
+.err{color:var(--red);font-size:14px;margin-top:8px;min-height:1em}
+footer{text-align:center;font-size:12px;color:var(--ink2);padding:6px 16px 28px;line-height:1.6}
+footer a{color:var(--ink2)}
+.cache{display:none}
+</style>
+</head>
+<body>
+<header><div class="brand"><div class="crest" id="crest">⚽</div><div><h1 id="titre">Proposition de match</h1><p id="sous">via FootLink</p></div></div></header>
+<main id="main"><div class="card">Chargement…</div></main>
+<footer>FootLink — l'application gratuite des clubs de football de jeunes.<br>Votre club peut aussi l'utiliser : <a href="./">footlink.be</a> · <a href="confidentialite.html">Confidentialité</a></footer>
+<script>
+// Même base que scores.html : production, sauf sur le lien de démonstration (branche demo).
+const SB_DEMO=/^foot-coach-git-demo-/.test(location.hostname);
+const SB_URL=SB_DEMO?'https://shdmzyfdzczhwibwnvdn.supabase.co':'https://oejcfjthamzgnudofcwi.supabase.co';
+const SB_KEY=SB_DEMO?'sb_publishable_rXiHRcgsFm6TwzFapFckQA_shM52ilJ':'sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
+const TOKEN=(new URLSearchParams(location.search).get('t')||'').replace(/[^0-9a-zA-Z-]/g,'');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeLogo=l=>typeof l==='string'&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l)?l:null;
+const okColor=c=>/^#[0-9a-fA-F]{6}$/.test(c||'')?c:null;
+const rpc=(fn,body)=>fetch(`${SB_URL}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+const jour=d=>{const s=new Date(d+'T12:00').toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});return s.charAt(0).toUpperCase()+s.slice(1);};
+const auj=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+let P=null;
+
+async function charger(){
+  if(!TOKEN)return vide('Lien incomplet','Vérifiez le lien reçu par e-mail.');
+  try{
+    const r=await rpc('invitation_match_voir',{p_token:TOKEN});
+    if(!r.ok)throw 0;
+    P=await r.json();
+    if(!P)return vide('Lien inconnu','Cette proposition n\'existe pas ou a été retirée par le club.');
+    habiller();afficher();
+  }catch(e){vide('Connexion impossible','Vérifiez votre connexion et rechargez la page.');}
+}
+function vide(t,s){document.getElementById('main').innerHTML=`<div class="card"><div class="etat">${esc(t)}</div><p class="info" style="text-align:center">${esc(s)}</p></div>`;}
+function habiller(){
+  document.getElementById('titre').textContent=P.club;
+  document.getElementById('sous').textContent='vous propose un match';
+  document.title='Proposition de match — '+P.club;
+  const l=safeLogo(P.logo);if(l)document.getElementById('crest').innerHTML=`<img src="${l}" alt="">`;
+  const c2=okColor(P.couleur2)||okColor(P.couleur1);if(c2)document.documentElement.style.setProperty('--band',c2);
+  const c1=okColor(P.couleur1);if(c1)document.documentElement.style.setProperty('--accent',c1);
+}
+// lieu : 'nous' = chez le club qui propose ; 'eux' = chez vous (club qui reçoit l'e-mail)
+const lieuTxt=l=>l==='nous'?`Chez ${P.club}${P.adresse?' — '+P.adresse:''}`:'Chez vous';
+function resume(j,h,l){return `<div class="l"><b>Date</b><span>${esc(jour(j))}</span></div>
+  <div class="l"><b>Heure</b><span>${esc(h||'à convenir')}</span></div>
+  <div class="l"><b>Lieu</b><span>${esc(lieuTxt(l))}</span></div>`;}
+function afficher(){
+  const m=document.getElementById('main');
+  const tete=`<div class="vs">${esc(P.club)} ${esc(P.equipe||'')} <span style="color:var(--ink2);font-weight:500">contre</span> ${esc(P.club_externe)}${P.equipe_externe?' '+esc(P.equipe_externe):''}</div>
+    <div class="info">${esc(P.categorie||'')}${P.format?' · '+esc(P.format.replace('v',' contre ')):''}</div>`;
+  if(P.statut==='acceptee')return m.innerHTML=`<div class="card">${tete}${resume(P.reponse_jour||P.jour,P.reponse_heure||P.heure,P.reponse_lieu||P.lieu)}</div><div class="card"><div class="etat">✅ Match confirmé</div><p class="info" style="text-align:center">${esc(P.club)} a le match dans son calendrier. Bon match !</p></div>`;
+  if(P.statut==='refusee')return m.innerHTML=`<div class="card">${tete}</div><div class="card"><div class="etat">Proposition déclinée</div></div>`;
+  if(P.statut==='annulee')return m.innerHTML=`<div class="card">${tete}</div><div class="card"><div class="etat">Proposition retirée par ${esc(P.club)}</div></div>`;
+  if(P.statut==='contre')return m.innerHTML=`<div class="card">${tete}${resume(P.reponse_jour,P.reponse_heure,P.reponse_lieu)}</div><div class="card"><div class="etat">⏳ Votre proposition est envoyée</div><p class="info" style="text-align:center">${esc(P.club)} va l'accepter ou la refuser ; vous recevrez un e-mail.</p></div>`;
+  m.innerHTML=`<div class="card">${tete}${resume(P.jour,P.heure,P.lieu)}${P.message?`<div class="msg">${esc(P.message)}</div>`:''}</div>
+    <div class="card">
+      <label for="nom">Votre nom <span style="font-weight:400">(facultatif)</span></label><input id="nom" maxlength="100" value="${esc(P.contact_nom||'')}">
+      <label for="tel">Téléphone <span style="font-weight:400">(facultatif, transmis au club)</span></label><input id="tel" type="tel" maxlength="30">
+      <label for="msg">Message <span style="font-weight:400">(facultatif)</span></label><textarea id="msg" rows="2" maxlength="1000"></textarea>
+      <div class="btns" style="margin-top:14px">
+        <button class="ok" onclick="repondre('accepter')">✅ Accepter le match</button>
+        <button class="sec" onclick="document.getElementById('autre').classList.toggle('cache')">📅 Proposer une autre date</button>
+        <div id="autre" class="cache">
+          <div class="row"><div><label for="j">Date</label><input id="j" type="date" min="${auj()}"></div><div><label for="h">Heure</label><input id="h" type="time" value="${esc(P.heure||'10:00')}"></div></div>
+          <label for="li">Lieu</label><select id="li"><option value="eux">Chez nous (nous recevons)</option><option value="nous">Chez ${esc(P.club)}</option></select>
+          <button class="sec" style="width:100%;margin-top:10px" onclick="repondre('contre')">Envoyer cette proposition</button>
+        </div>
+        <button class="non" onclick="repondre('refuser')">Décliner</button>
+      </div>
+      <div class="err" id="err"></div>
+    </div>`;
+}
+async function repondre(action){
+  const v=id=>document.getElementById(id)?.value?.trim()||null;
+  const corps={p_token:TOKEN,p_action:action,p_message:v('msg'),p_nom:v('nom'),p_tel:v('tel')};
+  if(action==='contre'){corps.p_jour=v('j');corps.p_heure=v('h');corps.p_lieu=v('li');if(!corps.p_jour){document.getElementById('err').textContent='Choisissez une date.';return;}}
+  if(action==='refuser'&&!confirm('Décliner cette proposition de match ?'))return;
+  document.querySelectorAll('button').forEach(b=>b.disabled=true);
+  try{
+    const r=await rpc('invitation_match_repondre',corps);
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error((e.message||'').replace(/^.*?:\s*/,'')||'Réponse impossible');}
+    await charger();
+  }catch(e){document.getElementById('err').textContent=e.message;document.querySelectorAll('button').forEach(b=>b.disabled=false);}
+}
+charger();
+</script>
+</body>
+</html>
