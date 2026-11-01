@@ -5,11 +5,14 @@
 // ne reçoit aucune donnée et ne renvoie que des compteurs, donc l'appeler ne fait que
 // vider la file → déployée SANS vérification du jeton (« Verify JWT » décoché).
 // Secrets (Edge Functions → Secrets) :
-//   GMAIL_USER          adresse Gmail d'envoi (FC.adm.db@gmail.com)
-//   GMAIL_APP_PASSWORD  mot de passe d'APPLICATION Gmail (jamais le mot de passe du compte)
-//   APP_URL             adresse de l'app dans le pied des e-mails
-//   NOTIF_REDIRECT      (facultatif, projet de test) : tout envoyer à cette adresse
-// Sans GMAIL_APP_PASSWORD : mode simulation (rien n'est envoyé, file marquée « simule »).
+//   SMTP_HOST / SMTP_PORT  serveur d'envoi (OVH : ssl0.ovh.net / 465 ; port 465 obligatoire,
+//                          Supabase bloque le 587)
+//   SMTP_USER              adresse d'envoi complète (notifications@footlink.be)
+//   SMTP_PASSWORD          mot de passe de cette adresse
+//   (anciens secrets GMAIL_USER / GMAIL_APP_PASSWORD encore acceptés, serveur Gmail)
+//   APP_URL                adresse de l'app dans le pied des e-mails
+//   NOTIF_REDIRECT         (facultatif, projet de test) : tout envoyer à cette adresse
+// Sans mot de passe : mode simulation (rien n'est envoyé, file marquée « simule »).
 // Les adresses fictives des données de test / démo ne reçoivent jamais rien.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
@@ -22,8 +25,12 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 Deno.serve(async () => {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false, autoRefreshToken: false } });
-  const user = Deno.env.get("GMAIL_USER") ?? "";
-  const pass = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
+  // Adresse de footlink.be (OVH) ; à défaut, l'ancien envoi par Gmail
+  const smtpUser = Deno.env.get("SMTP_USER") ?? "";
+  const user = smtpUser || (Deno.env.get("GMAIL_USER") ?? "");
+  const pass = smtpUser ? (Deno.env.get("SMTP_PASSWORD") ?? "") : (Deno.env.get("GMAIL_APP_PASSWORD") ?? "");
+  const host = smtpUser ? (Deno.env.get("SMTP_HOST") ?? "ssl0.ovh.net") : "smtp.gmail.com";
+  const port = Number(Deno.env.get("SMTP_PORT") ?? "465");
   const appUrl = Deno.env.get("APP_URL") ?? "https://footlink.be";
   const redirect = Deno.env.get("NOTIF_REDIRECT") ?? "";
 
@@ -32,7 +39,7 @@ Deno.serve(async () => {
   if (!lot?.length) return json({ envoyes: 0 });
 
   const smtp = pass && user ? new SMTPClient({
-    connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: user, password: pass } },
+    connection: { hostname: host, port, tls: true, auth: { username: user, password: pass } },
   }) : null;
   const res = { envoyes: 0, simules: 0, echecs: 0 };
   for (const n of lot as { id: string; email: string; prenom: string; titre: string; texte: string }[]) {
