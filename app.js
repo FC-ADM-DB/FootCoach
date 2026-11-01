@@ -68,8 +68,17 @@ let markerDrag=null;                           // état transitoire du glisser d
 
 // ============ AUTH ============
 async function init(){const{data:{session}}=await sb.auth.getSession();if(session)await loadApp(session.user);}
+// Champs remplis automatiquement par le navigateur (identifiants enregistrés) : Chrome /
+// Edge ne transmettent leur valeur à la page qu'après une première action de l'utilisateur.
+// Au premier clic, les champs paraissaient remplis mais étaient lus vides (« Remplis tous
+// les champs ») : il fallait cliquer deux fois. On relit après un court instant.
+async function lireChamps(ids){
+  let v=ids.map(id=>document.getElementById(id).value);
+  if(v.some(x=>!x)){await new Promise(r=>setTimeout(r,150));v=ids.map(id=>document.getElementById(id).value);}
+  return v;
+}
 async function doLogin(){
-  const e=document.getElementById('li-email').value.trim(),p=document.getElementById('li-pwd').value;
+  let [e,p]=await lireChamps(['li-email','li-pwd']);e=e.trim();
   const btn=document.getElementById('btn-li');
   if(!e||!p)return showAErr('Remplis tous les champs.');
   btn.disabled=true;btn.textContent='…';
@@ -85,7 +94,7 @@ async function doLogin(){
 }
 async function doRegister(){
   const pn=document.getElementById('rp').value.trim(),nn=document.getElementById('rn').value.trim();
-  const e=document.getElementById('re').value.trim(),p=document.getElementById('rpw').value;
+  let [e,p]=await lireChamps(['re','rpw']);e=e.trim();
   const btn=document.getElementById('btn-reg');
   if(!pn||!nn||!e||!p)return showAErr('Remplis tous les champs.');
   if(p.length<8)return showAErr('8 caractères minimum.');
@@ -127,7 +136,7 @@ async function enregistrerNouveauMdp(){
   closeModal('modal-mdp');showToast('Nouveau mot de passe enregistré','ok');
 }
 async function doResetPassword(){
-  const e=document.getElementById('reset-email').value.trim();
+  const e=(await lireChamps(['reset-email']))[0].trim();
   const btn=document.getElementById('btn-reset');
   if(!e) return showAErr('Email requis.');
   btn.disabled=true;btn.textContent='Envoi...';
