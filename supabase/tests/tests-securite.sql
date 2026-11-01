@@ -55,6 +55,34 @@ begin
   return r;
 end $f$;
 
+-- C3 : destinataires (3 derniers caractères de l'id, triés) des e-mails « type » déposés
+-- par l'action q dans CETTE transaction, encore à envoyer ; l'action est ensuite annulée.
+create or replace function pg_temp.notif_dest(t text) returns text language sql security definer as $f$
+  select coalesce(string_agg(right(profile_id::text, 3), ',' order by profile_id), 'aucun')
+  from public.notifications where created_at = now() and type = t and statut = 'a_envoyer' $f$;
+create or replace function pg_temp.notif_test(q text, t text) returns text language plpgsql as $f$
+declare r text;
+begin
+  execute q;
+  r := pg_temp.notif_dest(t);
+  raise exception 'RES:%', r;
+exception when others then
+  if sqlerrm like 'RES:%' then return substr(sqlerrm, 5); end if;
+  return 'erreur: ' || sqlerrm;
+end $f$;
+-- C3 : l'e-mail de convocation est bien différé (envoyé dans ~10 minutes)
+create or replace function pg_temp.notif_differe(q text) returns text language plpgsql security definer as $f$
+declare r text;
+begin
+  execute q;
+  select case when min(envoyer_apres) > now() + interval '9 minutes' then 'differe' else 'immediat' end into r
+    from public.notifications where created_at = now() and type = 'convocation' and statut = 'a_envoyer';
+  raise exception 'RES:%', coalesce(r, 'aucun');
+exception when others then
+  if sqlerrm like 'RES:%' then return substr(sqlerrm, 5); end if;
+  return 'erreur: ' || sqlerrm;
+end $f$;
+
 -- Crée un club puis compte, dans une requête SUIVANTE, si l'appelant en est CQ
 -- (dans une même requête, la ligne tout juste créée n'est pas encore visible).
 create or replace function pg_temp.creer_club_et_verifier_cq() returns int language plpgsql as $$
@@ -748,6 +776,71 @@ insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[C6] inscriptions', 'refusé', pg_temp.essai($q$select 1 from mes_inscriptions()$q$)),
  ('Visiteur', '[C6] saisit un score', 'refusé', pg_temp.essai($q$select 1 from (select tournoi_score('a3000000-0000-4000-a000-000000000001', 1, 1, 'termine', null, null)) x$q$));
 reset role;
+-- ===== C3 notifications =====
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach B', '[C3] proposition directe envoyée → club et équipe A (CQ, coordinatrice, délégué)', '001,002,006', pg_temp.notif_test($q$select proposition_directe('10000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000a1', current_date + 15, '10:00', 'proposant', 'Salut')$q$, 'prop_recue')),
+ ('Coach B', '[C3] inscription au tournoi → organisateur (CQ et coordinatrice A)', '001,006', pg_temp.notif_test($q$select tournoi_inscrire('a1000000-0000-4000-a000-000000000004', '10000000-0000-4000-a000-0000000000b1')$q$, 'ins_recue')),
+ ('Coach B', '[C3] message sur son inscription → organisateur', '001,006', pg_temp.notif_test($q$select tournoi_message('a4000000-0000-4000-a000-000000000001', 'Bonjour')$q$, 'ins_message'));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Délégué A', '[C3] message sur une proposition → club et équipe B', '003', pg_temp.notif_test($q$select proposition_message('90000000-0000-4000-a000-000000000001', 'On confirme ?')$q$, 'prop_message')),
+ ('Délégué A', '[C3] suggère d''accepter → CQ et coordinatrice A', '001,006', pg_temp.notif_test($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'accepter')$q$, 'prop_suggestion')),
+ ('Délégué A', '[C3] prépare une proposition → CQ et coordinatrice A (à envoyer)', '001,006', pg_temp.notif_test($q$select proposition_directe('10000000-0000-4000-a000-0000000000a1', '10000000-0000-4000-a000-0000000000b1', current_date + 16, '10:00', 'annonceur')$q$, 'prop_a_envoyer'));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach A', '[C3] accepte une proposition → tout le monde sauf lui', '002,003,006', pg_temp.notif_test($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'accepter')$q$, 'prop_acceptee')),
+ ('Coach A', '[C3] refuse une proposition → club B', '003', pg_temp.notif_test($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'refuser')$q$, 'prop_refusee')),
+ ('Coach A', '[C3] contre-proposition → club B', '003', pg_temp.notif_test($q$select proposition_agir('90000000-0000-4000-a000-000000000001', 'contre', current_date + 20, '11:00', 'annonceur')$q$, 'prop_contre')),
+ ('Coach A', '[C3] accepte une inscription → club B', '003', pg_temp.notif_test($q$select tournoi_inscription_agir('a4000000-0000-4000-a000-000000000001', 'accepter')$q$, 'ins_acceptee')),
+ ('Coach A', '[C3] retire une équipe inscrite → club C', '008', pg_temp.notif_test($q$select tournoi_inscription_agir('a4000000-0000-4000-a000-000000000003', 'desister')$q$, 'ins_desistee')),
+ ('Coach A', '[C3] convoque un enfant → son parent', '007', pg_temp.notif_test($q$insert into convocations (match_id, player_id, statut) values ('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'present') on conflict (match_id, player_id) do update set statut = 'present'$q$, 'convocation')),
+ ('Coach A', '[C3] convocation envoyée 10 minutes plus tard', '1', pg_temp.essai($q$select 1 where pg_temp.notif_differe($c$insert into convocations (match_id, player_id, statut) values ('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'present') on conflict (match_id, player_id) do update set statut = 'present'$c$) = 'differe'$q$)),
+ ('Coach A', '[C3] convoque puis décoche → aucun e-mail', 'aucun', pg_temp.notif_test($q$insert into convocations (match_id, player_id, statut) values ('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'present') on conflict (match_id, player_id) do update set statut = 'present'; insert into convocations (match_id, player_id, statut) values ('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'absent') on conflict (match_id, player_id) do update set statut = 'absent'$q$, 'convocation')),
+ ('Coach A', '[C3] convoque deux fois → un seul e-mail', '007', pg_temp.notif_test($q$insert into convocations (match_id, player_id, statut) values ('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'present') on conflict (match_id, player_id) do update set statut = 'present'; insert into convocations (match_id, player_id, statut) values ('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'incertain') on conflict (match_id, player_id) do update set statut = 'incertain'; insert into convocations (match_id, player_id, statut) values ('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'present') on conflict (match_id, player_id) do update set statut = 'present'$q$, 'convocation')),
+ ('Coach A', '[C3] ne voit que ses propres notifications', '0', pg_temp.essai($q$select 1 from notifications where profile_id <> auth.uid()$q$)),
+ ('Coach A', '[C3] dépose un e-mail lui-même', 'refusé', pg_temp.essai($q$insert into notifications (profile_id, type, titre, texte) values ('00000000-0000-4000-a000-000000000007', 'x', 'x', 'x')$q$)),
+ ('Coach A', '[C3] appelle notif_ajouter', 'refusé', pg_temp.essai($q$select notif_ajouter(array['00000000-0000-4000-a000-000000000007'::uuid], 'x', 'x', 'x')$q$)),
+ ('Coach A', '[C3] réserve la file d''envoi', 'refusé', pg_temp.essai($q$select * from notif_reserver(10)$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000008","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('CQ C', '[C3] se désiste → organisateur', '001,006', pg_temp.notif_test($q$select tournoi_inscription_agir('a4000000-0000-4000-a000-000000000003', 'desister')$q$, 'ins_desistee'));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[C3] voit sa notification seulement', '1', pg_temp.essai($q$select 1 from notifications$q$)),
+ ('Parent A', '[C3] répond à une convocation → aucun e-mail', 'aucun', pg_temp.notif_test($q$select parent_repondre('40000000-0000-4000-a000-0000000000a2', '30000000-0000-4000-a000-0000000000a1', 'absent')$q$, 'convocation')),
+ ('Parent A', '[C3] coupe ses e-mails dans son profil', '1', pg_temp.essai($q$update profiles set notif_email = false where id = '00000000-0000-4000-a000-000000000007'$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000004","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Externe', '[C3] voit des notifications', '0', pg_temp.essai($q$select 1 from notifications$q$)),
+ ('Externe', '[C3] lit la configuration', '0', pg_temp.essai($q$select 1 from app_config$q$));
+reset role;
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[C3] voit des notifications', '0', pg_temp.essai($q$select 1 from notifications$q$)),
+ ('Visiteur', '[C3] réserve la file d''envoi', 'refusé', pg_temp.essai($q$select * from notif_reserver(10)$q$));
+reset role;
+update public.profiles set notif_email = false where id = '00000000-0000-4000-a000-000000000006';
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach B', '[C3] e-mails coupés par la coordinatrice → plus rien pour elle', '001,002', pg_temp.notif_test($q$select proposition_directe('10000000-0000-4000-a000-0000000000b1', '10000000-0000-4000-a000-0000000000a1', current_date + 17, '10:00', 'proposant')$q$, 'prop_recue'));
+reset role;
+update public.profiles set notif_email = true where id = '00000000-0000-4000-a000-000000000006';
 select set_config('request.jwt.claims', '', false);
 
 select n, qui, test, attendu, obtenu, case when attendu = obtenu then 'OK' else 'ÉCHEC' end as resultat

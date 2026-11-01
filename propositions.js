@@ -285,11 +285,16 @@ async function prAgir(action){
 // ------------------------------------------------------------ MON PROFIL (téléphone)
 function ouvrirProfil(){
   document.getElementById('pf-prenom').value=UP?.prenom||'';document.getElementById('pf-nom').value=UP?.nom||'';
-  document.getElementById('pf-tel').value=UP?.telephone||'';openModal('modal-profil');
+  document.getElementById('pf-tel').value=UP?.telephone||'';
+  // Case des e-mails (C3) : masquée tant que la colonne n'existe pas dans la base
+  document.getElementById('pf-notif-fg').style.display=UP&&'notif_email' in UP?'':'none';
+  document.getElementById('pf-notif').checked=UP?.notif_email!==false;
+  openModal('modal-profil');
 }
 async function enregistrerProfil(){
   const upd={prenom:document.getElementById('pf-prenom').value.trim(),nom:document.getElementById('pf-nom').value.trim(),
     telephone:document.getElementById('pf-tel').value.trim()||null};
+  if(UP&&'notif_email' in UP)upd.notif_email=document.getElementById('pf-notif').checked;
   if(!upd.prenom||!upd.nom)return showToast('Prénom et nom requis','err');
   const{error}=await sb.from('profiles').update(upd).eq('id',U.id);
   if(error)return showToast(/telephone/i.test(error.message)?'Téléphone pas encore disponible':error.message,'err');
