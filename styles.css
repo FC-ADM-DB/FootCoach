@@ -1021,3 +1021,10 @@ body.sans-role #page-home .srow,body.sans-role #page-home .qgrid,body.sans-role 
 .an-c .bsec,.an-c .badd{min-height:36px}
 .an-q{font-size:12px;color:var(--text3);text-align:center;margin-top:12px}
 .an-q a{color:var(--text3)}
+/* Demandes d'accès (demandes.js) */
+.da-bandeau{display:flex;justify-content:space-between;align-items:center;width:100%;margin:0 0 12px;padding:12px 14px;border-radius:var(--r);border:1px solid var(--amber-border);background:var(--amber-bg);color:var(--amber);font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;text-align:left}
+.da-l{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border)}
+.da-l:first-of-type{border-top:none}
+.da-n{font-size:14px;font-weight:600}
+.da-r{font-size:13px;margin-top:4px}
+.da-v{background:var(--bg3);border-radius:var(--r);padding:11px 12px;margin-bottom:8px}

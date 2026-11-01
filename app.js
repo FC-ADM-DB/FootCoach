@@ -282,12 +282,16 @@ function majAccueilNouveau(){
   const mail=esc(U.email||UP?.email||'');
   el.innerHTML=`<div class="an-t">Bienvenue sur FootLink 👋</div>
     <div class="an-s">Ton compte est prêt, mais il n'est relié à aucun club ni aucune équipe pour l'instant. Choisis ta situation :</div>
+    <div id="da-mes"></div>
     <div class="an-c"><div class="an-h">🏟 Je fais partie d'un club qui utilise FootLink</div>
-      <div class="an-p">Donne ton adresse au responsable de ton club (CQ, coordinateur) ou à l'entraîneur de ton équipe : il t'ajoutera depuis FootLink.</div>
+      <div class="an-p">Demande l'accès directement : le club (ou l'entraîneur de l'équipe) valide ta demande et tu reçois un e-mail.</div>
+      <button class="badd" onclick="daOuvrir('club')">Demander l'accès à mon club</button>
+      <div class="an-p" style="margin:10px 0 6px">Ou donne ton adresse au responsable du club, qui t'ajoutera lui-même :</div>
       <div class="an-mail"><b>${mail}</b><button class="bsec" onclick="copierMonEmail()">Copier</button></div>
       <button class="bsec" onclick="rechargerAcces()">J'ai été ajouté(e) : actualiser</button></div>
     <div class="an-c"><div class="an-h">👪 Je suis parent d'un joueur</div>
-      <div class="an-p">Demande à l'entraîneur de ton enfant le <b>lien d'invitation FootLink</b> (il le trouve sur la fiche de ton enfant). Ouvre-le une fois connecté(e) : tu seras relié(e) à ton enfant.</div></div>
+      <div class="an-p">Demande l'accès en indiquant le prénom de ton enfant : l'encadrement de l'équipe te relie à lui. Si l'entraîneur t'a envoyé un <b>lien d'invitation</b>, ouvre-le simplement une fois connecté(e).</div>
+      <button class="badd" onclick="daOuvrir('parent')">Demander l'accès comme parent</button></div>
     <div class="an-c"><div class="an-h">⚽ Je veux inscrire mon club</div>
       <div class="an-p">Crée la fiche de ton club : tu en deviens le responsable (CQ). Nous vérifions chaque nouveau club avant qu'il puisse publier des annonces ou des tournois.</div>
       <button class="badd" onclick="goPage('club')">Créer mon club</button></div>

@@ -83,6 +83,15 @@ exception when others then
   return 'erreur: ' || sqlerrm;
 end $f$;
 
+-- A5 : accepte une demande puis vérifie l'accès réellement donné (requête suivante)
+create or replace function pg_temp.accepter_verifier(p_d uuid, p_joueur uuid, p_verif text) returns text language plpgsql security definer as $f$
+declare n bigint;
+begin
+  perform public.demande_traiter(p_d, 'accepter', p_joueur);
+  execute p_verif into n;
+  return n::text;
+end $f$;
+
 -- Crée un club puis compte, dans une requête SUIVANTE, si l'appelant en est CQ
 -- (dans une même requête, la ligne tout juste créée n'est pas encore visible).
 create or replace function pg_temp.creer_club_et_verifier_cq() returns int language plpgsql as $$
@@ -851,6 +860,63 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-0000000
 set role authenticated;
 insert into r (qui, test, attendu, obtenu) values
  ('Admin', '[C3] crée un club lui-même → pas d''e-mail', 'aucun', pg_temp.notif_test($q$select create_club('TEST Club admin')$q$, 'club_a_verifier'));
+reset role;
+-- ===== A5 demandes =====
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000004","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Externe', '[A5] voit ses demandes (3)', '3', pg_temp.essai($q$select 1 from demandes_acces$q$)),
+ ('Externe', '[A5] annuaire : clubs vérifiés (A, B, REH)', '3', pg_temp.essai($q$select 1 from annuaire_clubs()$q$)),
+ ('Externe', '[A5] demande à être délégué de l''équipe A', '1', pg_temp.essai($q$select 1 where demande_creer('50000000-0000-4000-a000-0000000000a1', 'delegue', '10000000-0000-4000-a000-0000000000a1') is not null$q$)),
+ ('Externe', '[A5] demande la même chose deux fois', 'refusé', pg_temp.essai($q$select demande_creer('50000000-0000-4000-a000-0000000000a1', 'entraineur', '10000000-0000-4000-a000-0000000000a1')$q$)),
+ ('Externe', '[A5] demande dans un club non vérifié', 'refusé', pg_temp.essai($q$select demande_creer('50000000-0000-4000-a000-0000000000c1', 'coordinateur')$q$)),
+ ('Externe', '[A5] demande une équipe d''un autre club', 'refusé', pg_temp.essai($q$select demande_creer('50000000-0000-4000-a000-0000000000a1', 'entraineur', '10000000-0000-4000-a000-0000000000b1')$q$)),
+ ('Externe', '[A5] demande parent sans prénom d''enfant', 'refusé', pg_temp.essai($q$select demande_creer('50000000-0000-4000-a000-0000000000a1', 'parent', '10000000-0000-4000-a000-0000000000a1')$q$)),
+ ('Externe', '[A5] accepte sa propre demande', 'refusé', pg_temp.essai($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000001', 'accepter') = 'acceptee'$q$)),
+ ('Externe', '[A5] annule sa demande', '1', pg_temp.essai($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000001', 'annuler') = 'annulee'$q$)),
+ ('Externe', '[A5] lit l''effectif après sa demande parent', '0', pg_temp.essai($q$select 1 from players$q$)),
+ ('Externe', '[A5] demande d''équipe → club A + encadrement de l''équipe', '001,002,006', pg_temp.notif_test($q$select demande_creer('50000000-0000-4000-a000-0000000000a1', 'delegue', '10000000-0000-4000-a000-0000000000a1', null, 'Bonjour')$q$, 'acces_demande')),
+ ('Externe', '[A5] demande de coordinateur → club A seulement', '001,006', pg_temp.notif_test($q$select demande_traiter('b0000000-0000-4000-a000-000000000001', 'annuler'); select demande_creer('50000000-0000-4000-a000-0000000000a1', 'coordinateur', null, null, 'Je rejoins le comité')$q$, 'acces_demande'));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach A', '[A5] voit les 3 demandes à valider', '3', pg_temp.essai($q$select 1 from demandes_acces$q$)),
+ ('Coach A', '[A5] accepte le coordinateur → membre du club', '1', pg_temp.essai($q$select 1 where pg_temp.accepter_verifier('b0000000-0000-4000-a000-000000000001', null, $v$select count(*) from club_members where club_id = '50000000-0000-4000-a000-0000000000a1' and profile_id = '00000000-0000-4000-a000-000000000004' and role = 'coordinateur'$v$) = '1'$q$)),
+ ('Coach A', '[A5] accepte l''entraîneur → membre de l''équipe', '1', pg_temp.essai($q$select 1 where pg_temp.accepter_verifier('b0000000-0000-4000-a000-000000000002', null, $v$select count(*) from team_members where team_id = '10000000-0000-4000-a000-0000000000a1' and profile_id = '00000000-0000-4000-a000-000000000004' and role = 'entraineur'$v$) = '1'$q$)),
+ ('Coach A', '[A5] accepte le parent avec Léo → relié à Léo', '1', pg_temp.essai($q$select 1 where pg_temp.accepter_verifier('b0000000-0000-4000-a000-000000000003', '30000000-0000-4000-a000-0000000000a1', $v$select count(*) from parent_enfants where player_id = '30000000-0000-4000-a000-0000000000a1' and profile_id = '00000000-0000-4000-a000-000000000004'$v$) = '1'$q$)),
+ ('Coach A', '[A5] accepte le parent sans choisir l''enfant', 'refusé', pg_temp.essai($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000003', 'accepter') = 'acceptee'$q$)),
+ ('Coach A', '[A5] accepte le parent avec un enfant d''une autre équipe', 'refusé', pg_temp.essai($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000003', 'accepter', '30000000-0000-4000-a000-0000000000b1') = 'acceptee'$q$)),
+ ('Coach A', '[A5] refuse une demande', '1', pg_temp.essai($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000002', 'refuser', null, 'Équipe complète') = 'refusee'$q$)),
+ ('Coach A', '[A5] acceptation → e-mail au demandeur', '004', pg_temp.notif_test($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000002', 'accepter') = 'acceptee'$q$, 'acces_accepte')),
+ ('Coach A', '[A5] refus → e-mail au demandeur', '004', pg_temp.notif_test($q$select demande_traiter('b0000000-0000-4000-a000-000000000002', 'refuser')$q$, 'acces_refuse'));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Délégué A', '[A5] voit les demandes de son équipe (pas le coordinateur)', '2', pg_temp.essai($q$select 1 from demandes_acces$q$)),
+ ('Délégué A', '[A5] accepte l''entraîneur de son équipe', '1', pg_temp.essai($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000002', 'accepter') = 'acceptee'$q$)),
+ ('Délégué A', '[A5] accepte un coordinateur', 'refusé', pg_temp.essai($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000001', 'accepter') = 'acceptee'$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach B', '[A5] voit les demandes du club A', '0', pg_temp.essai($q$select 1 from demandes_acces$q$)),
+ ('Coach B', '[A5] accepte une demande du club A', 'refusé', pg_temp.essai($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000002', 'accepter') = 'acceptee'$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[A5] voit les demandes', '0', pg_temp.essai($q$select 1 from demandes_acces$q$)),
+ ('Parent A', '[A5] accepte une demande', 'refusé', pg_temp.essai($q$select 1 where demande_traiter('b0000000-0000-4000-a000-000000000003', 'accepter', '30000000-0000-4000-a000-0000000000a1') = 'acceptee'$q$));
+reset role;
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[A5] voit les demandes', '0', pg_temp.essai($q$select 1 from demandes_acces$q$)),
+ ('Visiteur', '[A5] annuaire des clubs', 'refusé', pg_temp.essai($q$select 1 from annuaire_clubs()$q$)),
+ ('Visiteur', '[A5] crée une demande', 'refusé', pg_temp.essai($q$select demande_creer('50000000-0000-4000-a000-0000000000a1', 'coordinateur')$q$));
 reset role;
 select set_config('request.jwt.claims', '', false);
 
