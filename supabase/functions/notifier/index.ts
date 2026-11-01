@@ -23,6 +23,11 @@ const FICTIVES = /@(test|demo)\.footcoach$/i;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 
 Deno.serve(async () => {
+  try { return await vider(); }
+  catch (e) { return json({ error: String((e as Error)?.message ?? e) }, 500); }
+});
+
+async function vider(): Promise<Response> {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false, autoRefreshToken: false } });
   // Adresse de footlink.be (OVH) ; à défaut, l'ancien envoi par Gmail
@@ -68,6 +73,8 @@ Deno.serve(async () => {
       res.echecs++;
     }
   }
-  if (smtp) await smtp.close();
+  // Une connexion refusée (mot de passe, serveur) fait aussi échouer la fermeture : sans ce
+  // try, la fonction plantait (« Internal Server Error ») au lieu de rendre son bilan.
+  try { if (smtp) await smtp.close(); } catch (_) { /* déjà fermée */ }
   return json(res);
-});
+}
