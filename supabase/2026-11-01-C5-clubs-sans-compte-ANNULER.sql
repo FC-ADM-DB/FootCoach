@@ -19,6 +19,10 @@ drop function if exists public.invitation_club_creer(uuid, text, text, text, tex
 drop function if exists public.invitation_club_info(text);
 drop function if exists public.invitation_club_utiliser(text, uuid);
 drop function if exists public.envois_externes_du_jour(uuid);
+drop function if exists public.annonce_partager(uuid);
+drop function if exists public.annonce_publique(text);
+drop function if exists public.annonce_repondre_public(text, date, time, text, text, text, text, text, text, text);
+alter table public.annonces drop column if exists lien_public;
 drop function if exists public.notif_ajouter_externe(text, text, text, text, text, text, text);
 
 delete from public.notifications where profile_id is null;

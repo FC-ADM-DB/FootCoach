@@ -288,6 +288,8 @@ do $c5$ begin
         where id = 'c0000000-0000-4000-a000-000000000002';
       insert into public.invitations_club (id, token, club_id, email, club_nom, created_at) values
         ('c1000000-0000-4000-a000-000000000001', 'test-ic', '50000000-0000-4000-a000-0000000000a1', 'invite@exemple.invalid', 'Club Invité', now() - interval '2 days');
+      -- Annonce AN1 partagée (lien public « test-annonce »)
+      update public.annonces set lien_public = 'test-annonce' where id = '60000000-0000-4000-a000-000000000001';
     $c$;
   end if;
 end $c5$;

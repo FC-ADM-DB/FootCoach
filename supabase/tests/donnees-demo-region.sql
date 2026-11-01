@@ -294,6 +294,10 @@ do $c5$ begin
   values ('demo-proposition', md5('demo-reh-braives/U10A')::uuid, (select id from public.clubs where slug = 'demo-reh-braives'),
           'RFC Exemple', 'U10', 'Jean', 'jean@exemple.invalid', current_date + 12, '10:30', 'nous',
           'Bonjour ! Match amical sur notre terrain synthétique, goûter offert après le match.', 'envoyee', now(), md5('david@demo.footcoach')::uuid);
+  -- Annonce publiée de REH Braives partagée (post Facebook) : annonce.html?a=demo-annonce
+  update public.annonces set lien_public = 'demo-annonce'
+   where id = (select id from public.annonces where club_id = (select id from public.clubs where slug = 'demo-reh-braives')
+               and statut = 'publiee' order by created_at limit 1);
 end $c5$;
 
 -- Résumé
