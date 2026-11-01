@@ -89,9 +89,11 @@ async function doRegister(){
   const btn=document.getElementById('btn-reg');
   if(!pn||!nn||!e||!p)return showAErr('Remplis tous les champs.');
   if(p.length<8)return showAErr('8 caractères minimum.');
+  if(!document.getElementById('r-cgu').checked)return showAErr('Accepte les conditions d\'utilisation et la politique de confidentialité.');
   btn.disabled=true;btn.textContent='…';
   try {
-    const {error} = await sb.auth.signUp({email:e,password:p,options:{data:{prenom:pn,nom:nn}}});
+    // Date d'acceptation des conditions gardée avec le compte (preuve de l'accord, RGPD)
+    const {error} = await sb.auth.signUp({email:e,password:p,options:{data:{prenom:pn,nom:nn,cgu_acceptees:new Date().toISOString()}}});
     if(error) return showAErr(error.message);
     const el=document.getElementById('aerr');el.textContent='Compte créé ! Vérifie ton email.';el.style.color='var(--green)';el.classList.add('show');
   } catch(err) {

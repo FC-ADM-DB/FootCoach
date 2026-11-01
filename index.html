@@ -47,10 +47,12 @@
         </div>
         <div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="re" placeholder="ton@email.com" autocomplete="email"></div>
         <div class="fg"><label class="fl">Mot de passe</label><input class="fi" type="password" id="rpw" placeholder="8 caractères minimum" autocomplete="new-password"></div>
+        <label class="auth-cgu"><input type="checkbox" id="r-cgu"> J'accepte les <a href="conditions.html" target="_blank" rel="noopener">conditions d'utilisation</a> et la <a href="confidentialite.html" target="_blank" rel="noopener">politique de confidentialité</a></label>
         <button class="bp" id="btn-reg" onclick="doRegister()">Créer mon compte</button>
         <div class="auth-sw">Déjà un compte ? <a href="#" onclick="toggleForm()">Se connecter</a></div>
       </div>
     </div>
+    <div class="auth-legal"><a href="confidentialite.html" target="_blank" rel="noopener">Confidentialité</a> · <a href="conditions.html" target="_blank" rel="noopener">Conditions</a> · <a href="mailto:contact@footlink.be">contact@footlink.be</a></div>
   </div>
 </div>
 
@@ -387,6 +389,7 @@
       <button class="umenu-item pa-cache" onclick="closeUserMenu();goPage('reseau')"><span>🤝</span><span>Trouver un match</span><b class="umenu-badge" id="umenu-prop-badge" style="display:none"></b></button>
       <button class="umenu-item" id="umenu-cal" onclick="closeUserMenu();ouvrirCalendrier()" style="display:none"><span>📅</span><span>Calendrier du club</span></button>
       <button class="umenu-item" onclick="closeUserMenu();ouvrirProfil()"><span>👤</span><span>Mon profil</span></button>
+      <a class="umenu-item" href="confidentialite.html" target="_blank" rel="noopener" onclick="closeUserMenu()" style="text-decoration:none"><span>🔒</span><span>Confidentialité &amp; conditions</span></a>
       <a class="umenu-item" id="umenu-demo" href="https://foot-coach-git-demo-fc-adm-dbs-projects.vercel.app" target="_blank" rel="noopener" onclick="closeUserMenu()" style="display:none;text-decoration:none"><span>🧪</span><span>Lien de démo</span></a>
       <button class="umenu-item" id="umenu-plateforme" onclick="closeUserMenu();goPage('plateforme')" style="display:none"><span>🛡</span><span>Gestion des clubs</span></button>
       <button class="umenu-item" id="umenu-admin" onclick="closeUserMenu();goAdmin()" style="display:none"><span>🛠</span><span>Membres &amp; accès</span></button>
