@@ -92,6 +92,21 @@ begin
   return n::text;
 end $f$;
 
+-- C5 : adresses externes des e-mails « type » déposés par q dans cette transaction
+create or replace function pg_temp.notif_ext(q text, t text) returns text language plpgsql as $f$
+declare r text;
+begin
+  execute q;
+  select coalesce(string_agg(email_externe, ',' order by email_externe), 'aucun') into r
+    from public.notifications where created_at = now() and type = t and profile_id is null;
+  raise exception 'RES:%', r;
+exception when others then
+  if sqlerrm like 'RES:%' then return substr(sqlerrm, 5); end if;
+  return 'erreur: ' || sqlerrm;
+end $f$;
+-- C5 : la lecture des e-mails externes exige les droits du propriétaire (file privée)
+alter function pg_temp.notif_ext(text, text) security definer;
+
 -- Crée un club puis compte, dans une requête SUIVANTE, si l'appelant en est CQ
 -- (dans une même requête, la ligne tout juste créée n'est pas encore visible).
 create or replace function pg_temp.creer_club_et_verifier_cq() returns int language plpgsql as $$
@@ -917,6 +932,64 @@ insert into r (qui, test, attendu, obtenu) values
  ('Visiteur', '[A5] voit les demandes', '0', pg_temp.essai($q$select 1 from demandes_acces$q$)),
  ('Visiteur', '[A5] annuaire des clubs', 'refusé', pg_temp.essai($q$select 1 from annuaire_clubs()$q$)),
  ('Visiteur', '[A5] crée une demande', 'refusé', pg_temp.essai($q$select demande_creer('50000000-0000-4000-a000-0000000000a1', 'coordinateur')$q$));
+reset role;
+-- ===== C5 clubs sans compte =====
+reset role;
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[C5] voit la proposition avec le lien', '1', pg_temp.essai($q$select 1 where invitation_match_voir('test-im-envoyee') is not null$q$)),
+ ('Visiteur', '[C5] lien inconnu', '0', pg_temp.essai($q$select 1 where invitation_match_voir('mauvais-lien') is not null$q$)),
+ ('Visiteur', '[C5] lit la table des propositions par e-mail', '0', pg_temp.essai($q$select 1 from invitations_match$q$)),
+ ('Visiteur', '[C5] accepte avec le lien', '1', pg_temp.essai($q$select 1 where invitation_match_repondre('test-im-envoyee', 'accepter', null, null, null, 'OK pour nous', 'Paul', '0470 00 00 00') = 'acceptee'$q$)),
+ ('Visiteur', '[C5] acceptation → e-mail au club (CQ, coordinatrice, délégué)', '001,002,006', pg_temp.notif_test($q$select invitation_match_repondre('test-im-envoyee', 'accepter')$q$, 'im_acceptee')),
+ ('Visiteur', '[C5] autre date → e-mail au club', '001,002,006', pg_temp.notif_test($q$select invitation_match_repondre('test-im-envoyee', 'contre', current_date + 21, '15:00', 'eux', 'Plutôt le dimanche')$q$, 'im_contre')),
+ ('Visiteur', '[C5] répond à une proposition déjà en contre-proposition', 'refusé', pg_temp.essai($q$select invitation_match_repondre('test-im-contre', 'accepter')$q$)),
+ ('Visiteur', '[C5] répond avec un lien inconnu', 'refusé', pg_temp.essai($q$select invitation_match_repondre('mauvais-lien', 'accepter')$q$)),
+ ('Visiteur', '[C5] infos de l''invitation à rejoindre', '1', pg_temp.essai($q$select 1 where invitation_club_info('test-ic') is not null$q$)),
+ ('Visiteur', '[C5] crée une proposition', 'refusé', pg_temp.essai($q$select invitation_match_creer('10000000-0000-4000-a000-0000000000a1', 'FC Nouveau', 'U10', 'coach@exemple.invalid', 'Marc', current_date + 20, '10:00', 'nous', 'Bonjour')$q$)),
+ ('Visiteur', '[C5] invite un club', 'refusé', pg_temp.essai($q$select invitation_club_creer('50000000-0000-4000-a000-0000000000a1', 'x@exemple.invalid')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000001","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach A', '[C5] voit les propositions par e-mail de son équipe (2)', '2', pg_temp.essai($q$select 1 from invitations_match$q$)),
+ ('Coach A', '[C5] envoie une proposition → e-mail à l''adresse externe', 'coach@exemple.invalid', pg_temp.notif_ext($q$select invitation_match_creer('10000000-0000-4000-a000-0000000000a1', 'FC Nouveau', 'U10', 'coach@exemple.invalid', 'Marc', current_date + 20, '10:00', 'nous', 'Bonjour')$q$, 'im_proposition')),
+ ('Coach A', '[C5] accepte la contre-proposition → match créé', '1', pg_temp.essai($q$select 1 where invitation_match_agir('c0000000-0000-4000-a000-000000000002', 'accepter_contre') = 'acceptee'$q$)),
+ ('Coach A', '[C5] accepte la contre-proposition → e-mail au club extérieur', 'sc@exemple.invalid', pg_temp.notif_ext($q$select invitation_match_agir('c0000000-0000-4000-a000-000000000002', 'accepter_contre')$q$, 'im_confirme')),
+ ('Coach A', '[C5] refuse la contre-proposition', '1', pg_temp.essai($q$select 1 where invitation_match_agir('c0000000-0000-4000-a000-000000000002', 'refuser_contre') = 'refusee'$q$)),
+ ('Coach A', '[C5] proposition avec une adresse invalide', 'refusé', pg_temp.essai($q$select invitation_match_creer('10000000-0000-4000-a000-0000000000a1', 'FC X', null, 'pas-une-adresse', null, current_date + 20, null, 'nous')$q$)),
+ ('Coach A', '[C5] invite un club → e-mail d''invitation', 'nouveau@exemple.invalid', pg_temp.notif_ext($q$select invitation_club_creer('50000000-0000-4000-a000-0000000000a1', 'nouveau@exemple.invalid', 'Luc', 'RFC Nouveau')$q$, 'ic_invitation')),
+ ('Coach A', '[C5] voit les invitations de son club', '1', pg_temp.essai($q$select 1 from invitations_club$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Délégué A', '[C5] voit les propositions par e-mail de son équipe', '2', pg_temp.essai($q$select 1 from invitations_match$q$)),
+ ('Délégué A', '[C5] prépare une proposition → CQ et coordinatrice (à envoyer)', '001,006', pg_temp.notif_test($q$select invitation_match_creer('10000000-0000-4000-a000-0000000000a1', 'FC Nouveau', 'U10', 'coach@exemple.invalid', 'Marc', current_date + 20, '10:00', 'nous', 'Bonjour')$q$, 'im_a_envoyer')),
+ ('Délégué A', '[C5] sa proposition préparée ne part pas encore', 'aucun', pg_temp.notif_ext($q$select invitation_match_creer('10000000-0000-4000-a000-0000000000a1', 'FC Nouveau', 'U10', 'coach@exemple.invalid', 'Marc', current_date + 20, '10:00', 'nous', 'Bonjour')$q$, 'im_proposition')),
+ ('Délégué A', '[C5] accepte une contre-proposition', 'refusé', pg_temp.essai($q$select invitation_match_agir('c0000000-0000-4000-a000-000000000002', 'accepter_contre')$q$)),
+ ('Délégué A', '[C5] invite un club', 'refusé', pg_temp.essai($q$select invitation_club_creer('50000000-0000-4000-a000-0000000000a1', 'x@exemple.invalid')$q$)),
+ ('Délégué A', '[C5] voit les invitations du club', '0', pg_temp.essai($q$select 1 from invitations_club$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach B', '[C5] voit les propositions du club A', '0', pg_temp.essai($q$select 1 from invitations_match$q$)),
+ ('Coach B', '[C5] accepte une contre-proposition du club A', 'refusé', pg_temp.essai($q$select invitation_match_agir('c0000000-0000-4000-a000-000000000002', 'accepter_contre')$q$)),
+ ('Coach B', '[C5] invite au nom du club A', 'refusé', pg_temp.essai($q$select invitation_club_creer('50000000-0000-4000-a000-0000000000a1', 'x@exemple.invalid')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[C5] voit les propositions', '0', pg_temp.essai($q$select 1 from invitations_match$q$)),
+ ('Parent A', '[C5] crée une proposition', 'refusé', pg_temp.essai($q$select invitation_match_creer('10000000-0000-4000-a000-0000000000a1', 'FC Nouveau', 'U10', 'coach@exemple.invalid', 'Marc', current_date + 20, '10:00', 'nous', 'Bonjour')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000004","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Externe', '[C5] rejoint FootLink via l''invitation → le club A est prévenu', '001,006', pg_temp.notif_test($q$select invitation_club_utiliser('test-ic', create_club('RFC Invité'))$q$, 'ic_acceptee')),
+ ('Externe', '[C5] utilise l''invitation pour un club dont il n''est pas CQ', 'refusé', pg_temp.essai($q$select invitation_club_utiliser('test-ic', '50000000-0000-4000-a000-0000000000a1')$q$));
 reset role;
 select set_config('request.jwt.claims', '', false);
 

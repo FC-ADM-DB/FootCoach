@@ -274,6 +274,23 @@ do $a5$ begin
     $c$;
   end if;
 end $a5$;
+-- Clubs sans compte (C5, si en place) : IM1 proposition envoyée (lien « test-im-envoyee »),
+-- IM2 contre-proposition reçue (« test-im-contre »), IC1 invitation à rejoindre (« test-ic »).
+do $c5$ begin
+  if to_regclass('public.invitations_match') is not null then
+    execute $c$
+      insert into public.invitations_match (id, token, team_id, club_id, club_externe, equipe_externe, contact_nom, contact_email, jour, heure, lieu, statut, envoye_le) values
+        ('c0000000-0000-4000-a000-000000000001', 'test-im-envoyee', '10000000-0000-4000-a000-0000000000a1', '50000000-0000-4000-a000-0000000000a1',
+         'FC Extérieur', 'U10', 'Paul', 'paul@exemple.invalid', current_date + 14, '10:00', 'nous', 'envoyee', now() - interval '2 days'),
+        ('c0000000-0000-4000-a000-000000000002', 'test-im-contre', '10000000-0000-4000-a000-0000000000a1', '50000000-0000-4000-a000-0000000000a1',
+         'SC Ailleurs', null, null, 'sc@exemple.invalid', current_date + 15, '11:00', 'eux', 'contre', now() - interval '2 days');
+      update public.invitations_match set reponse_jour = current_date + 16, reponse_heure = '14:00', reponse_lieu = 'eux'
+        where id = 'c0000000-0000-4000-a000-000000000002';
+      insert into public.invitations_club (id, token, club_id, email, club_nom, created_at) values
+        ('c1000000-0000-4000-a000-000000000001', 'test-ic', '50000000-0000-4000-a000-0000000000a1', 'invite@exemple.invalid', 'Club Invité', now() - interval '2 days');
+    $c$;
+  end if;
+end $c5$;
 insert into public.player_notes (player_id, auteur_id, note) values
   ('30000000-0000-4000-a000-0000000000a1', '00000000-0000-4000-a000-000000000001', 'Note de test (club A)');
 
