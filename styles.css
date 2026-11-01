@@ -1008,3 +1008,16 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .auth-legal{text-align:center;font-size:12px;color:var(--text3);margin-top:16px}
 .auth-legal a{color:var(--text3)}
 .aerr.ok{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
+/* Accueil d'un compte sans rôle : les 3 chemins (club, parent, créer son club) */
+#accueil-nouveau{display:none}
+body.sans-role #accueil-nouveau{display:block}
+body.sans-role #page-home .srow,body.sans-role #page-home .qgrid,body.sans-role #page-home .sh:has(+#home-next),body.sans-role #home-next{display:none}
+.an-t{font-size:17px;font-weight:700;margin:4px 0 4px}
+.an-s{font-size:13px;color:var(--text2);margin-bottom:12px}
+.an-c{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:13px;margin-bottom:9px}
+.an-h{font-size:14px;font-weight:700;margin-bottom:5px}
+.an-p{font-size:13px;color:var(--text2);line-height:1.45;margin-bottom:9px}
+.an-mail{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg3);border-radius:var(--rsm);padding:8px 10px;margin-bottom:9px;font-size:14px;word-break:break-all}
+.an-c .bsec,.an-c .badd{min-height:36px}
+.an-q{font-size:12px;color:var(--text3);text-align:center;margin-top:12px}
+.an-q a{color:var(--text3)}
