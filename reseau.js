@@ -50,12 +50,12 @@ async function renderReseauPage(){
   rsMine=data||[];
   const nVal=rsMine.filter(a=>a.statut==='a_valider'&&isClubStaff(a.club_id)).length;
   const tab=(k,l)=>`<button class="${rsTab===k?'on':''}" onclick="rsTab='${k}';renderReseauPage()">${l}</button>`;
-  const nProp=typeof prListe!=='undefined'?prListe.filter(prAFaire).length:0;
+  const nProp=typeof prListe!=='undefined'?prListe.filter(prAFaire).length+(typeof imListe!=='undefined'&&typeof imAFaire==='function'?imListe.filter(imAFaire).length:0):0;
   el.innerHTML=`<div class="rs-tabs">${tab('annonces','Annonces')}${tab('propositions',`Propositions${nProp?` <span class="rs-count">${nProp}</span>`:''}`)}${typeof trnReseauRender==='function'?tab('tournois',`Tournois${(()=>{const n=(typeof trnInscr!=='undefined'?trnInscr:[]).filter(i=>i.a_traiter&&i.cote==='inscrit').length;return n?` <span class="rs-count">${n}</span>`:''})()}`):''}${tab('mine','Mes annonces')}${canVal?tab('valider',`À valider${nVal?` <span class="rs-count">${nVal}</span>`:''}`):''}</div><div id="rs-body"><div class="spin"></div></div>`;
   if(rsTab==='annonces')return rsRenderAnnonces();
   if(rsTab==='propositions')return typeof prRenderListe==='function'?prRenderListe():null;
   if(rsTab==='tournois')return trnReseauRender();
-  rsRenderMine(rsTab==='valider');
+  await rsChargerPropAnn();rsRenderMine(rsTab==='valider');
 }
 
 // ------------------------------------------------------------ ONGLET « ANNONCES »
@@ -200,6 +200,15 @@ function rsCarte(a,T){
 }
 
 // ------------------------------------------------------------ « MES ANNONCES » / « À VALIDER »
+// Propositions en attente par annonce : FootLink (prListe) + réponses par e-mail / lien partagé (invitations_match)
+let rsPropAnn={};
+const rsPropDe=id=>rsPropAnn[id]||0;
+async function rsChargerPropAnn(){
+  const ids=rsMine.map(a=>a.id);rsPropAnn={};if(!ids.length)return;
+  if(typeof prListe!=='undefined')prListe.forEach(p=>{if(p.annonce_id&&ids.includes(p.annonce_id)&&['a_valider','envoyee','contre'].includes(p.statut)&&p.decide)rsPropAnn[p.annonce_id]=(rsPropAnn[p.annonce_id]||0)+1;});
+  const{data}=await sb.from('invitations_match').select('annonce_id').in('annonce_id',ids).in('statut',['a_valider','contre']);
+  (data||[]).forEach(i=>{rsPropAnn[i.annonce_id]=(rsPropAnn[i.annonce_id]||0)+1;});
+}
 function rsRenderMine(validation){
   const body=document.getElementById('rs-body');
   let list=rsMine;
@@ -225,6 +234,7 @@ function rsRenderMine(validation){
         <div class="rs-sub">${esc(AN_ZONES[a.zone])}${a.zone==='distance'?' '+a.distance_km+' km':''} · ${esc(AN_LIEUX[a.lieu])}</div></div>
         <span class="pill ${cls}">${lbl}</span></div>
       ${cr.length?`<div class="rs-chips">${cr.map(c=>`<span class="${c.statut==='pris'?'pris':''}">${esc(creneauTxt(c))}</span>`).join('')}</div>`:'<div class="rs-line" style="color:var(--amber)">Aucun créneau</div>'}
+      ${rsPropDe(a.id)?`<div class="rs-ok" style="cursor:pointer" onclick="rsTab='propositions';renderReseauPage()">📥 ${rsPropDe(a.id)} proposition${rsPropDe(a.id)>1?'s':''} à traiter sur cette annonce — voir</div>`:''}
       ${a.statut==='refusee'&&a.commentaire_validation?`<div class="rs-warn">Refusée par le coordinateur : ${esc(a.commentaire_validation)}</div>`:''}
       <div class="rs-acts">${acts.join('')}</div>
     </div>`;}).join('');
@@ -261,7 +271,9 @@ let anDepuisCal=false;
 function anOpen(id,preset){
   const a=id?rsMine.find(x=>x.id===id):null;
   anDepuisCal=!!preset;
-  const t=rsTeam(a?.team_id||preset?.team_id||rsTeamId)||rsStaffTeams()[0];
+  // Seules les équipes rattachées à un club peuvent publier : le trigger guard_annonce refuse les autres
+  const st=rsStaffTeams(),t=st.find(x=>x.id===(a?.team_id||preset?.team_id||rsTeamId))||st[0];
+  if(!t)return showToast('Rattache ton équipe à un club avant de publier une annonce','err');
   anEdit={id:a?.id||null,team_id:t.id,type:a?.type||'amical',lieu:a?.lieu||'indifferent',
     format:a?.format||t.format,duree_mt:a?.duree_mt||HALF_MIN[t.format]||'',zone:a?.zone||'province',
     distance_km:a?.distance_km||30,message:a?.message||'',statut:a?.statut||'brouillon',commentaire:a?.commentaire_validation||''};

@@ -62,6 +62,18 @@ async function imEnvoyer(){
 
 // ---- Suivi dans l'onglet Propositions ----
 async function imCharger(){const{data,error}=await sb.rpc('mes_invitations_match');imListe=error?null:(data||[]);return imListe;}
+// Les réponses par e-mail / lien d'annonce « à décider » comptent dans les pastilles (menu, accueil, onglet) :
+// sans ça, une réponse à une annonce partagée n'était signalée nulle part
+const imAFaire=i=>i.decide&&(i.statut==='contre'||i.statut==='a_valider');
+const imMajCompte=prMajCompte;
+prMajCompte=async function(){
+  const n=await imMajCompte.apply(this,arguments);
+  if(n===undefined)return n;
+  await imCharger();
+  const t=n+(imListe||[]).filter(imAFaire).length;
+  ['umenu-prop-badge','home-prop-badge'].forEach(id=>{const b=document.getElementById(id);if(b){b.textContent=t>99?'99+':t;b.style.display=t?'':'none';}});
+  return t;
+};
 const imRenderListe=prRenderListe;
 prRenderListe=async function(){
   await imRenderListe.apply(this,arguments);
