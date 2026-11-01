@@ -5,6 +5,10 @@ const SB_DEMO=/^foot-coach-git-demo-/.test(location.hostname);
 const SB_URL=SB_DEMO?'https://shdmzyfdzczhwibwnvdn.supabase.co':'https://oejcfjthamzgnudofcwi.supabase.co';
 const SB_KEY=SB_DEMO?'sb_publishable_rXiHRcgsFm6TwzFapFckQA_shM52ilJ':'sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
 const sb=supabase.createClient(SB_URL,SB_KEY);
+// Lien « mot de passe oublié » ouvert : la session de récupération connecte la personne,
+// il faut ENCORE lui faire choisir un nouveau mot de passe (sinon l'ancien reste valable
+// et elle ne sait pas comment se reconnecter la fois suivante).
+sb.auth.onAuthStateChange(ev=>{if(ev==='PASSWORD_RECOVERY')setTimeout(()=>openModal('modal-mdp'),300);});
 if(SB_DEMO)document.addEventListener('DOMContentLoaded',()=>{const b=document.createElement('div');b.className='demo-banner';b.textContent='🧪 DÉMO — base de test, données fictives';document.body.appendChild(b);});
 
 // STATE
@@ -100,6 +104,15 @@ function showAErr(m){const el=document.getElementById('aerr');el.textContent=m;e
 function toggleForm(){const il=document.getElementById('form-login').style.display!=='none';document.getElementById('form-login').style.display=il?'none':'block';document.getElementById('form-reg').style.display=il?'block':'none';document.getElementById('form-reset').style.display='none';document.getElementById('aerr').classList.remove('show');}
 function showResetForm(){document.getElementById('form-login').style.display='none';document.getElementById('form-reg').style.display='none';document.getElementById('form-reset').style.display='block';document.getElementById('aerr').classList.remove('show');}
 function showLoginForm(){document.getElementById('form-login').style.display='block';document.getElementById('form-reg').style.display='none';document.getElementById('form-reset').style.display='none';document.getElementById('aerr').classList.remove('show');}
+async function enregistrerNouveauMdp(){
+  const a=document.getElementById('mdp-1').value,b=document.getElementById('mdp-2').value;
+  if(a.length<6)return showToast('Au moins 6 caractères','err');
+  if(a!==b)return showToast('Les deux mots de passe sont différents','err');
+  const{error}=await sb.auth.updateUser({password:a});
+  if(error)return showToast(error.message,'err');
+  document.getElementById('mdp-1').value='';document.getElementById('mdp-2').value='';
+  closeModal('modal-mdp');showToast('Nouveau mot de passe enregistré','ok');
+}
 async function doResetPassword(){
   const e=document.getElementById('reset-email').value.trim();
   const btn=document.getElementById('btn-reset');
@@ -108,7 +121,9 @@ async function doResetPassword(){
   try {
     let response;
     if(typeof sb.auth.resetPasswordForEmail==='function'){
-      response=await sb.auth.resetPasswordForEmail({email:e});
+      // supabase-js v2 : (email, options) — l'ancien appel passait {email} comme adresse.
+      // Retour sur l'adresse actuelle de l'app (footlink.be, vercel.app ou démo).
+      response=await sb.auth.resetPasswordForEmail(e,{redirectTo:location.origin+location.pathname});
     } else if(sb.auth.api && typeof sb.auth.api.resetPasswordForEmail==='function'){
       response=await sb.auth.api.resetPasswordForEmail(e);
     } else {

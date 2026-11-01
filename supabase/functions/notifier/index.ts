@@ -24,7 +24,7 @@ Deno.serve(async () => {
     { auth: { persistSession: false, autoRefreshToken: false } });
   const user = Deno.env.get("GMAIL_USER") ?? "";
   const pass = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
-  const appUrl = Deno.env.get("APP_URL") ?? "https://foot-coach-six.vercel.app";
+  const appUrl = Deno.env.get("APP_URL") ?? "https://footlink.be";
   const redirect = Deno.env.get("NOTIF_REDIRECT") ?? "";
 
   const { data: lot, error } = await db.rpc("notif_reserver", { p_max: 40 });

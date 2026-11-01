@@ -463,6 +463,16 @@
   <!-- CALENDRIER : choix sur une case (calendrier.js) -->
   <div class="mo" id="modal-cal-choix"><div class="modal" id="cal-choix-body"></div></div>
   <!-- MON PROFIL -->
+  <!-- Nouveau mot de passe (après le lien « mot de passe oublié ») -->
+  <div class="mo" id="modal-mdp">
+    <div class="modal">
+      <div class="mh"></div>
+      <div class="mt">Choisis un nouveau mot de passe</div>
+      <div class="fg"><label class="fl">Nouveau mot de passe</label><input class="fi" type="password" id="mdp-1" autocomplete="new-password" minlength="6"></div>
+      <div class="fg"><label class="fl">Confirme-le</label><input class="fi" type="password" id="mdp-2" autocomplete="new-password" minlength="6"></div>
+      <div class="mfoot"><button class="bcan" onclick="closeModal('modal-mdp')">Plus tard</button><button class="bp" onclick="enregistrerNouveauMdp()">Enregistrer</button></div>
+    </div>
+  </div>
   <div class="mo" id="modal-profil">
     <div class="modal">
       <div class="mh"></div>
