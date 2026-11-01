@@ -272,13 +272,14 @@ function anOpen(id,preset){
   const a=id?rsMine.find(x=>x.id===id):null;
   anDepuisCal=!!preset;
   // Seules les équipes rattachées à un club peuvent publier : le trigger guard_annonce refuse les autres
-  const st=rsStaffTeams(),t=st.find(x=>x.id===(a?.team_id||preset?.team_id||rsTeamId))||st[0];
+  // « Toutes les équipes du club » (rsTeamId='tous') n'est pas une équipe : on prend l'équipe ouverte dans l'app, sinon la première
+  const st=rsStaffTeams(),t=st.find(x=>x.id===(a?.team_id||preset?.team_id||rsTeamId))||st.find(x=>x.id===CT?.id)||st[0];
   if(!t)return showToast('Rattache ton équipe à un club avant de publier une annonce','err');
   anEdit={id:a?.id||null,team_id:t.id,type:a?.type||'amical',lieu:a?.lieu||'indifferent',
     format:a?.format||t.format,duree_mt:a?.duree_mt||HALF_MIN[t.format]||'',zone:a?.zone||'province',
     distance_km:a?.distance_km||30,message:a?.message||'',statut:a?.statut||'brouillon',commentaire:a?.commentaire_validation||''};
   anCats=new Set(a?a.categories:[t.categorie]);anNivs=new Set(a?a.niveaux:[]);
-  anCreneaux=a?(a.annonce_creneaux||[]).map(c=>({jour:c.jour,debut:fmtHeure(c.heure_debut),fin:fmtHeure(c.heure_fin)})):[{jour:preset?.jour||'',debut:preset?.debut||'',fin:preset?.fin||''}];
+  anCreneaux=a?(a.annonce_creneaux||[]).map(c=>({jour:c.jour,debut:fmtHeure(c.heure_debut),fin:fmtHeure(c.heure_fin),man:!!c.heure_fin})):[{jour:preset?.jour||'',debut:preset?.debut||'',fin:preset?.fin||''}];
   anCibles=new Set();
   if(a?.zone==='equipes')sb.from('annonce_cibles').select('team_id').eq('annonce_id',a.id).then(({data})=>{(data||[]).forEach(r=>anCibles.add(r.team_id));anRenderZone();});
   anRenderForm();openModal('modal-annonce');
@@ -289,7 +290,7 @@ function anCollect(){
   anEdit.team_id=g('an-team').value;anEdit.format=g('an-fmt').value;anEdit.duree_mt=parseInt(g('an-duree').value)||null;
   anEdit.zone=g('an-zone').value;anEdit.message=g('an-msg').value.trim();
   if(g('an-km'))anEdit.distance_km=parseInt(g('an-km').value)||null;
-  anCreneaux=[...document.querySelectorAll('.an-cr')].map(r=>({jour:r.querySelector('[data-k=jour]').value,debut:r.querySelector('[data-k=debut]').value,fin:r.querySelector('[data-k=fin]').value}));
+  anCreneaux=[...document.querySelectorAll('.an-cr')].map(r=>({jour:r.querySelector('[data-k=jour]').value,debut:r.querySelector('[data-k=debut]').value,fin:r.querySelector('[data-k=fin]').value,man:r.querySelector('[data-k=fin]').dataset.man==='1'}));
 }
 function anRenderForm(){
   const st=rsStaffTeams(),t=rsTeam(anEdit.team_id),club=isClubStaff(t?.club_id);
@@ -338,14 +339,55 @@ function anFiltreCibles(){const q=document.getElementById('an-cib-q').value.toLo
 function anRenderCreneaux(){
   document.getElementById('an-crs').innerHTML=anCreneaux.map((c,i)=>`<div class="an-cr">
     <input class="fi" type="date" data-k="jour" value="${esc(c.jour)}" min="${todayIso()}">
-    <input class="fi" type="time" data-k="debut" value="${esc(c.debut)}">
-    <input class="fi" type="time" data-k="fin" value="${esc(c.fin)}">
+    <input class="fi" type="time" data-k="debut" value="${esc(c.debut)}" onchange="anDebut(this)">
+    <input class="fi" type="time" data-k="fin" value="${esc(c.fin)}" data-man="${c.man?1:0}" onchange="this.dataset.man='1'">
     <button type="button" class="bred" onclick="anCollect();anCreneaux.splice(${i},1);anRenderCreneaux()" aria-label="Retirer">✕</button></div>`).join('');
+}
+// Heure de début saisie → fin = début + 1 h, tant que la fin n'a pas été choisie à la main
+const hMin=h=>{const m=/^(\d{1,2}):(\d{2})/.exec(h||'');return m?+m[1]*60+ +m[2]:null;};
+const minH=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+function anDebut(el){
+  const fin=el.parentNode.querySelector('[data-k=fin]'),d=hMin(el.value);
+  if(d===null||fin.dataset.man==='1')return;
+  fin.value=d+60>=1440?'23:59':minH(d+60);
+}
+// Plage d'un créneau en minutes (sans heure = journée entière ; début seul = 1 h)
+const crPlage=c=>{const d=hMin(c.debut),f=hMin(c.fin);return d===null?[0,1440]:[d,f===null?d+60:f];};
+const crTxt=c=>c.jour.split('-').reverse().join('/')+(c.debut?' '+c.debut+(c.fin?'–'+c.fin:''):'');
+// Retourne un message si les créneaux se chevauchent (entre eux, avec ceux des autres annonces de l'équipe) ou si fin <= début
+async function anConflit(cr){
+  for(const c of cr){const d=hMin(c.debut),f=hMin(c.fin);
+    if(d!==null&&f!==null&&f<=d)return `Créneau du ${crTxt(c)} : l'heure de fin doit être après le début`;
+    if(d===null&&f!==null)return `Créneau du ${c.jour.split('-').reverse().join('/')} : indique aussi l'heure de début`;}
+  const chev=(a,b)=>a.jour===b.jour&&crPlage(a)[0]<crPlage(b)[1]&&crPlage(b)[0]<crPlage(a)[1];
+  for(let i=0;i<cr.length;i++)for(let j=i+1;j<cr.length;j++)
+    if(chev(cr[i],cr[j]))return `Les créneaux ${crTxt(cr[i])} et ${crTxt(cr[j])} se chevauchent`;
+  for(const a of rsMine){
+    if(a.id===anEdit.id||a.team_id!==anEdit.team_id||['cloturee','refusee'].includes(a.statut))continue;
+    for(const o of a.annonce_creneaux||[]){
+      if(o.statut==='pris')continue;
+      const oc={jour:o.jour,debut:fmtHeure(o.heure_debut),fin:fmtHeure(o.heure_fin)};
+      const x=cr.find(c=>chev(c,oc));
+      if(x)return `Le créneau ${crTxt(x)} chevauche celui d'une autre annonce de cette équipe (${crTxt(oc)})`;
+    }
+  }
+  // Match déjà prévu pendant le créneau : on demande confirmation
+  for(const c of cr){
+    const [d,f]=crPlage(c);
+    const m=(typeof matches!=='undefined'?matches:[]).find(m=>m.team_id===anEdit.team_id&&m.statut!=='termine'&&m.date&&(()=>{
+      const dt=new Date(m.date),iso=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+      const mn=dt.getHours()*60+dt.getMinutes();return iso===c.jour&&mn>=d&&mn<f;})());
+    if(m&&!await askConfirm(`Un match est déjà prévu ce jour-là (${new Date(m.date).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}) pendant le créneau ${crTxt(c)}. Garder ce créneau ?`))return 'annule';
+  }
+  return '';
 }
 async function anSave(statut){
   anCollect();
   const cr=anCreneaux.filter(c=>c.jour);
   if(!cr.length)return showToast('Ajoute au moins un créneau (date)','err');
+  const conflit=await anConflit(cr);
+  if(conflit==='annule')return;
+  if(conflit)return showToast(conflit,'err');
   if(anEdit.zone==='distance'&&!(anEdit.distance_km>0))return showToast('Indique la distance maximale en km','err');
   if(anEdit.zone==='equipes'&&!anCibles.size)return showToast('Choisis au moins une équipe','err');
   const row={team_id:anEdit.team_id,type:anEdit.type,lieu:anEdit.lieu,format:anEdit.format||null,duree_mt:anEdit.duree_mt||null,
