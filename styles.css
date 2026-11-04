@@ -1039,3 +1039,9 @@ body.sans-role #page-home .srow,body.sans-role #page-home .qgrid,body.sans-role 
 
 .mc-del{background:none;border:1px solid var(--border);border-radius:var(--rsm);color:var(--text3);padding:4px 8px;font-size:13px;cursor:pointer;line-height:1}
 .mc-del:active{opacity:.7}
+/* Terrain de la fiche match parent (lecture seule, sans chronos) */
+.pa-terrain{margin:6px auto 4px;max-width:360px}
+.pa-bulle{position:absolute;transform:translate(-50%,-50%);background:var(--bg2);border:2px solid var(--green);border-radius:10px;padding:3px 8px;font-size:11.5px;font-weight:600;color:var(--text);white-space:nowrap;text-align:center;min-width:54px;z-index:5}
+.pa-bulle.vide{border-style:dashed;border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.03);color:var(--text3);font-weight:400}
+.pa-bulle.moi{border-color:var(--amber);background:var(--amber-bg)}
+.pa-poste{display:block;font-size:9px;color:var(--text3);font-family:var(--mono);line-height:1.1}
