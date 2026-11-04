@@ -834,6 +834,8 @@ async function openMatchDetail(id){
   document.getElementById('sc-nous-lbl').textContent=CT.nom.slice(0,10);
   document.getElementById('match-delete-btn').style.display=isAdmin?'inline-flex':'none';
   document.getElementById('match-delete-live-btn').style.display=isAdmin?'block':'none';
+  document.getElementById('match-parents-row').style.display=isAdmin?'flex':'none';
+  document.getElementById('match-parents-off-btn').style.display=CM.lien_parents?'inline-flex':'none';
   document.getElementById('match-end-btn').style.display=CM.statut==='en_cours'?'inline-flex':'none';
   const chronoBtn=document.getElementById('btn-chrono');
   if(CM.statut==='termine'){
@@ -972,6 +974,27 @@ function closeMatchDetail(){
   if(matchDetailInterval){clearInterval(matchDetailInterval);matchDetailInterval=null;}
   CM=null;chronoS=0;halfN=1;sNous=0;sEux=0;MP={};subLog=[];goals=[];posteLayout={portrait:{},landscape:{}};assignment={};selected=null;matchStarted=false;chronoOn=false;chronoStartedAt=null;clearInterval(chronoIv);chronoIv=null;
   setLiveActive(false);
+}
+// Lien public « suivi du match » pour les parents (page match-parents.html, sans compte).
+// Créé côté base par match_lien_parents (encadrement seulement), révocable.
+async function shareParentsLink(){
+  if(!CM)return;
+  const{data,error}=await sb.rpc('match_lien_parents',{p_match:CM.id});
+  if(error||!data)return showToast('Lien impossible à créer (SQL P1 installé ?)','err');
+  CM.lien_parents=data;document.getElementById('match-parents-off-btn').style.display='inline-flex';
+  const url=location.origin+'/match-parents.html?l='+data;
+  const texte=`Suis le match ${CT?.nom||''} vs ${CM.adversaire} en direct dans FootLink (sans compte) :`;
+  try{if(navigator.share){await navigator.share({title:'Suivi du match',text:texte,url});return;}}
+  catch(e){if(e.name==='AbortError')return;}
+  try{await navigator.clipboard.writeText(texte+' '+url);showToast('Lien copié : colle-le dans WhatsApp','ok');}
+  catch(e){await askConfirm('Lien de suivi pour les parents :\n\n'+url);}
+}
+async function revokeParentsLink(){
+  if(!CM||!await askConfirm('Désactiver le lien de suivi ? Les parents qui l\'ont reçu ne verront plus le match.'))return;
+  const{error}=await sb.rpc('match_lien_parents',{p_match:CM.id,p_revoquer:true});
+  if(error)return showToast('Désactivation refusée','err');
+  CM.lien_parents=null;document.getElementById('match-parents-off-btn').style.display='none';
+  showToast('Lien désactivé','ok');
 }
 async function deleteMatch(id,e){
   if(e&&e.stopPropagation) e.stopPropagation();

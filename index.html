@@ -234,7 +234,11 @@
               </div>
               <div style="padding:10px 14px 16px">
                 <button id="match-end-btn" onclick="endMatch()" style="width:100%;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:var(--rsm);padding:11px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">■ Terminer le match</button>
-                <button id="match-delete-live-btn" onclick="deleteMatch(CM.id)" style="display:none;width:100%;margin-top:8px;background:none;color:var(--text3);border:1px solid var(--border);border-radius:var(--rsm);padding:9px;font-family:var(--font);font-size:12px;cursor:pointer">🗑 Supprimer ce match</button>
+                <div id="match-parents-row" style="display:none;gap:6px;margin-top:8px">
+                  <button class="bsec" onclick="shareParentsLink()" style="flex:1;font-size:12px">🔗 Lien de suivi pour les parents</button>
+                  <button id="match-parents-off-btn" class="bsec" onclick="revokeParentsLink()" style="display:none;font-size:12px;color:var(--text3)">Désactiver</button>
+                </div>
+                <button id="match-delete-live-btn"onclick="deleteMatch(CM.id)" style="display:none;width:100%;margin-top:8px;background:none;color:var(--text3);border:1px solid var(--border);border-radius:var(--rsm);padding:9px;font-family:var(--font);font-size:12px;cursor:pointer">🗑 Supprimer ce match</button>
               </div>
             </div>
           </div>
