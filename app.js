@@ -2229,8 +2229,7 @@ async function renderClubPage(){
   if(!myClubs.length&&!clubCreating&&CT?.club_id){
     const{data:club}=await sb.from('clubs').select('nom,verifie').eq('id',CT.club_id).maybeSingle();
     el.innerHTML=`<div class="card"><div style="font-size:15px;font-weight:600;margin-bottom:6px">🏟 ${esc(club?.nom||'Club')}${club?.verifie?' <span class="pill pg" style="font-size:10px">✓ vérifié</span>':''}</div>
-      <div style="font-size:13px;color:var(--text2);line-height:1.45">L'équipe <b>${esc(CT.nom)}</b> fait partie de ce club. La gestion du club (informations, équipes, membres) est réservée au CQ et aux coordinateurs.</div>
-      <button class="bsec" style="margin-top:12px;font-size:12px" onclick="clubCreating=true;renderClubPage()">Créer un autre club</button></div>`;
+      <div style="font-size:13px;color:var(--text2);line-height:1.45">L'équipe <b>${esc(CT.nom)}</b> fait partie de ce club. La gestion du club (informations, équipes, membres) est réservée au CQ et aux coordinateurs.</div></div>`;
     return;
   }
   if(!myClubs.length||clubCreating){
@@ -2304,8 +2303,7 @@ async function renderClubPage(){
       <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${esc(t.nom)}</div><div style="font-size:12px;color:var(--text2)">${esc(t.categorie)} · ${esc(formatLabel(t.format))}${t.niveau_id?' · '+esc(refs.niveaux.find(n=>n.id===t.niveau_id)?.libelle||''):''}</div></div>
       <span style="color:var(--text3)">›</span></div>`).join(''):'<div style="font-size:13px;color:var(--text3)">Aucune équipe pour l\'instant</div>'}
   </div>`;
-  const autre=`<button class="bsec" style="width:100%;margin-top:10px;min-height:44px" onclick="clubCreating=true;renderClubPage()">+ Créer un autre club</button>`;
-  el.innerHTML=chooser+head+infos+staff+equipes+autre;
+  el.innerHTML=chooser+head+infos+staff+equipes;
 }
 async function createClub(){
   const nom=document.getElementById('cc-nom').value.trim();

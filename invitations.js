@@ -132,12 +132,12 @@ async function icEnvoyer(){
   if(error)return showToast(/function|schema cache/i.test(error.message)?'Fonction pas encore disponible':error.message.replace(/^.*?:\s*/,''),'err');
   closeModal('modal-ic');showToast('✉️ Invitation envoyée','ok');
 }
-// Bouton aussi dans « Mon club » (CQ / coordinateurs)
-const imRenderClubPage=renderClubPage;
-renderClubPage=async function(){
-  await imRenderClubPage.apply(this,arguments);
-  const el=document.getElementById('club-content');
-  if(el&&imClub()&&!document.getElementById('ic-club-btn'))el.insertAdjacentHTML('beforeend','<div style="margin-top:14px"><button class="bsec" id="ic-club-btn" onclick="icOuvrir()">✉️ Inviter un autre club sur FootLink</button></div>');
+// « Inviter un club » vit dans Gestion des clubs (à côté de « Créer un club »), pas dans Mon club
+const imRenderPlateforme=renderPlateforme;
+renderPlateforme=async function(){
+  await imRenderPlateforme.apply(this,arguments);
+  const nv=document.querySelector('.pt-new');
+  if(nv&&imClub()&&!document.getElementById('ic-club-btn'))nv.insertAdjacentHTML('afterend','<button class="bsec pt-new" id="ic-club-btn" onclick="icOuvrir()">✉️ Inviter un club sur FootLink</button>');
   imPreremplir();
 };
 
