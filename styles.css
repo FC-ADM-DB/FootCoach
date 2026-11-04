@@ -1036,3 +1036,6 @@ body.sans-role #page-home .srow,body.sans-role #page-home .qgrid,body.sans-role 
 .fb-contact{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13px;color:var(--text2);margin-bottom:8px}
 .fb-contact label{display:flex;align-items:center;gap:4px}
 .fb-texte{font-size:13px;line-height:1.45;resize:vertical}
+
+.mc-del{background:none;border:1px solid var(--border);border-radius:var(--rsm);color:var(--text3);padding:4px 8px;font-size:13px;cursor:pointer;line-height:1}
+.mc-del:active{opacity:.7}

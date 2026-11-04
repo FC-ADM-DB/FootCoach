@@ -715,7 +715,7 @@ function renderMatchesList(){
     const[spCls,spTxt]=(stMap[m.statut]||'pgr ?').split(' ');
     const liveInfo = m.statut==='en_cours' ? `<div class="mc-live-info"><span class="mc-chrono">${fmt(getMatchChrono(m))}</span><span class="pill pg" style="font-size:10px;padding:2px 7px">En direct</span></div>` : '';
     return `<div class="mc ${m.statut==='en_cours'?'mc-live':''}" onclick="openMatchDetail('${m.id}')">
-      <div class="mc-top"><span class="mc-vs">vs ${m.adversaire}</span><span class="mc-sc ${cls}">${sc}</span></div>
+      <div class="mc-top"><span class="mc-vs">vs ${m.adversaire}</span><span style="display:flex;align-items:center;gap:8px"><span class="mc-sc ${cls}">${sc}</span>${isAdmin?`<button class="mc-del" onclick="deleteMatch('${m.id}',event)" aria-label="Supprimer le match" title="Supprimer le match">🗑</button>`:''}</span></div>
       ${liveInfo}
       <div class="mc-meta"><span>${d} · ${h}</span><span>${m.lieu==='domicile'?'🏠':'✈️'}</span><span class="pill ${spCls}" style="font-size:10px;padding:2px 7px">${spTxt}</span></div>
     </div>`;
@@ -833,6 +833,7 @@ async function openMatchDetail(id){
   document.getElementById('sc-eux-lbl').textContent=CM.adversaire.slice(0,12);
   document.getElementById('sc-nous-lbl').textContent=CT.nom.slice(0,10);
   document.getElementById('match-delete-btn').style.display=isAdmin?'inline-flex':'none';
+  document.getElementById('match-delete-live-btn').style.display=isAdmin?'block':'none';
   document.getElementById('match-end-btn').style.display=CM.statut==='en_cours'?'inline-flex':'none';
   const chronoBtn=document.getElementById('btn-chrono');
   if(CM.statut==='termine'){
@@ -980,7 +981,10 @@ async function deleteMatch(id,e){
   if(!await askConfirm(`Supprimer le match vs ${m.adversaire} ?`))return;
   await sb.from('convocations').delete().eq('match_id',id);
   await sb.from('match_players').delete().eq('match_id',id);
-  await sb.from('matches').delete().eq('id',id);
+  // .select() : sans ligne renvoyée, la base a refusé (droits) — il ne faut pas annoncer un succès
+  const{data:del,error:delErr}=await sb.from('matches').delete().eq('id',id).select('id');
+  if(delErr||!del?.length)return showToast('Suppression refusée par la base'+(delErr?' : '+delErr.message:''),'err');
+  clearPendingLocal(id);
   showToast('Match supprimé','ok');
   if(CM?.id===id){closeMatchDetail();}
   await loadMatches();
