@@ -1002,5 +1002,53 @@ insert into r (qui, test, attendu, obtenu) values
 reset role;
 select set_config('request.jwt.claims', '', false);
 
+-- ============================================================================
+-- P1 : lien public « suivi du match » pour les parents (2026-11-04)
+-- ============================================================================
+-- Crée le lien, (le révoque), appelle la page publique et renvoie la liste des clés du JSON
+-- (« null » si la page ne renvoie rien), puis annule tout.
+create or replace function pg_temp.lien_test(m uuid, rev boolean) returns text language plpgsql as $f$
+declare t text; j jsonb; res text;
+begin
+  begin
+    t := public.match_lien_parents(m);
+    if rev then perform public.match_lien_parents(m, true); end if;
+    j := public.match_parents_public(t);
+    res := case when j is null then 'null' else (select string_agg(k, ',' order by k) from jsonb_object_keys(j) k) end;
+    raise exception 'RES:%', res;
+  exception when others then
+    if sqlerrm like 'RES:%' then return substr(sqlerrm, 5); end if;
+    return 'refusé';
+  end;
+end $f$;
+
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+set role anon;
+insert into r (qui, test, attendu, obtenu) values
+ ('Visiteur', '[P1] crée un lien de suivi', 'refusé', pg_temp.essai($q$select match_lien_parents('40000000-0000-4000-a000-0000000000a2')$q$)),
+ ('Visiteur', '[P1] ouvre la page publique avec un lien inconnu → rien', '0', pg_temp.essai($q$select 1 from match_parents_public('lien-inconnu') p where p is not null$q$)),
+ ('Visiteur', '[P1] ouvre la page publique avec un lien vide → rien', '0', pg_temp.essai($q$select 1 from match_parents_public('') p where p is not null$q$)),
+ ('Visiteur', '[P1] la fonction publique est appelable', '1', pg_temp.essai($q$select match_parents_public('lien-inconnu')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000002","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Délégué A', '[P1] crée un lien pour son match → page publique : seulement les champs prévus (aucun chrono ni temps de jeu)', 'adversaire,banc,buts,categorie,couleur,date,demarre,duree_mt,equipe,format,layout,lieu,logo,mi_temps,pause_mt,score_eux,score_nous,statut,terrain', pg_temp.lien_test('40000000-0000-4000-a000-0000000000a2', false)),
+ ('Délégué A', '[P1] lien révoqué → la page ne renvoie plus rien', 'null', pg_temp.lien_test('40000000-0000-4000-a000-0000000000a2', true)),
+ ('Délégué A', '[P1] crée un lien pour un match d''une autre équipe', 'refusé', pg_temp.essai($q$select match_lien_parents('40000000-0000-4000-a000-0000000000b1')$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000003","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Coach B', '[P1] crée un lien pour un match du club A', 'refusé', pg_temp.essai($q$select match_lien_parents('40000000-0000-4000-a000-0000000000a2')$q$)),
+ ('Coach B', '[P1] révoque le lien d''un match du club A', 'refusé', pg_temp.essai($q$select match_lien_parents('40000000-0000-4000-a000-0000000000a2', true)$q$));
+reset role;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-000000000007","role":"authenticated"}', false);
+set role authenticated;
+insert into r (qui, test, attendu, obtenu) values
+ ('Parent A', '[P1] crée un lien de suivi', 'refusé', pg_temp.essai($q$select match_lien_parents('40000000-0000-4000-a000-0000000000a2')$q$));
+reset role;
+select set_config('request.jwt.claims', '', false);
+
 select n, qui, test, attendu, obtenu, case when attendu = obtenu then 'OK' else 'ÉCHEC' end as resultat
 from r order by n;
