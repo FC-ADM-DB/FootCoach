@@ -228,7 +228,7 @@ function prRenderDetail(tours,contacts){
     else if(p.a_moi&&(!sugg||p.decide||prChangerSugg)){
       const pre=p.decide?'':'Suggérer : ';
       actions+=`<div class="rs-acts"><button class="bp rs-act" onclick="prAgir('accepter')">${pre}✓ Accepter</button>
-        <button class="bsec" onclick="prFormContre()">${pre}↔ Autre date</button><button class="bred" onclick="prAgir('refuser')">${pre}Refuser</button></div>
+        <button class="bsec" onclick="prFormContre()">${pre}↔ Autre date</button><button class="bred" onclick="prFormRefus()">${pre}Refuser</button></div>
         <div id="pr-contre"></div>`;
     }else if(!p.a_moi)actions+=`<div class="rs-line">⏳ En attente de la réponse de ${esc(autreClub)}.</div>`;
     if(p.cote==='proposant'&&p.statut!=='a_valider'&&p.decide)actions+=`<button class="bsec" style="margin-top:6px;font-size:12px" onclick="prAgir('annuler')">Annuler la proposition</button>`;
@@ -250,6 +250,14 @@ function prRenderDetail(tours,contacts){
     ${prCoordVisibles&&UP&&!UP.telephone?`<div class="rs-line" style="margin-top:8px">💡 Ajoute ton téléphone dans <a href="#" onclick="event.preventDefault();closeModal('modal-prop');ouvrirProfil()">Mon profil</a> pour que l'autre club puisse t'appeler.</div>`:''}
     <div class="mfoot"><button class="bcan" onclick="closeModal('modal-prop')">Fermer</button></div>`;
 }
+// Refus : motif facultatif, visible dans la discussion de la proposition (le bouton du formulaire vaut confirmation)
+function prFormRefus(){
+  document.getElementById('pr-contre').innerHTML=`<div class="card" style="margin-top:8px">
+    <div class="fg"><label class="fl">Raison du refus <span style="color:var(--text3);font-weight:400">(facultatif)</span></label>
+      <textarea class="fi" id="prr-msg" rows="2" maxlength="1000" placeholder="Ex. : pas de terrain ce jour-là, équipe incomplète…"></textarea></div>
+    <button class="bred" onclick="prAgir('refuser')">Confirmer le refus</button></div>`;
+  document.getElementById('prr-msg').focus();
+}
 function prFormContre(){
   const p=prOuverte;
   document.getElementById('pr-contre').innerHTML=`<div class="card" style="margin-top:8px">
@@ -262,7 +270,7 @@ function prFormContre(){
 }
 async function prAgir(action){
   const p=prOuverte;if(!p)return;
-  const conf={refuser:'Refuser cette proposition ?',annuler:'Annuler cette proposition ?',accepter:p.decide?'Accepter ? Le match sera ajouté au calendrier des deux équipes.':null}[action];
+  const conf={annuler:'Annuler cette proposition ?',accepter:p.decide?'Accepter ? Le match sera ajouté au calendrier des deux équipes.':null}[action];
   if(conf&&!await askConfirm(conf))return;
   const args={p_id:p.id,p_action:action};
   if(action==='contre'){
@@ -270,6 +278,7 @@ async function prAgir(action){
     args.p_lieu=document.getElementById('prc-lieu').value;args.p_message=document.getElementById('prc-msg').value.trim()||null;
     if(!args.p_jour)return showToast('Choisis une date','err');
   }
+  if(action==='refuser')args.p_message=document.getElementById('prr-msg')?.value.trim()||null;
   prChangerSugg=false;
   const{data,error}=await sb.rpc('proposition_agir',args);
   if(error)return showToast(error.message.replace(/^.*?:\s*/,''),'err');

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0a1628">
+<title>Suivi du match</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* Suivi d'un match pour les parents. Aucune connexion : lien secret (?l=…) → fonction
+   Supabase match_parents_public (score, terrain, buts ; jamais de chrono ni de temps de jeu). */
+:root{--bg:#0a1628;--card:#122038;--line:#243656;--txt:#eef2f8;--txt2:#9fb0c8;--green:#00d68f;--live:#ff4d5e;
+  --font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',ui-monospace,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:100vh;-webkit-text-size-adjust:100%}
+main{max-width:460px;margin:0 auto;padding:16px 14px 28px}
+.eq{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.tlogo{width:40px;height:40px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:#fff;overflow:hidden}
+.tlogo img{width:100%;height:100%;object-fit:contain}
+.eq b{display:block;font-size:17px}.eq span{font-size:12.5px;color:var(--txt2)}
+.sc{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;text-align:center}
+.sc .vs{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;font-weight:700;font-size:15px}
+.sc .n{font-family:var(--mono);font-size:38px;font-weight:500;white-space:nowrap}
+.pill{display:inline-block;margin-top:8px;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px;background:#243656;color:var(--txt2)}
+.pill.live{background:var(--live);color:#fff}
+.meta{font-size:12.5px;color:var(--txt2);margin-top:8px}
+h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--txt2);margin:18px 0 8px}
+.terrain{position:relative;width:100%;max-width:360px;margin:0 auto;aspect-ratio:300/420}
+.terrain svg{width:100%;display:block;border-radius:12px;background:#0f5c3a}
+.b{position:absolute;transform:translate(-50%,-50%);background:var(--card);border:2px solid var(--green);border-radius:10px;padding:3px 8px;font-size:11.5px;font-weight:600;white-space:nowrap;text-align:center;min-width:54px}
+.b.vide{border-style:dashed;border-color:rgba(255,255,255,.25);background:rgba(10,22,40,.5);color:var(--txt2);font-weight:400}
+.b i{display:block;font-style:normal;font-size:9px;color:var(--txt2);font-family:var(--mono);line-height:1.1}
+.chips{display:flex;flex-wrap:wrap;gap:5px}.chips span{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:12.5px}
+.but{font-size:14px;padding:4px 0;display:flex;gap:8px}.but span{color:var(--txt2);font-family:var(--mono);min-width:34px}
+.empty{text-align:center;padding:60px 16px;color:var(--txt2)}.empty b{display:block;color:var(--txt);font-size:17px;margin-bottom:6px}
+footer{text-align:center;font-size:11px;color:var(--txt2);padding:0 16px 24px}footer a{color:inherit}
+</style>
+</head>
+<body>
+<main id="m"><div class="empty">Chargement…</div></main>
+<footer id="foot"></footer>
+<footer><a href="confidentialite.html">Confidentialité</a> · <a href="mailto:contact@footlink.be">contact@footlink.be</a></footer>
+<script>
+// Base Supabase : production, sauf sur le lien de démonstration (base de test, données fictives).
+// Les deux clés sont PUBLIQUES (la sécurité est dans la base).
+const SB_DEMO=/^foot-coach-git-demo-/.test(location.hostname);
+const SB_URL=SB_DEMO?'https://shdmzyfdzczhwibwnvdn.supabase.co':'https://oejcfjthamzgnudofcwi.supabase.co';
+const SB_KEY=SB_DEMO?'sb_publishable_rXiHRcgsFm6TwzFapFckQA_shM52ilJ':'sb_publishable_nhiVzYaIgNOqYkWyjsz7CQ_pkYNMYBx';
+const LIEN=(new URLSearchParams(location.search).get('l')||'').replace(/[^a-z0-9]/gi,'');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeLogo=l=>typeof l==='string'&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l)?l:null;
+const okColor=c=>/^#[0-9a-fA-F]{6}$/.test(c||'')?c:'#b0212f';
+// Positions par défaut (portrait) si le coach n'a pas encore ouvert le Live
+const DEF={
+ '8v8':{1:[50,88],2:[80,72],3:[50,68],5:[20,72],6:[50,50],7:[80,28],9:[50,22],11:[20,28]},
+ '5v5':{1:[50,88],2:[75,68],3:[25,68],6:[50,48],9:[50,25]},
+ '11v11':{1:[50,90],2:[85,72],4:[62,76],5:[38,76],3:[15,72],6:[50,58],8:[72,46],10:[28,46],7:[84,26],9:[50,18],11:[16,26]}};
+const PITCH=`<rect width="300" height="420" fill="rgba(255,255,255,0.03)" rx="12"/>
+<rect x="10" y="10" width="280" height="400" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+<line x1="10" y1="210" x2="290" y2="210" stroke="rgba(255,255,255,0.35)"/><circle cx="150" cy="210" r="35" fill="none" stroke="rgba(255,255,255,0.35)"/>
+<rect x="85" y="10" width="130" height="50" fill="none" stroke="rgba(255,255,255,0.45)"/><rect x="110" y="10" width="80" height="22" fill="none" stroke="rgba(255,255,255,0.45)"/>
+<rect x="85" y="360" width="130" height="50" fill="none" stroke="rgba(255,255,255,0.45)"/><rect x="110" y="388" width="80" height="22" fill="none" stroke="rgba(255,255,255,0.45)"/>
+<rect x="133" y="0" width="34" height="6" fill="rgba(255,255,255,0.6)" rx="2"/><rect x="133" y="414" width="34" height="6" fill="rgba(255,255,255,0.7)" rx="2"/>`;
+const minBut=(g,d)=>(g.mt===2?(d||30):0)+Math.floor((g.t||0)/60)+1;
+async function load(){
+  const el=document.getElementById('m');
+  if(!LIEN){el.innerHTML='<div class="empty"><b>Lien incomplet</b>Demande le lien à l\'entraîneur.</div>';return;}
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/rpc/match_parents_public`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({p_lien:LIEN})});
+    if(!r.ok)throw new Error(r.status);
+    const d=await r.json();
+    if(!d){el.innerHTML='<div class="empty"><b>Lien expiré ou désactivé</b>Demande un nouveau lien à l\'entraîneur.</div>';return;}
+    render(el,d);
+    document.getElementById('foot').textContent='Mis à jour à '+new Date().toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){if(!el.querySelector('.sc'))el.innerHTML='<div class="empty"><b>Indisponible</b>Vérifie ta connexion, nouvel essai automatique.</div>';}
+}
+function render(el,d){
+  const l=safeLogo(d.logo),home=d.lieu!=='exterieur',dt=new Date(d.date);
+  const fini=d.statut==='termine',live=!fini&&d.demarre;
+  const us=esc(d.equipe),them=esc(d.adversaire);
+  const sc=home?`${d.score_nous} – ${d.score_eux}`:`${d.score_eux} – ${d.score_nous}`;
+  const pill=fini?'<span class="pill">Terminé</span>':live?`<span class="pill live">● ${d.pause_mt?'Mi-temps':(d.mi_temps===2?'2e':'1re')+' mi-temps'}</span>`:'<span class="pill">À venir</span>';
+  const heure=dt.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+  const jour=dt.toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'});
+  const fmt=DEF[d.format]?d.format:'8v8',lay={};
+  Object.entries(DEF[fmt]).forEach(([p,[x,y]])=>lay[p]={x,y});
+  Object.entries(d.layout||{}).forEach(([p,v])=>{if(v&&typeof v.x==='number'&&typeof v.y==='number'&&lay[p])lay[p]={x:v.x,y:v.y};});
+  const at={};(d.terrain||[]).forEach(t=>at[t.poste]=t.joueur);
+  const bulles=Object.keys(lay).map(p=>`<div class="b${at[p]?'':' vide'}" style="left:${lay[p].x}%;top:${lay[p].y}%"><i>${esc(p)}</i>${at[p]?esc(at[p]):'libre'}</div>`).join('');
+  const aTerrain=(d.terrain||[]).length>0;
+  el.innerHTML=`<div class="eq"><div class="tlogo" style="background:${l?'transparent':okColor(d.couleur)}">${l?`<img src="${l}" alt="">`:esc(d.categorie||'')}</div>
+      <div><b>${us}</b><span>${esc(d.categorie||'')}</span></div></div>
+    <div class="sc"><div class="vs"><div>${home?us:them}</div><div class="n">${live||fini?sc:heure}</div><div>${home?them:us}</div></div>${pill}
+      <div class="meta">${esc(jour)} · ${heure} · ${home?'🏠 Domicile':'✈️ Extérieur'}</div></div>
+    ${aTerrain?`<h2>Sur le terrain</h2><div class="terrain"><svg viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg">${PITCH}</svg>${bulles}</div>`:''}
+    ${(d.banc||[]).length?`<h2>Remplaçants</h2><div class="chips">${d.banc.map(n=>`<span>${esc(n)}</span>`).join('')}</div>`:''}
+    ${(d.buts||[]).length?`<h2>Buts</h2>${d.buts.map(g=>`<div class="but"><span>${minBut(g,d.duree_mt)}'</span>${g.adv?'🔴 '+them:'⚽ '+esc(g.buteur||d.equipe)}</div>`).join('')}`:''}`;
+}
+load();setInterval(load,5000);
+</script>
+</body>
+</html>

@@ -166,6 +166,24 @@ async function paOuvrirMatch(id){
     paRenderMatch();
   },3000);
 }
+// Terrain en lecture seule : joueurs sur le terrain à leur poste, sans aucun chrono
+// (ni « depuis », ni temps de jeu) — les parents voient la composition, pas la gestion du temps.
+function paTerrain(m,tl,enf){
+  const fmt=CT?.format||'8v8',ass=tl.assignment||{};
+  if(!tl.matchStarted&&!Object.values(ass).some(Boolean))return '';
+  const lay={...clonePosteLayout(fmt).portrait,...(tl.posteLayout?.portrait||{})};
+  const miens=new Set(enf.map(e=>e.id));
+  const bulles=getPostes(fmt).map(n=>{
+    const pos=lay[n]||{x:50,y:50},pid=ass[n],nom=pid?paPrenoms[pid]:null;
+    return `<div class="pa-bulle${pid?'':' vide'}${pid&&miens.has(pid)?' moi':''}" style="left:${pos.x}%;top:${pos.y}%">
+      <span class="pa-poste">${n}</span>${pid?esc(nom||'?'):'libre'}</div>`;
+  }).join('');
+  const surTerrain=new Set(Object.values(ass).filter(Boolean));
+  const banc=Object.entries(tl.MP||{}).filter(([id,s])=>s&&s.onField===false&&!surTerrain.has(id)).map(([id])=>paPrenoms[id]).filter(Boolean).sort();
+  return `<div class="tb-sec-t" style="margin-top:12px">Sur le terrain</div>
+    <div class="terrain-wrap pa-terrain"><svg viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;border-radius:12px">${pitchSvgMarkup(false)}</svg>${bulles}</div>
+    ${banc.length?`<div class="tb-sec-t" style="margin-top:6px">Remplaçants</div><div class="pa-conv">${banc.map(n=>`<span>${esc(n)}</span>`).join('')}</div>`:''}`;
+}
 function paRenderMatch(){
   const m=paMatch,el=document.getElementById('pa-match');if(!m||!el)return;
   const tl=m.timeline_json||{},enf=paMesEnfants();
@@ -181,6 +199,7 @@ function paRenderMatch(){
     ${m.statut!=='prevu'||live?`<div class="pa-score"><div class="pa-sc">${sn} – ${se}</div>
       ${live?`<div class="pa-live">● ${tl.halfTimePending?'Mi-temps':tl.chronoOn?mm+' · MT '+(tl.halfN||1):'Pause · '+mm}</div>`:'<div class="rs-line">Terminé</div>'}</div>`:''}
     ${enf.map(e=>`<div class="pa-bloc">${paBoutons(m,e)}${(()=>{const s=paTempsJeu(m,e.id);return s!=null&&(live||m.statut==='termine')?`<div class="pa-note">⏱ Temps de jeu de ${esc(e.prenom)} : <b>${Math.round(s/60)} min</b></div>`:'';})()}</div>`).join('')}
+    ${paTerrain(m,tl,enf)}
     ${buts.length?`<div class="tb-sec-t" style="margin-top:12px">Buts</div>${buts.map(g=>`<div class="pa-but">${g.adv?'🔴':'⚽'} <span>${butMin(g)}</span> ${g.adv?esc(m.adversaire):esc(paNomBut(g))}</div>`).join('')}`:''}
     ${conv.length?`<div class="tb-sec-t" style="margin-top:12px">Convoqués (${conv.length})</div><div class="pa-conv">${conv.map(n=>`<span>${esc(n)}</span>`).join('')}</div>`:''}`;
 }

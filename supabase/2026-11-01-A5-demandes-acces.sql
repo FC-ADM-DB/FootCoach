@@ -160,7 +160,7 @@ begin
     perform notif_ajouter(demande_validateurs(new), 'acces_demande', 'Demande d''accès à valider',
       v_nom || E' demande l''accès :\n' || demande_libelle(new)
         || coalesce(E'\n\nMessage : « ' || new.message || ' »', '')
-        || E'\n\nAccepte ou refuse dans FootLink : menu du compte → Membres & accès.');
+        || E'\n\nAccepte ou refuse dans FootLink : bandeau « demandes d''accès » de l''accueil, ou menu du compte → Demandes d''accès.');
   elsif new.statut <> old.statut and new.statut in ('acceptee', 'refusee') then
     perform notif_ajouter(array[new.profile_id],
       case new.statut when 'acceptee' then 'acces_accepte' else 'acces_refuse' end,

@@ -62,6 +62,18 @@ async function imEnvoyer(){
 
 // ---- Suivi dans l'onglet Propositions ----
 async function imCharger(){const{data,error}=await sb.rpc('mes_invitations_match');imListe=error?null:(data||[]);return imListe;}
+// Les réponses par e-mail / lien d'annonce « à décider » comptent dans les pastilles (menu, accueil, onglet) :
+// sans ça, une réponse à une annonce partagée n'était signalée nulle part
+const imAFaire=i=>i.decide&&(i.statut==='contre'||i.statut==='a_valider');
+const imMajCompte=prMajCompte;
+prMajCompte=async function(){
+  const n=await imMajCompte.apply(this,arguments);
+  if(n===undefined)return n;
+  await imCharger();
+  const t=n+(imListe||[]).filter(imAFaire).length;
+  ['umenu-prop-badge','home-prop-badge'].forEach(id=>{const b=document.getElementById(id);if(b){b.textContent=t>99?'99+':t;b.style.display=t?'':'none';}});
+  return t;
+};
 const imRenderListe=prRenderListe;
 prRenderListe=async function(){
   await imRenderListe.apply(this,arguments);
@@ -76,7 +88,7 @@ prRenderListe=async function(){
     const quand=`${imJour(i.jour)}${i.heure?' · '+i.heure:''} · ${i.lieu==='nous'?'🏠 chez nous':'✈️ chez eux'}`;
     let act='';
     if(i.statut==='a_valider'&&i.decide)act+=`<button class="badd" onclick="imAgir('${i.id}','envoyer')">➤ Envoyer</button>`;
-    if(i.statut==='contre'&&i.decide)act+=`<button class="badd" onclick="imAgir('${i.id}','accepter_contre')">${viaAnnonce?'Accepter ce match':'Accepter la nouvelle date'}</button><button class="bsec" onclick="imAgir('${i.id}','refuser_contre')">Refuser</button>`;
+    if(i.statut==='contre'&&i.decide)act+=`<button class="badd" onclick="imAgir('${i.id}','accepter_contre')">${viaAnnonce?'Accepter ce match':'Accepter la nouvelle date'}</button><button class="bsec" onclick="imFormRefus('${i.id}')">Refuser</button>`;
     if(['a_valider','envoyee','contre'].includes(i.statut))act+=`<button class="bsec" onclick="imAgir('${i.id}','annuler')">Annuler</button>`;
     return `<div class="card rs-card${(i.statut==='contre'||i.statut==='a_valider')&&i.decide?' todo':''}" style="cursor:default">
       <div class="rs-top"><div style="flex:1;min-width:0"><div class="rs-club">✉️ ${esc(i.club_externe)}${i.equipe_externe?' · '+esc(i.equipe_externe):''}</div>
@@ -85,13 +97,22 @@ prRenderListe=async function(){
       ${i.statut==='contre'||viaAnnonce?`<div class="rs-line" style="color:var(--amber)">${viaAnnonce?'📅 Créneau choisi :':'↪ Ils proposent :'} ${esc(imJour(i.reponse_jour))}${i.reponse_heure?' · '+i.reponse_heure:''} · ${i.reponse_lieu==='nous'?'🏠 chez nous':'✈️ chez eux'}</div>`:''}
       ${i.reponse_message?`<div class="rs-line">💬 « ${esc(i.reponse_message)} »</div>`:''}
       ${i.reponse_nom||i.reponse_tel?`<div class="rs-line">☎️ ${esc([i.reponse_nom,i.reponse_tel].filter(Boolean).join(' · '))}</div>`:''}
-      ${act?`<div class="trn-ins-a">${act}</div>`:''}</div>`;};
+      ${act?`<div class="trn-ins-a">${act}</div>`:''}<div id="im-refus-${i.id}"></div></div>`;};
   const enCours=l.filter(i=>['a_valider','envoyee','contre'].includes(i.statut)),fini=l.filter(i=>!enCours.includes(i)).slice(0,10);
   body.insertAdjacentHTML('beforeend',`<div class="tb-sec-t" style="margin-top:14px">Propositions par e-mail (clubs sans FootLink)</div>${enCours.map(carte).join('')}${fini.map(carte).join('')}`);
 };
+// Refus d'une autre date : raison facultative, reprise dans l'e-mail envoyé au club
+function imFormRefus(id){
+  document.getElementById('im-refus-'+id).innerHTML=`<div style="margin-top:8px"><label class="fl">Raison du refus <span style="color:var(--text3);font-weight:400">(facultatif)</span></label>
+    <textarea class="fi" id="imr-msg-${id}" rows="2" maxlength="300" placeholder="Ex. : pas de terrain ce jour-là…"></textarea>
+    <button class="bred" style="margin-top:6px" onclick="imAgir('${id}','refuser_contre')">Confirmer le refus</button></div>`;
+  document.getElementById('imr-msg-'+id).focus();
+}
 async function imAgir(id,action){
   if(action==='annuler'&&!await askConfirm('Annuler cette proposition ?'))return;
-  const{data,error}=await sb.rpc('invitation_match_agir',{p_id:id,p_action:action});
+  const args={p_id:id,p_action:action};
+  if(action==='refuser_contre')args.p_motif=document.getElementById('imr-msg-'+id)?.value.trim()||null;
+  const{data,error}=await sb.rpc('invitation_match_agir',args);
   if(error)return showToast(error.message.replace(/^.*?:\s*/,'')||'Action impossible','err');
   showToast({envoyee:'✉️ Proposition envoyée',acceptee:'Match ajouté au calendrier : le club est prévenu',refusee:'Nouvelle date refusée : le club est prévenu',annulee:'Proposition annulée'}[data]||'OK','ok');
   if(data==='acceptee'&&typeof loadMatches==='function')loadMatches();
@@ -111,12 +132,12 @@ async function icEnvoyer(){
   if(error)return showToast(/function|schema cache/i.test(error.message)?'Fonction pas encore disponible':error.message.replace(/^.*?:\s*/,''),'err');
   closeModal('modal-ic');showToast('✉️ Invitation envoyée','ok');
 }
-// Bouton aussi dans « Mon club » (CQ / coordinateurs)
-const imRenderClubPage=renderClubPage;
-renderClubPage=async function(){
-  await imRenderClubPage.apply(this,arguments);
-  const el=document.getElementById('club-content');
-  if(el&&imClub()&&!document.getElementById('ic-club-btn'))el.insertAdjacentHTML('beforeend','<div style="margin-top:14px"><button class="bsec" id="ic-club-btn" onclick="icOuvrir()">✉️ Inviter un autre club sur FootLink</button></div>');
+// « Inviter un club » vit dans Gestion des clubs (à côté de « Créer un club »), pas dans Mon club
+const imRenderPlateforme=renderPlateforme;
+renderPlateforme=async function(){
+  await imRenderPlateforme.apply(this,arguments);
+  const nv=document.querySelector('.pt-new');
+  if(nv&&imClub()&&!document.getElementById('ic-club-btn'))nv.insertAdjacentHTML('afterend','<button class="bsec pt-new" id="ic-club-btn" onclick="icOuvrir()">✉️ Inviter un club sur FootLink</button>');
   imPreremplir();
 };
 
