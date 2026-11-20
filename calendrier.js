@@ -47,8 +47,10 @@ async function renderCalendrier(){
   const h=d=>new Date(d).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
   const contenu=(t,j)=>{
     const iso=calIso(j),items=[];
+    // Match cliquable → fiche du match (bascule sur l'équipe, comme depuis l'accueil du club) :
+    // demandé au test du 2026-11-20, seuls les propositions et tournois s'ouvraient
     (m.data||[]).filter(x=>x.team_id===t.id&&calIso(new Date(x.date))===iso).forEach(x=>items.push({k:h(x.date),html:
-      `<div class="cal-it ${x.lieu==='domicile'?'dom':'ext'}${x.statut==='termine'?' fini':''}">${h(x.date)} ${x.lieu==='domicile'?'🏠':'✈️'} ${esc(x.adversaire)}</div>`}));
+      `<div class="cal-it ${x.lieu==='domicile'?'dom':'ext'}${x.statut==='termine'?' fini':''}" onclick="clubOuvrirMatch('${x.team_id}','${x.id}')">${h(x.date)} ${x.lieu==='domicile'?'🏠':'✈️'} ${esc(x.adversaire)}</div>`}));
     props.forEach(p=>{
       const mien=p.cote==='annonceur'?p.equipe_annonceur_id:p.equipe_proposante_id;if(mien!==t.id||p.jour!==iso)return;
       const autre=p.cote==='annonceur'?`${p.club_proposant} ${p.equipe_proposante}`:`${p.club_annonceur} ${p.equipe_annonceur}`;

@@ -804,6 +804,7 @@ body.parent-mode #nav-players,body.parent-mode .badd,body.parent-mode .pa-cache{
 .cal-it.dom{background:var(--green-bg);border-color:var(--green-border)}
 .cal-it.ext{background:var(--blue-bg);border-color:var(--blue-border)}
 .cal-it.fini{opacity:.55}
+.cal-it[onclick]{cursor:pointer}
 .cal-it.prop{border:1px dashed var(--amber);background:var(--amber-bg);cursor:pointer}
 .cal-it.prop small{display:block;color:var(--amber);font-weight:700}
 .cal-it.libre{border:1px dashed var(--border2);color:var(--text3)}
