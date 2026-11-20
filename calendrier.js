@@ -26,7 +26,7 @@ async function renderCalendrier(){
   if(!calLundi)calLundi=calDebutSemaine(new Date());
   const jours=[...Array(7)].map((_,i)=>{const d=new Date(calLundi);d.setDate(d.getDate()+i);return d;});
   const debut=calIso(jours[0]),fin=calIso(jours[6]);
-  const eqs=teams.filter(t=>t.club_id===calClub).sort((a,b)=>a.nom.localeCompare(b.nom));
+  const eqs=teams.filter(t=>t.club_id===calClub).sort(ordreEquipes);   // par âge (U6 avant U17)
   const ids=eqs.map(t=>t.id);
   el.innerHTML='<div class="spin"></div>';
   const finExcl=new Date(jours[6]);finExcl.setDate(finExcl.getDate()+1);

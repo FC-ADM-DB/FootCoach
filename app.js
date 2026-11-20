@@ -267,12 +267,16 @@ function openUserMenu(){
 function closeUserMenu(e){if(!e||e.target===document.getElementById('umenu'))document.getElementById('umenu').classList.remove('open');}
 
 // ============ TEAMS ============
+const ageEquipe=t=>parseInt(String(t?.categorie||'').replace(/\D/g,''))||99;
+const ordreEquipes=(a,b)=>ageEquipe(a)-ageEquipe(b)||String(a.nom||'').localeCompare(String(b.nom||''),'fr',{numeric:true});
 async function loadTeams(){
   // Toutes les équipes visibles (la base filtre : mes équipes + celles des clubs dont je
   // suis CQ/coordinateur). team_members est filtré sur moi seul, sans exclure les équipes
   // où je n'ai pas de rôle d'équipe (avant : « !inner » les cachait aux CQ/coordinateurs).
   const{data}=await sb.from('teams').select('*,team_members(profile_id,role),clubs(id,nom,logo,slug,verifie)').eq('team_members.profile_id',U.id).order('nom');
-  teams=data||[];renderTeamsList();renderTsw();
+  // Tri par âge (U6, U7… U17) puis par nom : l'ordre alphabétique de la base mettait
+  // U6 après U17 (sélecteur d'équipe, calendrier du club)
+  teams=(data||[]).sort(ordreEquipes);renderTeamsList();renderTsw();
   // CQ / coordinateur : on démarre sur la vue club (aucune équipe imposée) ; loadTeams est
   // aussi rappelé après une modification du club, il ne doit pas quitter la vue club.
   if(clubVue&&isClubStaff(clubVue))selClub(clubVue);
@@ -302,7 +306,7 @@ function majAccueilNouveau(){
     <div class="an-s">Ton compte est prêt, mais il n'est relié à aucun club ni aucune équipe pour l'instant. Choisis ta situation :</div>
     <div id="da-mes"></div>
     <div class="an-c"><div class="an-h">🏟 Je fais partie d'un club qui utilise FootLink</div>
-      <div class="an-p">Demande l'accès directement : le club (ou l'entraîneur de l'équipe) valide ta demande et tu reçois un e-mail.</div>
+      <div class="an-p">Demande l'accès directement : le club (CQ ou coordinateur) valide ta demande et tu reçois un e-mail.</div>
       <button class="badd" onclick="daOuvrir('club')">Demander l'accès à mon club</button>
       <div class="an-p" style="margin:10px 0 6px">Ou donne ton adresse au responsable du club, qui t'ajoutera lui-même :</div>
       <div class="an-mail"><b>${mail}</b><button class="bsec" onclick="copierMonEmail()">Copier</button></div>
@@ -395,6 +399,8 @@ function selTeam(t){
   isAdmin = isTeamStaff(t);
   const adminBtn=document.getElementById('admin-btn');
   if(adminBtn)adminBtn.style.display=canManageTeam(t)?'inline-flex':'none';
+  // Tuile de l'accueil : l'entraîneur / délégué d'un club ne gère plus l'effectif (R1)
+  const effSub=document.getElementById('home-eff-sub');if(effSub)effSub.textContent=canManageTeam(t)?'Gérer joueurs':'Voir les joueurs';
   document.getElementById('hdr-tname').textContent = CT?.nom || 'Choisir une équipe';
   document.getElementById('hdr-dot').style.background = CT?.couleur || '#00d68f';
   renderNavTeam();renderNavUser();
@@ -2523,7 +2529,12 @@ function toggleMode(){
   if(mdMode){btn.textContent='🏠 Bureau';btn.classList.add('on');b.style.display='block';}
   else{btn.textContent='⚽ Match';btn.classList.remove('on');b.style.display='none';}
 }
-function signOut(){sb.auth.signOut().then(()=>{U=null;UP=null;teams=[];CT=null;players=[];matches=[];CM=null;selected=null;document.getElementById('screen-app').classList.remove('active');document.getElementById('screen-auth').classList.add('active');document.getElementById('form-login').style.display='block';document.getElementById('form-reg').style.display='none';showToast('Déconnecté','ok');});}
+// Déconnexion = rechargement complet de l'app. Avant, seules quelques variables étaient
+// vidées : la page affichée restait (fiche de match avec les noms de tous les enfants,
+// calendrier du club…) et le compte suivant la voyait — constaté le 2026-11-20 en se
+// reconnectant comme parent après un coordinateur (appareil partagé). Le rechargement
+// remet aussi à zéro l'état des autres modules (propositions, tournois, parents, timers).
+function signOut(){sb.auth.signOut().finally(()=>{location.replace(location.pathname);});}
 
 // ============ MODALS & TOASTS ============
 function openModal(id){document.getElementById(id).classList.add('open');}
