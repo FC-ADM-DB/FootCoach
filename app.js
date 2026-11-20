@@ -197,6 +197,14 @@ const isClubCQ=cid=>!!cid&&myClubs.some(c=>c.club_id===cid&&c.role==='cq');
 const myTeamRole=t=>t?.team_members?.find(m=>m.profile_id===U?.id)?.role||'';
 // Encadrement d'une équipe : entraîneur/délégué de l'équipe OU CQ/coordinateur de son club
 const isTeamStaff=t=>!!t&&(isStaffRole(myTeamRole(t))||isClubStaff(t.club_id));
+// Gérer l'effectif et les accès (ajouter / retirer joueurs et membres). Retour de test du
+// 2026-11-20 : dans un club, « c'est le coordinateur qui gère » → CQ / coordinateurs seulement ;
+// équipe sans club (entraîneur indépendant), son encadrement. Même règle que la base
+// (can_manage_team, migration R1) : l'interface ne montre que ce que la base acceptera.
+const canManageTeam=t=>!!t&&(t.club_id?isClubStaff(t.club_id):isTeamStaff(t));
+// Créer une équipe : CQ / coordinateur (dans son club), ou quelqu'un qui n'a aucune équipe de
+// club (nouveau compte, entraîneur indépendant). Parent ou entraîneur d'un club : non.
+const canCreateTeam=()=>!!U&&(myClubs.length>0||!teams.some(t=>t.club_id));
 // Libellé de mon rôle pour une équipe (rôle d'équipe, sinon rôle de club)
 // Le rôle de club (CQ / coordinateur) prime : David, CQ, s'affichait « Entraîneur »
 function myRoleLabel(t){
@@ -245,7 +253,7 @@ function renderNavUser(){
   const rc=clubVue&&myClubs.find(c=>c.club_id===clubVue);
   fillAll('.js-user-role',el=>el.textContent=CT?(myRoleLabel(CT)||'Membre'):rc?(rc.role==='cq'?'CQ':'Coordinateur'):'');
   const adm=document.getElementById('umenu-admin');
-  if(adm)adm.style.display=(isAdmin||(U&&myAdminTeams().length))?'flex':'none';
+  if(adm)adm.style.display=(U&&myAdminTeams().length)?'flex':'none';
 }
 function openUserMenu(){
   const md=document.getElementById('umenu-md');
@@ -274,7 +282,8 @@ async function loadTeams(){
   majAccueilNouveau();
 }
 // Compte sans aucun rôle (ni équipe, ni club) : l'accueil était presque vide, sans dire
-// quoi faire. On explique les 3 chemins : être ajouté par son club, lien parent, créer son club.
+// quoi faire. On explique les chemins : être ajouté par son club, lien parent, créer son
+// équipe sans club (entraîneur indépendant, ajouté le 2026-11-20), créer son club.
 function majAccueilNouveau(){
   const sans=!!U&&!teams.length&&!myClubs.length;
   document.body.classList.toggle('sans-role',sans);
@@ -301,7 +310,10 @@ function majAccueilNouveau(){
     <div class="an-c"><div class="an-h">👪 Je suis parent d'un joueur</div>
       <div class="an-p">Demande l'accès en indiquant le prénom de ton enfant : l'encadrement de l'équipe te relie à lui. Si l'entraîneur t'a envoyé un <b>lien d'invitation</b>, ouvre-le simplement une fois connecté(e).</div>
       <button class="badd" onclick="daOuvrir('parent')">Demander l'accès comme parent</button></div>
-    <div class="an-c"><div class="an-h">⚽ Je veux inscrire mon club</div>
+    <div class="an-c"><div class="an-h">🧢 Je suis entraîneur, mon club n'utilise pas FootLink</div>
+      <div class="an-p">Crée ton équipe et gère-la toi-même (joueurs, matchs, Live, temps de jeu). Elle reste privée : sans club, pas de recherche de match entre clubs.</div>
+      <button class="badd" onclick="openTeamModal()">Créer mon équipe</button></div>
+    <div class="an-c"><div class="an-h">🏟 Je veux inscrire mon club</div>
       <div class="an-p">Crée la fiche de ton club : tu en deviens le responsable (CQ). Nous vérifions chaque nouveau club avant qu'il puisse publier des annonces ou des tournois.</div>
       <button class="badd" onclick="goPage('club')">Créer mon club</button></div>
     <div class="an-q">Une question ? <a href="mailto:contact@footlink.be">contact@footlink.be</a></div>`;
@@ -382,7 +394,7 @@ function selTeam(t){
   CT = t;
   isAdmin = isTeamStaff(t);
   const adminBtn=document.getElementById('admin-btn');
-  if(adminBtn)adminBtn.style.display=isAdmin?'inline-flex':'none';
+  if(adminBtn)adminBtn.style.display=canManageTeam(t)?'inline-flex':'none';
   document.getElementById('hdr-tname').textContent = CT?.nom || 'Choisir une équipe';
   document.getElementById('hdr-dot').style.background = CT?.couleur || '#00d68f';
   renderNavTeam();renderNavUser();
@@ -392,8 +404,13 @@ function selTeam(t){
   loadMatches();
 }
 
+function majBoutonsEquipe(){
+  const ok=canCreateTeam();
+  document.querySelectorAll('#btn-add-team,.tsw-add').forEach(b=>b.style.display=ok?'':'none');
+}
 function renderTeamsList(){
   const el=document.getElementById('teams-list');
+  majBoutonsEquipe();
   if(!teams.length){el.innerHTML=`<div class="empty"><div class="empty-i">🏆</div><div class="empty-t">Aucune équipe</div><div class="empty-s">Crée ta première équipe</div></div>`;return;}
   el.innerHTML=teams.map(t=>{
     const staff=isTeamStaff(t);
@@ -560,7 +577,9 @@ function pickTeamLogo(input){
   img.onerror=()=>{URL.revokeObjectURL(url);showToast('Image illisible','err');};
   img.src=url;
 }
-function openTeamModal(clubId){setTeamModalMode(null);newTeamClubId=clubId||null;openModal('modal-team');}
+function openTeamModal(clubId){
+  if(!clubId&&!canCreateTeam())return showToast('Les équipes du club sont créées par le CQ ou un coordinateur','err');
+  setTeamModalMode(null);newTeamClubId=clubId||null;openModal('modal-team');}
 async function editTeam(id,e){
   if(e&&e.stopPropagation)e.stopPropagation();
   const t=teams.find(t=>t.id===id);if(!t)return;
@@ -623,8 +642,11 @@ async function loadPlayers(){
 }
 function renderPlayers(){
   const el=document.getElementById('players-list');
+  // Ajouter / retirer des joueurs : CQ / coordinateurs pour une équipe de club (R1)
+  const gere=canManageTeam(CT);
+  const add=document.getElementById('btn-add-player');if(add)add.style.display=gere?'':'none';
   if(!CT){el.innerHTML=clubVue?choisirEquipeHtml('👥','L\'effectif est propre à chaque équipe','players'):`<div class="empty"><div class="empty-i">👥</div><div class="empty-t">Aucune équipe</div></div>`;return;}
-  if(!players.length){el.innerHTML=`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide</div><div class="empty-s">Ajoute tes joueurs</div></div>`;return;}
+  if(!players.length){el.innerHTML=`<div class="empty"><div class="empty-i">👶</div><div class="empty-t">Effectif vide</div><div class="empty-s">${gere?'Ajoute tes joueurs':'Les joueurs sont ajoutés par le CQ ou un coordinateur du club'}</div></div>`;return;}
   el.innerHTML=players.map(p=>{
     const col=pCol(p);
     return `<div class="pr-row">
@@ -635,12 +657,13 @@ function renderPlayers(){
       </div>
       ${p.numero_poste?`<div class="pnum">${p.numero_poste}</div>`:''}
       ${typeof isParentOnly==='function'&&isParentOnly(CT)?'':`<div class="bico" onclick="editPlayer('${p.id}',event)" style="margin-right:3px">✎</div>
-      <div class="bico" onclick="delPlayer('${p.id}',event)">✕</div>`}
+      ${gere?`<div class="bico" onclick="delPlayer('${p.id}',event)">✕</div>`:''}`}
     </div>`;
   }).join('');
 }
 function openPlayerModal(){
   if(!CT)return showToast('Sélectionne une équipe','err');
+  if(!canManageTeam(CT))return showToast('Les joueurs sont ajoutés par le CQ ou un coordinateur du club','err');
   editPid=null;document.getElementById('mp-title').textContent='Nouveau joueur';document.getElementById('btn-sp').textContent='Ajouter';
   ['p-pn','p-nn','p-dob'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('p-pub').checked=false;
@@ -685,7 +708,10 @@ async function savePlayer(){
 async function delPlayer(id,e){
   e.stopPropagation();const p=players.find(pl=>pl.id===id);
   if(!await askConfirm(`Supprimer ${p?.prenom} ${p?.nom} ?`))return;
-  await sb.from('players').update({actif:false}).eq('id',id);
+  // .select() : un refus de la base (R1 : effectif géré par le club) ne renvoie pas
+  // toujours d'erreur ; on ne doit pas afficher « Retiré » à tort.
+  const{data,error}=await sb.from('players').update({actif:false}).eq('id',id).select('id');
+  if(error||!data?.length)return showToast('Retrait refusé : l\'effectif est géré par le CQ ou un coordinateur du club','err');
   showToast('Retiré','ok');await loadPlayers();
 }
 
@@ -705,7 +731,8 @@ function getMatchChrono(m){
 function renderMatchesList(){
   const el=document.getElementById('matches-list');
   if(!CT&&clubVue){el.innerHTML=choisirEquipeHtml('📅','Les matchs se gèrent équipe par équipe (les prochains matchs du club sont sur l\'accueil)','match');return;}
-  if(!matches.length){el.innerHTML=`<div class="empty"><div class="empty-i">📅</div><div class="empty-t">Aucun match</div><div class="empty-s">Crée ton premier match</div></div>`;return;}
+  // Parent : pas d'invitation à « créer un match » (retour de test du 2026-11-20)
+  if(!matches.length){el.innerHTML=`<div class="empty"><div class="empty-i">📅</div><div class="empty-t">Aucun match</div><div class="empty-s">${isTeamStaff(CT)?'Crée ton premier match':'Les matchs de l\'équipe apparaîtront ici'}</div></div>`;return;}
   el.innerHTML=matches.map(m=>{
     const d=new Date(m.date).toLocaleDateString('fr-BE',{weekday:'short',day:'2-digit',month:'2-digit'});
     const h=new Date(m.date).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
@@ -2035,7 +2062,9 @@ async function updateStats(){
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Fonction SQL absente (script de sécurité Supabase pas encore exécuté).
 function isMissingFn(err){return !!err&&(err.code==='PGRST202'||err.code==='42883'||/could not find the function/i.test(err.message||''));}
-function myAdminTeams(){return teams.filter(isTeamStaff);}
+// Équipes dont je gère les accès (« Membres & accès ») : depuis R1, plus l'entraîneur ou
+// le délégué d'une équipe de club (la base refuserait ses modifications).
+function myAdminTeams(){return teams.filter(canManageTeam);}
 // Membres & accès : une ligne compacte par personne (résumé de ses accès), dépliable
 // pour modifier ses accès ; recherche, filtre par équipe (sélecteur directement sur
 // la ligne) et par rôle — utilisable avec beaucoup de membres. Filtres et fiche
@@ -2451,7 +2480,7 @@ function renderStatsPage(){
         const score=m.score_nous!=null?`${m.score_nous}–${m.score_eux}`:'–';
         const outcome=m.score_nous>m.score_eux?'pg':m.score_nous<m.score_eux?'pr':'pb';
         return `<div class="recent-item"><div><div style="font-size:13px;font-weight:600">vs ${m.adversaire}</div><div style="font-size:11px;color:var(--text2)">${d.toLocaleDateString('fr-BE',{day:'2-digit',month:'2-digit'})} · ${m.lieu==='domicile'?'Domicile':'Ext.'}</div></div><div class="result ${outcome}">${score}</div></div>`;
-      }).join(''):`<div class="empty"><div class="empty-i">📭</div><div class="empty-t">Pas encore de résultats</div><div class="empty-s">Joue un match pour voir l'historique</div></div>`}
+      }).join(''):`<div class="empty"><div class="empty-i">📭</div><div class="empty-t">Pas encore de résultats</div><div class="empty-s">${isTeamStaff(CT)?'Joue un match pour voir l\'historique':'Les résultats apparaîtront ici après le premier match'}</div></div>`}
     </div>`;
 }
 
