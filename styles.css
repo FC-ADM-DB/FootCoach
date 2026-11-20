@@ -985,7 +985,8 @@ body.club-vue #page-players .badd,body.club-vue #page-match .badd{display:none}
 .cal-titre-date{position:relative;cursor:pointer;border-radius:var(--rsm);padding:6px 4px}
 .cal-titre-date:hover{background:var(--bg3)}
 .cal-titre-date input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
-.cal-mois{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.cal-mois{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.cal-mois::-webkit-scrollbar{display:none}   /* barre grise sous les mois sur PC (on fait défiler au doigt / à la molette) */
 .cal-mois button{flex-shrink:0;min-height:32px;padding:0 11px;border-radius:99px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;text-transform:capitalize}
 .cal-mois button.on{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
 .trn-ins-h .pill{flex-shrink:0;white-space:nowrap}
